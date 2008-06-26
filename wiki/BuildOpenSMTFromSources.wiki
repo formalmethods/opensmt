@@ -1,4 +1,5 @@
-#summary Compilation Instruction
+#summary How to build OpenSMT
+#labels compile,make,gcc,g,autotools,automake,configure
 
 = Requirements =
 
@@ -25,4 +26,29 @@ cd build
 ../configure && make
 }}}
 
-You should find an executable = `opensmt` = in the same directory
+You should find an executable `opensmt` in the same directory.
+
+
+= Special executable =
+
+It is possible to generate special executables, by specifying command-line options to configure:
+
+  * Debugging version
+{{{
+../configure --disable-optimization
+}}}
+
+  * SMTCOMP version
+{{{
+../configure --enable-smtcomp
+}}}
+
+  * Profile version
+{{{
+../configure --enable-profiling
+}}}
+
+  * Pedantic assertion checking (slow, optimizations must be turned off)
+{{{
+../configure --enable-pedantic_debug --disable-optimization
+}}}
