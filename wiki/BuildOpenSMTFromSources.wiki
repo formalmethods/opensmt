@@ -1,0 +1,28 @@
+#summary Compilation Instruction
+
+= Requirements =
+
+In order to compile OpenSMT you need autotools installed.
+
+
+= Compile =
+
+From the root directory of OpenSMT:
+
+  * Generate configure
+{{{
+autoreconf --install (generates some files and configure)
+}}}
+
+  * Create a directory that will contain the object files and the executable, and change to it
+{{{
+mkdir build
+cd build
+}}}
+
+  * Generate Makefiles and compile
+{{{
+../configure && make
+}}}
+
+You should find an executable = `opensmt` = in the same directory
