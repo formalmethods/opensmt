@@ -3,8 +3,10 @@
 
 = Requirements =
 
-In order to compile OpenSMT you need autotools installed.
-
+The current districution has been successfully compiled and tested under 
+Linux and Mac. In order to compile OpenSMT you need: 
+  * gcc/g++ (I'm using 4.2.3)
+  * autotools (I'm using 2.61)
 
 = Compile =
 
@@ -54,7 +56,6 @@ It is possible to generate special executables, by specifying command-line optio
 }}}
 
   * External tool checking: each call to the theory part is checked against an external tool (not fully supported yet)
-
 {{{
 ../configure --enable-external_tool --disable-optimization
 }}}
