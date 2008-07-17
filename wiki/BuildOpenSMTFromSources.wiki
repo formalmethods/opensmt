@@ -12,10 +12,10 @@ From the root directory of OpenSMT:
 
   * Generate configure
 {{{
-autoreconf --install (generates some files and configure)
+autoreconf --install (generates some files and directories. Use --force if you wish to overwrite)
 }}}
 
-  * Create a directory that will contain the object files and the executable, and change to it
+  * Create a directory (e.g. build) that will contain the object files and the executable, and change into it
 {{{
 mkdir build
 cd build
@@ -29,16 +29,16 @@ cd build
 You should find an executable `opensmt` in the same directory.
 
 
-= Special executable =
+= Special executables =
 
 It is possible to generate special executables, by specifying command-line options to configure:
 
-  * Debugging version
+  * Debugging version: disables optimizations to allow assertion checking
 {{{
 ../configure --disable-optimization
 }}}
 
-  * SMTCOMP version
+  * SMTCOMP version: no output, except sat/unsat/unknown. Optimizations are turned automatically on
 {{{
 ../configure --enable-smtcomp
 }}}
@@ -48,7 +48,13 @@ It is possible to generate special executables, by specifying command-line optio
 ../configure --enable-profiling
 }}}
 
-  * Pedantic assertion checking (slow, optimizations must be turned off)
+  * Pedantic assertion checking: enables certain SLOW sanity checks during execution. Optimizations must be turned off
 {{{
 ../configure --enable-pedantic_debug --disable-optimization
+}}}
+
+  * External tool checking: each call to the theory part is checked against an external tool (not fully supported yet)
+
+{{{
+../configure --enable-external_tool --disable-optimization
 }}}
