@@ -53,7 +53,7 @@ int main( int argc, char * argv[] )
   cerr << "#" << endl
        << "# -------------------------------------------------------------------------" << endl
        << "#                                                                          " << endl
-       << "# OpenSMT " << VERSION << "-- Copyright (C) 2008, Roberto Bruttomesso" << endl
+       << "# OpenSMT " << VERSION << " -- Copyright (C) 2008, Roberto Bruttomesso" << endl
        << "#                                                                          " << endl
        << "# OpenSMT is free software: you can redistribute it and/or modify it under " << endl
        << "# the terms of the GNU General Public License as published by the Free     " << endl
