@@ -280,15 +280,6 @@ private:
   void    expRemoveExplanation ( );                           // Undoes the effect of expStoreExplanation
   void    expCleanup           ( );                           // Undoes the effect of expExplain
   //
-  // For Extraction and Concatenation Interpretation
-  //
-  void    cbeCompute      ( Enode *, Enode *, vector< Enode * > &, vector< Enode * > & );
-  void    cbeRetrieve     ( Enode *, vector< Enode * > & );
-  void    cbeRetrieve     ( Enode *, int, Set( int ) & );
-  Enode * cbe             ( Enode * );
-  void    cbeUpdate       ( Enode *, int, int );
-  void    cbeUpdateRec    ( Enode *, int, int, vector< Enode * > & ); 
-  //
   // Debugging routines
   //
   void printExplanation          ( ostream & );
