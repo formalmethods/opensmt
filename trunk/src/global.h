@@ -79,16 +79,16 @@ typedef enum
 
 static const char * logicStr ( logic_t l )
 {
-       if ( EMPTY ) return "EMPTY";
-  else if ( QF_UF ) return "QF_UF";
-  else if ( QF_RDL ) return "QF_RDL";
-  else if ( QF_IDL ) return "QF_IDL";
-  else if ( QF_LRA ) return "QF_LRA";
-  else if ( QF_LIA ) return "QF_LIA";
-  else if ( QF_UFRDL ) return "QF_UFRDL";
-  else if ( QF_UFIDL ) return "QF_UFIDL";
-  else if ( QF_UFLRA ) return "QF_UFLRA";
-  else if ( QF_UFLIA ) return "QF_UFLIA";
+       if ( l == EMPTY ) return "EMPTY";
+  else if ( l == QF_UF ) return "QF_UF";
+  else if ( l == QF_RDL ) return "QF_RDL";
+  else if ( l == QF_IDL ) return "QF_IDL";
+  else if ( l == QF_LRA ) return "QF_LRA";
+  else if ( l == QF_LIA ) return "QF_LIA";
+  else if ( l == QF_UFRDL ) return "QF_UFRDL";
+  else if ( l == QF_UFIDL ) return "QF_UFIDL";
+  else if ( l == QF_UFLRA ) return "QF_UFLRA";
+  else if ( l == QF_UFLIA ) return "QF_UFLIA";
   return "";
 }
 
