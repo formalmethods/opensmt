@@ -55,7 +55,7 @@ It is possible to generate special executables, by specifying command-line optio
 ../configure --enable-pedantic_debug --disable-optimization
 }}}
 
-  * External tool checking: each call to the theory part is checked against an external tool (not fully supported yet)
+  * External tool checking: each call to the theory part is checked against an external tool (you need to download "tool_wrapper.sh" and make sure it is inside a directory included in the PATH variable - not fully supported yet)
 {{{
 ../configure --enable-external_tool --disable-optimization
 }}}
