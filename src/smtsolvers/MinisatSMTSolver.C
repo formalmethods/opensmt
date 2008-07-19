@@ -44,10 +44,6 @@ OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWA
 //=================================================================================================
 // Added code
 
-#define CONFLICT_VERBOSE          0
-#define PROPAGATION_VERBOSE       0
-#define NO_HEURISTIC_LEARNING     1
-
 #ifndef OPTIMIZE
 #include <iostream>
 #include <fstream>
@@ -338,25 +334,8 @@ void MinisatSMTSolver::analyze(Clause* confl, vec<Lit>& out_learnt, int& out_btl
 	  theory_handler->getReason( p, r );
 
 	  // Produce a new reason
-#if NO_HEURISTIC_LEARNING
 	  Clause * c = Clause_new( r );
 	  cleanup.push( c );
-#else
-	  Clause * c = NULL;
-	  if ( r.size( ) > 5 )
-	  {
-	    c = Clause_new( r );
-	    cleanup.push( c );
-	  }
-	  else
-	  {
-	    c = Clause_new( r, true );
-	    learnts.push(c);
-	    attachClause(*c);
-	    claBumpActivity(*c);
-	  }
-#endif
-
 	  reason[var(p)] = c;
 	} 
 
