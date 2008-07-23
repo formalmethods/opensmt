@@ -1,5 +1,5 @@
 #summary How to build OpenSMT
-#labels compile,make,gcc,g,autotools,automake,configure
+#labels Featured,Phase-Deploy
 
 = Requirements =
 
