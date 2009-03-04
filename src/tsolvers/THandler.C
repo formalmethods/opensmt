@@ -140,6 +140,10 @@ bool THandler::check( bool complete )
 void THandler::backtrack( int blevel )
 {
   assert( blevel >= -1 );
+
+  if ( level_to_stack_size.size( ) == 0 )
+    return;
+
   assert( blevel < (int)level_to_stack_size.size( ) );
 
   if ( checked_trail_size > trail.size( ) )
