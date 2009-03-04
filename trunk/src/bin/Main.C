@@ -134,17 +134,27 @@ int main( int argc, char * argv[] )
     return 1;
   }
 
-  // Allocates SMTSolver based on MiniSAT
-  MinisatSMTSolver solver( egraph, config );
+  lbool result = l_Undef;
 
-  // Allocates Tseitin-like cnfizer
-  Tseitin cnfizer( egraph, solver, config );
+  if ( formula->isTrue( ) )
+    result = l_True;
+  else if ( formula->isFalse( ) )
+    result = l_False;
+  else
+  {
+    // Allocates SMTSolver based on MiniSAT
+    MinisatSMTSolver solver( egraph, config );
 
-  // CNFize the input formula and fed clauses to the solver
-  lbool result = cnfizer.cnfizeAndGiveToSolver( formula );
+    // Allocates Tseitin-like cnfizer
+    Tseitin cnfizer( egraph, solver, config );
 
-  // Solve
-  result = solver.smtSolve( );		            
+    // CNFize the input formula and fed clauses to the solver
+    result = cnfizer.cnfizeAndGiveToSolver( formula );
+
+    // Solve
+    result = solver.smtSolve( );		            
+  }
+
   printResult( result );
   // Prints the model (currently disabled)
   // if ( result == l_True ) S.printModel( );
