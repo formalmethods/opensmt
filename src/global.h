@@ -1,7 +1,7 @@
 /*********************************************************************
-Author: Roberto Bruttomesso <roberto.bruttomesso@unisi.ch>
+Author: Roberto Bruttomesso <roberto.bruttomesso@gmail.com>
 
-OpenSMT -- Copyright (C) 2008, Roberto Bruttomesso
+OpenSMT -- Copyright (C) 2009, Roberto Bruttomesso
 
 OpenSMT is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -20,8 +20,7 @@ along with OpenSMT. If not, see <http://www.gnu.org/licenses/>.
 #ifndef GLOBAL_H
 #define GLOBAL_H
 
-#define VERSION "0.1"
-
+#include <gmpxx.h>
 #include <cassert>
 #include <string>
 #include <vector>
@@ -31,12 +30,23 @@ along with OpenSMT. If not, see <http://www.gnu.org/licenses/>.
 #include <sstream>
 #include <iostream>
 #include <fstream>
+#include <queue>
 #include <ext/hash_map>
 #include <ext/hash_set>
+#include <ext/pb_ds/priority_queue.hpp>
+#include <ext/pb_ds/tag_and_trait.hpp>
+#include <ext/algorithm>
 #include <sys/time.h>
 #include <sys/resource.h>
 #include <unistd.h>
 #include <stdint.h>
+#include <limits.h>
+
+#if ( __WORDSIZE == 64 )
+#define BUILD_64
+#endif
+
+#define RESCALE_IN_DL 1
 
 using std::set;
 using std::map;
@@ -46,9 +56,19 @@ using std::pair;
 using std::make_pair;
 using std::list;
 
+using __gnu_cxx::is_heap;
 using __gnu_cxx::hash_map;
 using __gnu_cxx::hash_set;
 using __gnu_cxx::hash;
+
+#if defined( __GNUC__ ) && (__GNUC__ > 4 || (__GNUC__ == 4 && __GNUC_MINOR__ >= 3))
+using __gnu_pbds::priority_queue;
+using __gnu_pbds::pairing_heap_tag;
+#else
+#error "This version of OpenSMT requires at least gcc 4.3"
+using pb_ds::priority_queue;
+using pb_ds::pairing_heap_tag;
+#endif
 
 using std::cout;
 using std::cerr;
@@ -56,17 +76,59 @@ using std::endl;
 using std::ostream;
 using std::stringstream;
 using std::ofstream;
+using std::ifstream;
+
+#define USE_GMP 1
+#define FAST_RATIONALS 1
+
+#if FAST_RATIONALS
+#include "FastRationals.h"
+#define Real FastRational
+inline Real Real_inverse(const Real& x) {
+  return x.inverse();
+}
+#elif USE_GMP
+
+#define Real mpq_class
+
+#else
 
 #define Real double
+
+#endif
+
+#ifdef BUILD_64
+typedef int  enodeid_t;
+typedef long enodeid_pair_t;
+inline enodeid_pair_t encode( enodeid_t car, enodeid_t cdr )
+{
+  enodeid_pair_t p = car;
+  p = p<<(sizeof(enodeid_t)*8);
+  enodeid_pair_t q = cdr;
+  p |= q;
+  return p;
+}
+#else
+typedef int enodeid_t;
+#endif
+
+#ifndef uint
+typedef unsigned int uint;
+#endif
+
+#ifndef SMTCOMP
+#define STATISTICS
+#endif
 
 // Set the bit B to 1 and leaves the others to 0
 #define SETBIT( B ) ( 1 << (B) )
 
-typedef enum 
-{ 
+typedef enum
+{
     UNDEF         // Undefined logic
   , EMPTY         // Empty, for the template solver
   , QF_UF         // Uninterpreted Functions
+  , QF_BV         // BitVectors
   , QF_RDL        // Real difference logics
   , QF_IDL        // Integer difference logics
   , QF_LRA        // Real linear arithmetic
@@ -75,28 +137,31 @@ typedef enum
   , QF_UFIDL      // UF + IDL
   , QF_UFLRA      // UF + LRA
   , QF_UFLIA      // UF + LIA
+  , QF_UFBV       // UF + BV
 } logic_t;
 
 static const char * logicStr ( logic_t l )
 {
-       if ( l == EMPTY ) return "EMPTY";
-  else if ( l == QF_UF ) return "QF_UF";
-  else if ( l == QF_RDL ) return "QF_RDL";
-  else if ( l == QF_IDL ) return "QF_IDL";
-  else if ( l == QF_LRA ) return "QF_LRA";
-  else if ( l == QF_LIA ) return "QF_LIA";
+       if ( l == EMPTY )    return "EMPTY";
+  else if ( l == QF_UF )    return "QF_UF";
+  else if ( l == QF_BV )    return "QF_BV";
+  else if ( l == QF_RDL )   return "QF_RDL";
+  else if ( l == QF_IDL )   return "QF_IDL";
+  else if ( l == QF_LRA )   return "QF_LRA";
+  else if ( l == QF_LIA )   return "QF_LIA";
   else if ( l == QF_UFRDL ) return "QF_UFRDL";
   else if ( l == QF_UFIDL ) return "QF_UFIDL";
   else if ( l == QF_UFLRA ) return "QF_UFLRA";
   else if ( l == QF_UFLIA ) return "QF_UFLIA";
+  else if ( l == QF_UFBV )  return "QF_UFBV";
   return "";
 }
 
-static inline double cpuTime(void) 
+static inline double cpuTime(void)
 {
     struct rusage ru;
     getrusage(RUSAGE_SELF, &ru);
-    return (double)ru.ru_utime.tv_sec + (double)ru.ru_utime.tv_usec / 1000000; 
+    return (double)ru.ru_utime.tv_sec + (double)ru.ru_utime.tv_usec / 1000000;
 }
 
 #if defined(__linux__)
@@ -116,8 +181,30 @@ static inline int memReadStat(int field)
 
 static inline uint64_t memUsed() { return (uint64_t)memReadStat(0) * (uint64_t)getpagesize(); }
 
+#elif defined(__FreeBSD__) || defined(__OSX__) || defined(__APPLE__)
+static inline uint64_t memUsed()
+{
+  char name[256];
+  FILE *pipe;
+  char buf[1024];
+  uint64_t value=0;
+  pid_t pid = getpid();
+  sprintf(name,"ps -o rss -p %d | grep -v RSS", pid);
+  pipe = popen(name, "r");
+  if (pipe)
+  {
+    fgets(buf, 1024, pipe);
+    value = 1024 * strtoul(buf, NULL, 10);
+    pclose(pipe);
+  }
+  return value;
+}
 #else // stub to support every platform
 static inline uint64_t memUsed() {return 0; }
 #endif
+
+#define CNF_STR "CNF_DEF_%d"
+
+#define error( F, S ) { cerr << "# Error: " << F << S << " (triggered at " <<  __FILE__ << ", " << __LINE__ << ")" << endl; exit( 1 ); }
 
 #endif

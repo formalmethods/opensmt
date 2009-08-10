@@ -1,7 +1,7 @@
 /*********************************************************************
-Author: Roberto Bruttomesso <roberto.bruttomesso@unisi.ch>
+Author: Roberto Bruttomesso <roberto.bruttomesso@gmail.com>
 
-OpenSMT -- Copyright (C) 2008, Roberto Bruttomesso
+OpenSMT -- Copyright (C) 2009, Roberto Bruttomesso
 
 OpenSMT is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -19,12 +19,8 @@ along with OpenSMT. If not, see <http://www.gnu.org/licenses/>.
 
 //
 // This is an empty solver to be used as a template for the 
-// development of ordinary theory solvers. Set EMPTY_SOLVER_OUTPUT to 1 
-// (and recompile) to get a verbose printout for each action at the 
-// time they are called
+// development of ordinary theory solvers. 
 //
-
-#define EMPTY_SOLVER_OUTPUT 1
 
 #include "EmptySolver.h"
 
@@ -34,10 +30,11 @@ along with OpenSMT. If not, see <http://www.gnu.org/licenses/>.
 // the solver's data structures. This function is 
 // called before the actual solving starts.
 // 
-void EmptySolver::inform( Enode * e )  
+lbool EmptySolver::inform( Enode * e )  
 { 
   assert( e );
   assert( belongsToT( e ) );
+  return l_Undef;
 }
 
 // 
@@ -46,7 +43,7 @@ void EmptySolver::inform( Enode * e )
 // return false. The real consistency state will
 // be checked with "check"
 //
-bool EmptySolver::assertLit ( Enode * e )
+bool EmptySolver::assertLit ( Enode * e, bool reason )
 {
   assert( e );
   assert( belongsToT( e ) );
@@ -83,45 +80,6 @@ void EmptySolver::popBacktrackPoint ( )
   // Do Something to restore the solver state
   //
   // backtrack_points.pop_back( );
-}
-
-void EmptySolver::popUntilDeduced ( Enode * e )
-{
-  // Make sure this solver deduced e
-  assert( e->getDedIndex( ) == id );
-  //
-  // Do something to restore that state that deduced e
-  //
-}
-
-//
-// With this function you can provide a deduction.
-// NULL means no deductions. Providing deductions
-// it's optional.
-//
-Enode * EmptySolver::getDeduction ( )
-{
-  return NULL;
-}
-
-vector< Enode * > & EmptySolver::getConflict ( )
-{
-  return explanation;
-}
-
-//
-// This function is called to retrieve an
-// explanation of a deduction. You can assume
-// that the solver has already been backtracked
-// to the state that caused this deduction to
-// happen: in that state clearly (not e) does not
-// hold. An easy way to get an explanation is to 
-// temporairly push (not e) and return the explanation
-//
-vector< Enode * > & EmptySolver::getReason ( Enode * e )
-{
-  assert( e );
-  return explanation;
 }
 
 //

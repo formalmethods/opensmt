@@ -1,7 +1,7 @@
 /*********************************************************************
-Author: Roberto Bruttomesso <roberto.bruttomesso@unisi.ch>
+Author: Roberto Bruttomesso <roberto.bruttomesso@gmail.com>
 
-OpenSMT -- Copyright (C) 2008, Roberto Bruttomesso
+OpenSMT -- Copyright (C) 2009, Roberto Bruttomesso
 
 OpenSMT is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -27,89 +27,112 @@ along with OpenSMT. If not, see <http://www.gnu.org/licenses/>.
 // Forwards declarations
 //
 class TSolver;
-// 
+//
+// Generic configuration
+//
+struct GConfig
+{
+  char   stats_file[80];
+  int    verbose;
+};
+//
 // SAT Solver configurations
 //
 struct SConfig
 {
-  int theory_propagation;
-  int verbose;
+  int    theory_propagation;
+  double initial_skip_step;
+  double skip_step_factor;
+  int    restart_first;
+  double restart_inc;
+  int    use_luby_restart;
+  int    learn_up_to_size;
+  int    temporary_learn;
+  int    preprocess_booleans;
+  int    preprocess_theory;
+  int    centrality;
+  int    trade_off;
+  int    verbose;
 };
-// 
+//
 // Theory Solver configurations
 //
 struct TConfig
 {
+  int disable;             // Disable the solver
   int theory_propagation;  // Enable theory propagation
   int verbose;             // Enable verbosity
   int int_extract_concat;  // Enable interpretation for extraction/concatenation
+  int poly_deduct_size;    // Used to define the size of polynomial to be used for deduction; 0 - no deduction for polynomials
+  int trade_off;           // Trade-off value for DL preprocessing
 };
 //
 // Holds informations about the configuration of the solver
 //
 struct SMTConfig
 {
-  SMTConfig  ( const logic_t logic_
-             , const lbool status_ )
-    : logic  ( logic_ )
-    , status ( status_ )
-  { 
+  SMTConfig  ( const char * filename_ )
+    : filename   ( filename_ )
+    , logic      ( UNDEF )
+    , status     ( l_Undef )
+    , out_flag   ( false )
+  {
     // Set Default configuration
-    satconfig.theory_propagation = 1;
-    satconfig.verbose            = 0;
-    ufconfig.theory_propagation  = 1;
-    ufconfig.verbose             = 0;
-    ufconfig.int_extract_concat  = 0;
-    bvconfig.theory_propagation  = 0;
-    bvconfig.verbose             = 0;
-    lraconfig.theory_propagation = 0;
-    lraconfig.verbose            = 0;
-    readConfig( "config.cfg" );
+    strcpy( gconfig.stats_file, "$filename.stats" );
+    gconfig.verbose               = 1;
+    satconfig.theory_propagation  = 1;
+    satconfig.verbose             = 1;
+    satconfig.initial_skip_step   = 1;
+    satconfig.skip_step_factor    = 1;
+    satconfig.restart_first       = 100;
+    satconfig.restart_inc         = 1.1;
+    satconfig.use_luby_restart    = 0;
+    satconfig.learn_up_to_size    = 0;
+    satconfig.temporary_learn     = 1;
+    satconfig.preprocess_booleans = 0;
+    satconfig.preprocess_theory   = 0;
+    satconfig.centrality          = 18;
+    satconfig.trade_off           = 8192;
+    ufconfig.disable              = 0;
+    ufconfig.theory_propagation   = 1;
+    ufconfig.verbose              = 0;
+    ufconfig.int_extract_concat   = 0;
+    bvconfig.disable              = 0;
+    bvconfig.theory_propagation   = 1;
+    bvconfig.verbose              = 0;
+    dlconfig.disable              = 0;
+    dlconfig.theory_propagation   = 1;
+    dlconfig.verbose              = 0;
+    lraconfig.disable             = 0;
+    lraconfig.theory_propagation  = 1;
+    lraconfig.verbose             = 0;
+    lraconfig.poly_deduct_size    = 0;
+#ifndef SMTCOMP
+    parseConfig( ".opensmtrc" );
+#endif
   }
 
   ~SMTConfig ( ) { }
 
-  logic_t  logic; 
-  lbool	   status;
-  SConfig  satconfig;
-  TConfig  ufconfig;
-  TConfig  bvconfig;
-  TConfig  lraconfig;
+  const char *  filename;
+  logic_t       logic;
+  lbool	        status;
+  GConfig       gconfig;
+  SConfig       satconfig;
+  TConfig       ufconfig;
+  TConfig       bvconfig;
+  TConfig       dlconfig;
+  TConfig       lraconfig;
+
+  inline ostream & getOstream( ) { return out_flag ? out_file : cerr; }
 
 private:
 
-  //
-  // It is possible to read configuration from file
-  // (experimental, not completely working)
-  //
-  void readConfig ( const char * filename )
-  {
-    FILE * file = NULL;
-    // Open configuration file. Do nothing if no configuration is found
-    if ( ( file = fopen( filename, "rt" ) ) == NULL )
-      return;
+  void parseConfig ( const char * );
+  void printConfig ( ostream & out );
 
-    // Read SAT Solver Configuration
-    fscanf( file, "SAT Solver Configuration\n" );
-    fscanf( file, "Theory propagation....: %d\n", &(satconfig.theory_propagation) );
-    fscanf( file, "Verbose...............: %d\n", &(satconfig.verbose) );
-    // Read UF Solver Configuration
-    fscanf( file, "UF Solver Configuration\n" );
-    fscanf( file, "Theory propagation....: %d\n", &(ufconfig.theory_propagation) );
-    fscanf( file, "Verbose...............: %d\n", &(ufconfig.verbose) );
-    fscanf( file, "Int extract concat....: %d\n", &(ufconfig.int_extract_concat) );
-    // Read BV Solver Configuration
-    fscanf( file, "BV Solver Configuration\n" );
-    fscanf( file, "Theory propagation....: %d\n", &(bvconfig.theory_propagation) );
-    fscanf( file, "Verbose...............: %d\n", &(bvconfig.verbose) );
-    // Read LRA Solver Configuration
-    fscanf( file, "LRA Solver Configuration\n" );
-    fscanf( file, "Theory propagation....: %d\n", &(lraconfig.theory_propagation) );
-    fscanf( file, "Verbose...............: %d\n", &(lraconfig.verbose) );
-
-    // Close
-    fclose( file );
-  }
+  bool           out_flag;
+  ofstream       out_file;
 };
 
 #endif

@@ -1,7 +1,7 @@
 /*********************************************************************
-Author: Roberto Bruttomesso <roberto.bruttomesso@unisi.ch>
+Author: Roberto Bruttomesso <roberto.bruttomesso@gmail.com>
 
-OpenSMT -- Copyright (C) 2008, Roberto Bruttomesso
+OpenSMT -- Copyright (C) 2009, Roberto Bruttomesso
 
 OpenSMT is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -41,7 +41,7 @@ char * pbuffer;
 %%
 
 [ \t\n]                  { }
-"#".*\n                  { }
+";".*\n                  { }
 "benchmark"              { return TK_BENCHMARK; }
 ":extrasorts"            { return TK_EXTRASORTS; }
 ":extrapreds"            { return TK_EXTRAPREDS; }
@@ -70,12 +70,12 @@ char * pbuffer;
 ">"                      { return TK_GT; }
 "bvslt"                  { return TK_BVSLT; }
 "bvsgt"                  { return TK_BVSGT; }
-"bvsle"                  { return TK_BVSLEQ; }
-"bvsge"                  { return TK_BVSGEQ; }
+"bvsle"                  { return TK_BVSLE; }
+"bvsge"                  { return TK_BVSGE; }
 "bvult"                  { return TK_BVULT; }
 "bvugt"                  { return TK_BVUGT; }
-"bvule"                  { return TK_BVULEQ; }
-"bvuge"                  { return TK_BVUGEQ; }
+"bvule"                  { return TK_BVULE; }
+"bvuge"                  { return TK_BVUGE; }
 "concat"                 { return TK_CONCAT; }
 "extract"                { return TK_EXTRACT; }
 "bvand"                  { return TK_BVAND; }
@@ -94,6 +94,9 @@ char * pbuffer;
 "bvudiv"                 { return TK_BVUDIV; }
 "sign_extend"            { return TK_SIGN_EXTEND; }
 "zero_extend"            { return TK_ZERO_EXTEND; }
+"rotate_left"            { return TK_ROTATE_LEFT; }
+"rotate_right"           { return TK_ROTATE_RIGHT; }
+"zero_extend"            { return TK_ZERO_EXTEND; }
 "implies"                { return TK_IMPLIES; }
 "and"			 { return TK_AND; }
 "or"			 { return TK_OR; }
@@ -107,15 +110,20 @@ char * pbuffer;
 "ite"                    { return TK_ITE; }
 "if_then_else"           { return TK_IFTHENELSE; }
 "distinct"               { return TK_DISTINCT; }
+"bit0"                   { return TK_BIT0; }
+"bit1"                   { return TK_BIT1; }
 
 [0-9]+                   { smtlval.str = strdup( yytext ); return TK_NUM; }
+bv[0-9]+                 { smtlval.str = strdup( yytext ); return TK_BVNUM_NO_WIDTH; }
 bv[0-9]+\[[0-9]+\]       { smtlval.str = strdup( yytext ); return TK_BVNUM; }
+bvbin[0-1]+              { smtlval.str = strdup( yytext ); return TK_BVNUM; }
 [_a-zA-Z0-9\.\']+        { smtlval.str = strdup( yytext ); return TK_STR; }
 [\$_a-zA-Z0-9\.]+        { smtlval.str = strdup( yytext ); return TK_FLET_STR; }
 [\?_a-zA-Z0-9\.]+        { smtlval.str = strdup( yytext ); return TK_LET_STR; }
 
+\"[_a-zA-Z0-9\.\' \t]+\" { smtlval.str = strdup( yytext ); return TK_ARGUMENT; }
+
 [\{]          { pbuffer = buffer; BEGIN(start_source); }
-[\"]          { pbuffer = buffer; BEGIN(start_source); }
 
 <start_source>{
   \\\}          { *pbuffer++ = '}'; }

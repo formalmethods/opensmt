@@ -1,1 +1,23 @@
-OpenSMT is released under GPL General License version 3. Please read LICENSE.
++----------------------------------------------------------------------------+
+|                                             __      _______     ________   |
+|   ____ ______   ____   ____   ______ ______/  |_    \   _  \    \_____  \  |
+|  /  _ \\____ \_/ __ \ /    \ /  ___//     \   __\   /  /_\  \    /  ____/  |
+| (  <_> )  |_> >  ___/|   |  \\___ \|  Y Y  \  |     \  \_/   \  /       \  |
+|  \____/|   __/ \___  >___|  /____  >__|_|  /__|      \_____  / /\_______ \ |
+|        |__|        \/     \/     \/      \/                \/  \/       \/ |
+|                                                                            |
++----------------------------------------------------------------------------+
+|                                                                            |
+| OpenSMT 0.2                                                                |
+|                                                                            |
+| Copyright 2009 Roberto Bruttomesso <roberto.bruttomesso@gmail.com>         |
+|                                                                            |
+| Project page......: http://verify.inf.unisi.ch/opensmt                     |
+| Code Repository...: http://code.google.com/p/opensmt                       |
+| Discussion Group..: http://groups.google.com/group/opensmt                 |
+|                                                                            |
+| OpenSMT is distributed in the hope that it will be useful,                 |
+| but WITHOUT ANY WARRANTY; without even the implied warranty of             |
+| MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.                       |
+|                                                                            |
++----------------------------------------------------------------------------+

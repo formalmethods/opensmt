@@ -1,7 +1,7 @@
 /*********************************************************************
-Author: Roberto Bruttomesso <roberto.bruttomesso@unisi.ch>
+Author: Roberto Bruttomesso <roberto.bruttomesso@gmail.com>
 
-OpenSMT -- Copyright (C) 2008, Roberto Bruttomesso
+OpenSMT -- Copyright (C) 2009, Roberto Bruttomesso
 
 OpenSMT is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -20,7 +20,6 @@ along with OpenSMT. If not, see <http://www.gnu.org/licenses/>.
 #ifndef THANDLER_H
 #define THANDLER_H
 
-#include "SMTSolver.h"
 #include "SMTConfig.h"
 #include "Egraph.h"
 #include "TSolver.h"
@@ -36,41 +35,59 @@ public:
            , SMTSolver &   s
 	   , vec< Lit > &  t
 	   , vec< int > &  l
-	   , vec< char > & a )
+	   , vec< char > & a
+           , const Var vt 
+	   , const Var vf )
     : core_solver        ( e )
     , config             ( c )
     , solver             ( s )
     , trail              ( t )
     , level              ( l )
     , assigns            ( a )
+    , var_True           ( vt )
+    , var_False          ( vf )
     , checked_trail_size ( 0 )
-  { }
+    , tatoms             ( 0 )
+    , batoms             ( 0 )
+  { 
+    // Reserve room for true and false
+    var_to_enode   .resize( 65536, NULL );
+    enode_id_to_var.resize( 65536, var_Undef );
+  }
   
   virtual ~THandler ( ) { }
 
-  void    getConflict  ( vec< Lit > &, int & ); // Returns theory conflict in terms of literals
-  Lit     getDeduction ( );			// Returns a literal that is implied by the current state
-  void    getReason    ( Lit, vec< Lit > & );   // Returns the explanation for a deduced literal
-                                         
-  Var     enodeToVar   ( Enode * );             // Converts enode into boolean variable. Create a new variable if needed
-  Lit     enodeToLit   ( Enode * );             // Converts enode into boolean literal. Create a new variable if needed
-  Enode * varToEnode   ( Var );                 // Return the enode corresponding to a variable
+  void    getConflict          ( vec< Lit > &, int & ); // Returns theory conflict in terms of literals
+  Lit     getDeduction         ( );			// Returns a literal that is implied by the current state
+  Lit     getSuggestion        ( );			// Returns a literal that is suggested by the current state
+  void    getReason            ( Lit, vec< Lit > & );   // Returns the explanation for a deduced literal
+                                                 
+  Var     enodeToVar           ( Enode * );             // Converts enode into boolean variable. Create a new variable if needed
+  Lit     enodeToLit           ( Enode * );             // Converts enode into boolean literal. Create a new variable if needed
+  Lit     enodeToLit           ( Enode *, Var & );      // Converts enode into boolean literal. Create a new variable if needed
+  Enode * varToEnode           ( Var );                 // Return the enode corresponding to a variable
+                               
+  bool    assertLits           ( );                     // Give to the TSolvers the newly added literals on the trail
+  bool    check                ( bool );                // Check trail in the theories
+  void    backtrack            ( );                     // Remove literals that are not anymore on the trail
 
-  bool    assertLits   ( );                     // Give to the TSolvers the newly added literals on the trail
-  bool    check        ( bool );                // Check trail in the theories
-  void    backtrack    ( int );                 // Remove literals up to a certain decision level
+  double  getAtomsRatio        ( ) { return (double)batoms/((double)tatoms + 1.0); }
 
 private:                                 
 
-  void    backtrackToStackSize ( size_t );      // Backtrack until stack size 
+  Enode * negateDLAtom( Enode * );
+  Enode * negateLAAtom( Enode * );
+  Enode * negateBVAtom( Enode * );
 
 #ifdef EXTERNAL_TOOL
   void verifyCallWithExternalTool        ( bool, size_t );
-  void verifyExplanationWithExternalTool ( vector< Enode * > &, Enode * = NULL );
-  void declareStuff                      ( ostream &, set< int > &, Enode * );
+  void verifyExplanationWithExternalTool ( vector< Enode * > & );
+  void verifyDeductionWithExternalTool   ( Enode * = NULL );
 #endif
 
+#ifdef PEDANTIC_DEBUG
   bool  isOnTrail     ( Lit );
+#endif
                                          
   vector< Var >       enode_id_to_var;          // Conversion EnodeID --> Var
   vector< Enode * >   var_to_enode;             // Conversion Var --> EnodeID
@@ -81,9 +98,13 @@ private:
   vec< Lit > &        trail;                    // Reference to SMT Solver trail
   vec< int > &        level;                    // Reference to SMT Solver level
   vec< char > &       assigns;                  // Reference to SMT Solver assigns
-  vector< Enode * >   stack;                    // Stack of theory atoms
-  int                 checked_trail_size;       // Store last size of the trail checked by the solvers
-  vector< size_t >    level_to_stack_size;      // Hold the correspondence decision level -> stack.size( )
+  const Var           var_True;                 // To specify constantly true atoms
+  const Var           var_False;                // To specify constantly false atoms
+  vector< Enode * >   stack;                    // Stacked atoms
+  size_t              checked_trail_size;       // Store last size of the trail checked by the solvers
+
+  int                 tatoms;                   // Tracks theory atoms
+  int                 batoms;                   // Tracks boolean atoms
 };
 
 #endif

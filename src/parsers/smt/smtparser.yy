@@ -1,7 +1,7 @@
 /*********************************************************************
-Author: Roberto Bruttomesso <roberto.bruttomesso@unisi.ch>
+Author: Roberto Bruttomesso <roberto.bruttomesso@gmail.com>
 
-OpenSMT -- Copyright (C) 2008, Roberto Bruttomesso
+OpenSMT -- Copyright (C) 2009, Roberto Bruttomesso
 
 OpenSMT is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -31,11 +31,11 @@ extern int smtlex( );
 extern Egraph *    parser_egraph;
 extern SMTConfig * parser_config;
 
-vector< int > *  createTypeList  ( int );
-vector< int > *  createTypeList  ( int, const char * );
-vector< int > *  pushTypeList    ( vector< int > *, int );
-vector< int > *  pushTypeList    ( vector< int > *, int, const char * );
-void		 destroyTypeList ( vector< int > * );
+vector< unsigned > * createTypeList  ( unsigned );
+vector< unsigned > * createTypeList  ( unsigned, const char * );
+vector< unsigned > * pushTypeList    ( vector< unsigned > *, unsigned );
+vector< unsigned > * pushTypeList    ( vector< unsigned > *, unsigned, const char * );
+void		     destroyTypeList ( vector< unsigned > * );
 
 void smterror( char * s )
 {
@@ -50,12 +50,12 @@ void smterror( char * s )
 
 %union
 {
-  char  *             str;
-  Enode *             enode;
-  vector< int > *  type_list;
+  char  *              str;
+  Enode *              enode;
+  vector< unsigned > * type_list;
 }
 
-%token TK_NUM TK_STR TK_BVNUM
+%token TK_NUM TK_STR TK_BVNUM TK_BVNUM_NO_WIDTH TK_BIT0 TK_BIT1
 %token TK_BOOL TK_REAL TK_INT TK_BITVEC TK_U
 %token TK_PLUS TK_MINUS TK_TIMES TK_UMINUS TK_DIV
 %token TK_NE TK_EQ TK_LEQ TK_GEQ TK_LT TK_GT
@@ -64,13 +64,13 @@ void smterror( char * s )
 %token TK_EXTRASORTS TK_EXTRAPREDS TK_EXTRAFUNS TK_LOGIC TK_CATEGORY TK_DIFFICULTY
 %token TK_ASSUMPTION TK_FORMULA TK_TRUE TK_FALSE
 %token TK_FLET TK_FLET_STR TK_LET TK_LET_STR TK_DISTINCT
-%token TK_BVSLT TK_BVSGT TK_BVSLEQ TK_BVSGEQ
-%token TK_BVULT TK_BVUGT TK_BVULEQ TK_BVUGEQ
+%token TK_BVSLT TK_BVSGT TK_BVSLE TK_BVSGE
+%token TK_BVULT TK_BVUGT TK_BVULE TK_BVUGE
 %token TK_EXTRACT TK_CONCAT TK_BVAND TK_BVOR TK_BVXOR TK_BVNOT TK_BVADD TK_BVNEG TK_BVMUL
-%token TK_SIGN_EXTEND TK_ZERO_EXTEND TK_BVLSHR TK_BVSHL TK_BVSREM TK_BVSDIV TK_BVSUB
+%token TK_SIGN_EXTEND TK_ZERO_EXTEND TK_ROTATE_LEFT TK_ROTATE_RIGHT TK_BVLSHR TK_BVSHL TK_BVSREM TK_BVSDIV TK_BVSUB
 %token TK_BVUDIV TK_BVUREM
 
-%type <str> TK_STR TK_NUM TK_BVNUM TK_ARGUMENT TK_BOOL TK_REAL TK_INT TK_FLET_STR TK_LET_STR
+%type <str> TK_STR TK_NUM TK_BVNUM TK_BVNUM_NO_WIDTH TK_ARGUMENT TK_BOOL TK_REAL TK_INT TK_FLET_STR TK_LET_STR
 %type <enode> formula atom expression arithmetic_expression bitvec_expression
 %type <enode> formula_list expression_list arithmetic_expression_list bitvec_expression_list
 %type <type_list> type_list
@@ -129,7 +129,7 @@ status_declaration: TK_STATUS TK_STR
 		  ;
 
 category_declaration: TK_CATEGORY TK_ARGUMENT
-		      { /*printf( "category %s\n", $2 );*/ free( $2 ); }
+		      { free( $2 ); }
 		    ;
 
 difficulty_declaration: TK_DIFFICULTY TK_ARGUMENT
@@ -140,6 +140,7 @@ logic_declaration: TK_LOGIC TK_STR
 		   { 
                           if ( strcmp( $2, "EMPTY" ) == 0 ) parser_config->logic = EMPTY;
                      else if ( strcmp( $2, "QF_UF" ) == 0 ) parser_config->logic = QF_UF;
+                     else if ( strcmp( $2, "QF_BV" ) == 0 ) parser_config->logic = QF_BV;
                      else if ( strcmp( $2, "QF_RDL" ) == 0 ) parser_config->logic = QF_RDL;
                      else if ( strcmp( $2, "QF_IDL" ) == 0 ) parser_config->logic = QF_IDL;
                      else if ( strcmp( $2, "QF_LRA" ) == 0 ) parser_config->logic = QF_LRA;
@@ -148,6 +149,7 @@ logic_declaration: TK_LOGIC TK_STR
                      else if ( strcmp( $2, "QF_UFIDL" ) == 0 ) parser_config->logic = QF_UFIDL;
                      else if ( strcmp( $2, "QF_UFLRA" ) == 0 ) parser_config->logic = QF_UFLRA;
                      else if ( strcmp( $2, "QF_UFLIA" ) == 0 ) parser_config->logic = QF_UFLIA;
+                     else if ( strcmp( $2, "QF_UFBV" ) == 0 ) parser_config->logic = QF_UFBV;
 		     free( $2 ); 
                    }
 		 ;
@@ -174,74 +176,107 @@ bool_variable_declaration: TK_EXTRAPREDS '(' bool_variable_list ')'
 			 ;
 
 bool_variable_list: bool_variable_list '(' TK_STR ')'
-		    { parser_egraph->newSymbol( $3, ENODE_ARITY_0, TYPE_BOOL ); free( $3 ); }
+		    { 
+		      vector< unsigned > tmp;
+		      tmp.push_back( DTYPE_BOOL );
+		      parser_egraph->newSymbol( $3, tmp ); free( $3 ); 
+		    }
 		  | '(' TK_STR ')'
-		    { parser_egraph->newSymbol( $2, ENODE_ARITY_0, TYPE_BOOL ); free( $2 ); }
+		    { 
+		      vector< unsigned > tmp;
+		      tmp.push_back( DTYPE_BOOL );
+		      parser_egraph->newSymbol( $2, tmp ); free( $2 ); 
+		    }
                   ;
 		     
 real_variable_declaration: TK_EXTRAFUNS '(' real_variable_list ')'
 			 ;
 
 real_variable_list: real_variable_list '(' TK_STR TK_REAL ')'
-		    { parser_egraph->newSymbol( $3, ENODE_ARITY_0, TYPE_REAL ); free( $3 ); }
+		    { 
+		      vector< unsigned > tmp;
+		      tmp.push_back( DTYPE_REAL );
+		      parser_egraph->newSymbol( $3, tmp ); free( $3 ); 
+		    }
 		  | '(' TK_STR TK_REAL ')'
-		    { parser_egraph->newSymbol( $2, ENODE_ARITY_0, TYPE_REAL ); free( $2 ); }
+		    { 
+		      vector< unsigned > tmp;
+		      tmp.push_back( DTYPE_REAL );
+		      parser_egraph->newSymbol( $2, tmp ); free( $2 ); 
+		    }
                   ;
 
 int_variable_declaration: TK_EXTRAFUNS '(' int_variable_list ')'
 			;
 
 int_variable_list: int_variable_list '(' TK_STR TK_INT ')'
-		   { parser_egraph->newSymbol( $3, ENODE_ARITY_0, TYPE_INT ); free( $3 ); }
+		   { 
+		     vector< unsigned > tmp;
+		     tmp.push_back( DTYPE_INT );
+		     parser_egraph->newSymbol( $3, tmp ); free( $3 ); }
 		  | '(' TK_STR TK_INT ')'
-		   { parser_egraph->newSymbol( $2, ENODE_ARITY_0, TYPE_INT ); free( $2 ); }
+		   { 
+		     vector< unsigned > tmp;
+		     tmp.push_back( DTYPE_INT );
+		     parser_egraph->newSymbol( $2, tmp ); free( $2 ); 
+		   }
                   ;
 
 bitvec_variable_declaration: TK_EXTRAFUNS '(' bitvec_variable_list ')'
 			   ;
 
 bitvec_variable_list: bitvec_variable_list '(' TK_STR TK_BITVEC '[' TK_NUM ']' ')'
-		      { parser_egraph->newSymbol( $3, ENODE_ARITY_0, TYPE_BITVEC | atoi( $6 ) ); free( $3 ); free( $6 ); }
+		      { 
+			if ( atoi( $6 ) > MAX_WIDTH ) error( "bitvector width too large, max is ", MAX_WIDTH );
+			vector< unsigned > tmp;
+			tmp.push_back( DTYPE_BITVEC | atoi( $6 ) );
+			parser_egraph->newSymbol( $3, tmp ); free( $3 ); free( $6 ); 
+		      }
 		    | '(' TK_STR  TK_BITVEC '[' TK_NUM ']' ')'
-		      { parser_egraph->newSymbol( $2, ENODE_ARITY_0, TYPE_BITVEC | atoi( $5 ) ); free( $2 ); free( $5 ); }
+		      { 
+			if ( atoi( $5 ) > MAX_WIDTH ) error( "bitvector width too large, max is ", MAX_WIDTH );
+			vector< unsigned > tmp;
+			tmp.push_back( DTYPE_BITVEC | atoi( $5 ) );
+			parser_egraph->newSymbol( $2, tmp ); free( $2 ); free( $5 ); 
+		      }
                     ;
 
 u_predicate_declaration: TK_EXTRAPREDS '(' u_predicate_list ')'
 		      ;
 
 u_predicate_list: u_predicate_list '(' TK_STR type_list ')'
-	         { parser_egraph->newSymbol( $3, (char)(*$4).size( ), TYPE_BOOL ); free( $3 ); destroyTypeList( $4 ); }
+	         { (*$4).push_back( DTYPE_BOOL ); parser_egraph->newSymbol( $3, (*$4) ); free( $3 ); destroyTypeList( $4 ); }
                | '(' TK_STR type_list ')'
-                 { parser_egraph->newSymbol( $2, (char)(*$3).size( ), TYPE_BOOL ); free( $2 ); destroyTypeList( $3 ); }
+                 { (*$3).push_back( DTYPE_BOOL ); parser_egraph->newSymbol( $2, (*$3) ); free( $2 ); destroyTypeList( $3 ); }
 	       ;
 
 u_function_declaration: TK_EXTRAFUNS '(' u_function_list ')'
 		      ;
 
 u_function_list: u_function_list '(' TK_STR type_list ')'
-	         { parser_egraph->newSymbol( $3, (char)(*$4).size( )-1, (*$4).back( ) ); free( $3 ); destroyTypeList( $4 ); }
+	         { parser_egraph->newSymbol( $3, (*$4) ); free( $3 ); destroyTypeList( $4 ); }
                | '(' TK_STR type_list ')'
-                 { parser_egraph->newSymbol( $2, (char)(*$3).size( )-1, (*$3).back( ) ); free( $2 ); destroyTypeList( $3 ); }
+                 { parser_egraph->newSymbol( $2, (*$3) ); free( $2 ); destroyTypeList( $3 ); }
 	       ;
 
 type_list: type_list TK_U
-	  { $$ = pushTypeList( $1, TYPE_U ); }
+	  { $$ = pushTypeList( $1, DTYPE_U ); }
 	| type_list TK_INT
-	  { $$ = pushTypeList( $1, TYPE_INT ); }
+	  { $$ = pushTypeList( $1, DTYPE_INT ); }
 	| type_list TK_REAL
-	  { $$ = pushTypeList( $1, TYPE_REAL ); }
+	  { $$ = pushTypeList( $1, DTYPE_REAL ); }
 	| type_list TK_BITVEC '[' TK_NUM ']'
-	  { $$ = pushTypeList( $1, TYPE_BITVEC, $4 ); free( $4 ); }
+	  { $$ = pushTypeList( $1, DTYPE_BITVEC, $4 ); free( $4 ); }
 	| type_list TK_STR
 	  { $$ = pushTypeList( $1, parser_egraph->getSort( $2 ) ); free( $2 ); }
 	| TK_U
-          { $$ = createTypeList( TYPE_U ); }
+          { $$ = createTypeList( DTYPE_U ); }
 	| TK_INT
-          { $$ = createTypeList( TYPE_INT ); }
+          { $$ = createTypeList( DTYPE_INT ); }
 	| TK_REAL
-          { $$ = createTypeList( TYPE_REAL ); }
+          { $$ = createTypeList( DTYPE_REAL ); }
 	| TK_BITVEC '[' TK_NUM ']'
-          { $$ = createTypeList( TYPE_BITVEC, $3 ); free( $3 ); }
+          { $$ = createTypeList( DTYPE_BITVEC, $3 ); free( $3 ); }
 	| TK_STR
           { $$ = createTypeList( parser_egraph->getSort( $1 ) ); free( $1 ); }
 	;
@@ -304,18 +339,18 @@ atom: '(' TK_GEQ arithmetic_expression_list ')'
       { $$ = parser_egraph->mkBvslt( $3 ); }
     | '(' TK_BVSGT bitvec_expression_list ')'
       { $$ = parser_egraph->mkBvsgt( $3 ); }
-    | '(' TK_BVSLEQ bitvec_expression_list ')'
-      { $$ = parser_egraph->mkBvsleq( $3 ); }
-    | '(' TK_BVSGEQ bitvec_expression_list ')'
-      { $$ = parser_egraph->mkBvsgeq( $3 ); }
+    | '(' TK_BVSLE bitvec_expression_list ')'
+      { $$ = parser_egraph->mkBvsle( $3 ); }
+    | '(' TK_BVSGE bitvec_expression_list ')'
+      { $$ = parser_egraph->mkBvsge( $3 ); }
     | '(' TK_BVULT bitvec_expression_list ')'
       { $$ = parser_egraph->mkBvult( $3 ); }
     | '(' TK_BVUGT bitvec_expression_list ')'
       { $$ = parser_egraph->mkBvugt( $3 ); }
-    | '(' TK_BVULEQ bitvec_expression_list ')'
-      { $$ = parser_egraph->mkBvuleq( $3 ); }
-    | '(' TK_BVUGEQ bitvec_expression_list ')'
-      { $$ = parser_egraph->mkBvugeq( $3 ); }
+    | '(' TK_BVULE bitvec_expression_list ')'
+      { $$ = parser_egraph->mkBvule( $3 ); }
+    | '(' TK_BVUGE bitvec_expression_list ')'
+      { $$ = parser_egraph->mkBvuge( $3 ); }
     | '(' TK_EQ expression_list ')'
       { $$ = parser_egraph->mkEq( $3 ); }
     | '(' TK_DISTINCT expression_list ')'
@@ -334,8 +369,6 @@ expression: arithmetic_expression
 	    { $$ = $1; }
 	  | bitvec_expression 
             { $$ = $1; }
-	  | '(' TK_ITE formula expression expression ')'
-	    { $$ = parser_egraph->mkIte( $3, $4, $5 ); }
 	  | '(' TK_STR expression_list ')'
 	    { $$ = parser_egraph->mkUf( $2, $3 ); free( $2 ); }
 	  ;
@@ -364,7 +397,7 @@ arithmetic_expression: '(' TK_PLUS arithmetic_expression_list ')'
                        { $$ = parser_egraph->mkVar( $1 ); free( $1 ); }
 	             | TK_LET_STR
 	               { $$ = parser_egraph->getDefine( $1 ); free( $1 ); }
-	             | '(' TK_ITE formula arithmetic_expression arithmetic_expression ')'
+	             | '(' TK_ITE formula expression expression ')'
 	               { $$ = parser_egraph->mkIte( $3, $4, $5 ); }
 	             | '(' TK_STR expression_list ')'
 	               { $$ = parser_egraph->mkUf( $2, $3 ); free( $2 ); }
@@ -378,6 +411,13 @@ arithmetic_expression_list: arithmetic_expression arithmetic_expression_list
 
 bitvec_expression: '(' TK_CONCAT bitvec_expression_list ')'
 		   { $$ = parser_egraph->mkConcat( $3 ); }
+                 | '(' TK_EXTRACT '[' TK_NUM ':' TK_NUM ']' TK_BVNUM_NO_WIDTH ')'
+		   { 
+		     char tmp[64]; 
+		     sprintf( tmp, "%s[%d]", $8, atoi( $4 ) - atoi( $6 ) + 1 ); 
+		     $$ = parser_egraph->mkBvnum( tmp ); 
+		     free( $4 ); free( $6 ); free( $8 ); 
+		   }
                  | '(' TK_EXTRACT '[' TK_NUM ':' TK_NUM ']' bitvec_expression ')'
                    { $$ = parser_egraph->mkExtract( atoi( $4 ), atoi( $6 ), $8 ); free( $4 ); free( $6 ); } 
                  | '(' TK_BVAND bitvec_expression_list ')'
@@ -408,17 +448,25 @@ bitvec_expression: '(' TK_CONCAT bitvec_expression_list ')'
 		   { $$ = parser_egraph->mkSignExtend( atoi( $4 ), $6 ); free( $4 ); }
                  | '(' TK_ZERO_EXTEND '[' TK_NUM ']' bitvec_expression ')'
 		   { $$ = parser_egraph->mkZeroExtend( atoi( $4 ), $6 ); free( $4 ); }
+                 | '(' TK_ROTATE_LEFT '[' TK_NUM ']' bitvec_expression ')'
+		   { $$ = parser_egraph->mkRotateLeft( atoi( $4 ), $6 ); free( $4 ); }
+                 | '(' TK_ROTATE_RIGHT '[' TK_NUM ']' bitvec_expression ')'
+		   { $$ = parser_egraph->mkRotateRight( atoi( $4 ), $6 ); free( $4 ); }
                  | '(' TK_BVLSHR bitvec_expression_list ')'
 		   { $$ = parser_egraph->mkBvlshr( $3 ); }
                  | '(' TK_BVSHL bitvec_expression_list ')'
 		   { $$ = parser_egraph->mkBvshl( $3 ); }
                  | TK_BVNUM
 		   { $$ = parser_egraph->mkBvnum( $1 ); free( $1 ); }
+		 | TK_BIT0
+		   { $$ = parser_egraph->mkBvnum( const_cast< char * >( "0" ) ); }
+		 | TK_BIT1
+		   { $$ = parser_egraph->mkBvnum( const_cast< char * >( "1" ) ); }
                  | TK_STR
 		   { $$ = parser_egraph->mkVar( $1 ); free( $1 ); }
 	         | TK_LET_STR
 	           { $$ = parser_egraph->getDefine( $1 ); free( $1 ); }
-	         | '(' TK_ITE formula bitvec_expression bitvec_expression ')'
+	         | '(' TK_ITE formula expression expression ')'
 	           { $$ = parser_egraph->mkIte( $3, $4, $5 ); }
 	         | '(' TK_STR expression_list ')'
 	           { $$ = parser_egraph->mkUf( $2, $3 ); free( $2 ); }
@@ -435,36 +483,38 @@ bitvec_expression_list: bitvec_expression bitvec_expression_list
 //=======================================================================================
 // Auxiliary Routines
 
-vector< int > * createTypeList( int t )
+vector< unsigned > * createTypeList( unsigned t )
 {
-  vector< int > * l = new vector< int >;
+  vector< unsigned > * l = new vector< unsigned >;
   l->push_back( t );
   return l;
 } 
 
-vector< int > * createTypeList( int t, const char * size )
+vector< unsigned > * createTypeList( unsigned t, const char * size )
 {
-  assert( t == TYPE_BITVEC );
-  vector< int > * l = new vector< int >;
-  int int_size = atoi( size ); 
+  assert( t == DTYPE_BITVEC );
+  vector< unsigned > * l = new vector< unsigned >;
+  const unsigned int_size = atoi( size ); 
+  assert( int_size <= MAX_WIDTH );
   l->push_back( t | int_size );
   return l;
 } 
 
-vector< int > * pushTypeList( vector< int > * l, int t )
+vector< unsigned > * pushTypeList( vector< unsigned > * l, unsigned t )
 {
   l->push_back( t );
   return l;
 }
 
-vector< int > * pushTypeList( vector< int > * l, int t, const char * size )
+vector< unsigned > * pushTypeList( vector< unsigned > * l, unsigned t, const char * size )
 {
-  int int_size = atoi( size );
+  const unsigned int_size = atoi( size );
+  assert( int_size <= MAX_WIDTH );
   l->push_back( t | int_size );
   return l;
 }
 
-void destroyTypeList( vector< int > * l )
+void destroyTypeList( vector< unsigned > * l )
 {
   delete l;
 }

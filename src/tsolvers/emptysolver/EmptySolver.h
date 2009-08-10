@@ -1,7 +1,7 @@
 /*********************************************************************
-Author: Roberto Bruttomesso <roberto.bruttomesso@unisi.ch>
+Author: Roberto Bruttomesso <roberto.bruttomesso@gmail.com>
 
-OpenSMT -- Copyright (C) 2008, Roberto Bruttomesso
+OpenSMT -- Copyright (C) 2009, Roberto Bruttomesso
 
 OpenSMT is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -26,23 +26,25 @@ class EmptySolver : public OrdinaryTSolver
 {
 public:
 
-  EmptySolver( const int i, const char * n, SMTConfig & c )
-    : OrdinaryTSolver ( i, n, c )
+  EmptySolver( const int           i
+             , const char *        n
+	     , SMTConfig &         c
+	     , Egraph &            e
+	     , vector< Enode * > & x
+	     , vector< Enode * > & d
+             , vector< Enode * > & s )
+    : OrdinaryTSolver ( i, n, c, e, x, d, s )
   { }
 
   ~EmptySolver ( ) 
   { }
 
-  void                inform             ( Enode * );
-  bool                assertLit          ( Enode * );
-  void                pushBacktrackPoint ( );
-  void                popBacktrackPoint  ( );
-  void                popUntilDeduced    ( Enode * );
-  Enode *             getDeduction       ( );
-  vector< Enode * > & getConflict        ( );
-  vector< Enode * > & getReason          ( Enode * );
-  bool                check              ( bool );
-  bool                belongsToT         ( Enode * );
+  lbool               inform              ( Enode * );
+  bool                assertLit           ( Enode *, bool = false );
+  void                pushBacktrackPoint  ( );
+  void                popBacktrackPoint   ( );
+  bool                check               ( bool );
+  bool                belongsToT          ( Enode * );
 };
 
 #endif
