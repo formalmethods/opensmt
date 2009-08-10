@@ -1,7 +1,7 @@
 /*********************************************************************
-Author: Roberto Bruttomesso <roberto.bruttomesso@unisi.ch>
+Author: Roberto Bruttomesso <roberto.bruttomesso@gmail.com>
 
-OpenSMT -- Copyright (C) 2008, Roberto Bruttomesso
+OpenSMT -- Copyright (C) 2009, Roberto Bruttomesso
 
 OpenSMT is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -22,69 +22,164 @@ along with OpenSMT. If not, see <http://www.gnu.org/licenses/>.
 //
 // Constructor for ENIL
 //
-Enode::Enode( ) 
+Enode::Enode( )
   : id        ( ENODE_ID_ENIL )
-  , etype     ( ENODE_TYPE_LIST )
+  , properties( 0 )
   , car       ( NULL )
   , cdr       ( NULL )
   , cong_data ( NULL )
   , atom_data ( NULL )
-{ }
-//
-// Constructor for new Symbols/Numbers
-//
-Enode::Enode( const int    id_ 
-            , const char   etype_ 
-	    , const char   arity_
-	    , const int    type_
-	    , const char * name_ ) 
-  : id        ( id_ )
-  , etype     ( etype_ )
-  , car       ( NULL )
-  , cdr       ( NULL )
-  , atom_data ( NULL )
 { 
-  if ( etype_ == ENODE_TYPE_NUMBER )
-    symb_data = new SymbData( type_, name_ );
-  else
-    symb_data = new SymbData( arity_, type_, name_ );
+  setEtype( ETYPE_LIST );
+}
+//
+// Constructor for new Symbols
+//
+Enode::Enode( const enodeid_t      id_
+	    , const char *         name_ 
+	    , const etype_t        etype_
+	    , const unsigned       dtype_
+	    , vector< unsigned > & arg_sorts_
+	    )
+  : id         ( id_ )
+  , properties ( 0 )
+  , car        ( NULL )
+  , cdr        ( NULL )
+  , atom_data  ( NULL )
+{
+  setEtype( etype_ );
+  setDtype( dtype_ );
+  setArity( arg_sorts_.size( ) );
+  symb_data = new SymbData( name_, etype_, dtype_, arg_sorts_ );
+}
+//
+// Constructor for new Numbers
+//
+Enode::Enode( const enodeid_t id_
+	    , const char *    name_ 
+	    , const etype_t   etype_ 
+	    , const unsigned  dtype_ )
+  : id         ( id_ )
+  , properties ( 0 )
+  , car        ( NULL )
+  , cdr        ( NULL )
+  , atom_data  ( NULL )
+{
+  setEtype( etype_ );
+  setDtype( dtype_ );
+  setArity( 0 );
+
+  vector< unsigned > tmp;
+  symb_data = new SymbData( name_, etype_, dtype_, tmp );
 }
 //
 // Constructor for new Terms/Lists
 //
-Enode::Enode( const int  id_
-            , const char etype_
-            , Enode *    car_ 
-            , Enode *    cdr_ )
-  : id        ( id_ )
-  , etype     ( etype_ )
-  , car       ( car_ )
-  , cdr       ( cdr_ )
-  , cong_data ( NULL )
-  , atom_data ( NULL )
-{ 
+Enode::Enode( const enodeid_t id_
+            , Enode *         car_
+            , Enode *         cdr_ )
+  : id         ( id_ )
+  , properties ( 0 )
+  , car        ( car_ )
+  , cdr        ( cdr_ )
+  , cong_data  ( NULL )
+  , atom_data  ( NULL )
+{
+  assert( car );
+  assert( cdr );
+  assert( car->isTerm( ) || car->isSymb( ) || car->isNumb( ) );
+  assert( cdr->isList( ) );
+  //
+  // If car is term, then this node is a list
+  //
+  if ( car->isTerm( ) )
+  {
+    setEtype( ETYPE_LIST );
+    if ( cdr->getArity( ) == MAX_ARITY - 1 )
+      setArity( cdr->getArity( ) );
+    else
+      setArity( cdr->getArity( ) + 1 );
+  }
+  //
+  // Otherwise this node is a term
+  //
+  else
+  {
+    //
+    // Set Etype
+    //
+    setEtype( ETYPE_TERM );
+    //
+    // Set Arity
+    //
+    setArity( cdr->getArity( ) );
+    //
+    // Set Dtype
+    //
+    if ( isIte( ) )
+      setDtype( get2nd( )->getDType( ) );
+    else
+      setDtype( car->getDType( ) );
+    //
+    // Set width for bitvectors
+    //
+    if ( isDTypeBitVec( ) )
+    {
+      // Compute width
+      if ( isConcat( ) )
+      {
+	uint32_t width = 0;
+	Enode * arg_list;
+	for ( arg_list = cdr
+	    ; !arg_list->isEnil( ) 
+	    ; arg_list = arg_list->getCdr( ) )
+	{
+	  Enode * arg = arg_list->getCar( );
+	  width += arg->getWidth( );
+	}
+	setWidth( width );
+      }
+      else if ( isIte( ) )
+	setWidth( get2nd( )->getWidth( ) );
+      else if ( isExtract( ) )
+	setWidth( car->getWidth( ) );
+      else if ( isSignExtend( ) )
+	; // Do nothing, we set width in mkSignExtend
+      else if ( isWord1cast( ) )
+	setWidth( 1 );
+      else if ( getArity( ) > 0 )
+	setWidth( get1st( )->getWidth( ) );
+      else
+	setWidth( car->getWidth( ) );
+
+      assert( isSignExtend( ) || getWidth( ) > 0 );
+    }
+  }
+
   if ( isTAtom( ) )
     atom_data = new AtomData;
+
+  assert( isTerm( ) || isList( ) );
 }
 //
 // Constructor for new Definition
 //
-Enode::Enode( const int	id_
-            , Enode *   def_ )
-  : id        ( id_ )
-  , etype     ( ENODE_TYPE_DEF )
-  , car       ( def_ )
-  , cong_data ( NULL )
-  , atom_data ( NULL )
+Enode::Enode( const enodeid_t	id_
+            , Enode *		def_ )
+  : id         ( id_ )
+  , properties ( ETYPE_DEF )
+  , car        ( def_ )
+  , cong_data  ( NULL )
+  , atom_data  ( NULL )
 { }
 
-Enode::~Enode ( ) 
-{ 
-  if ( isSymb( ) || isNumb( ) ) 
+Enode::~Enode ( )
+{
+  if ( isSymb( ) || isNumb( ) )
     delete symb_data;
-  else if ( cong_data ) 
+  else if ( cong_data )
     delete cong_data;
-  if ( atom_data ) 
+  if ( atom_data )
     delete atom_data;
 }
 
@@ -98,12 +193,12 @@ void Enode::addParent ( Enode * p )
   assert( isTerm( ) || isList( ) );
 
   setParentSize( getParentSize( ) + 1 );
-  // If it has no parents, adds p 
+  // If it has no parents, adds p
   if ( getParent( ) == NULL )
   {
     setParent( p );
 
-    if ( etype == ENODE_TYPE_LIST )
+    if ( isList( ) )
       p->setSameCdr( p );
     else
       p->setSameCar( p );
@@ -111,7 +206,7 @@ void Enode::addParent ( Enode * p )
     return;
   }
   // Otherwise adds p in the samecar/cdr of the parent of this node
-  if ( etype == ENODE_TYPE_LIST )
+  if ( isList( ) )
   {
     // Build or update samecdr circular list
     assert( getParent( )->getSameCdr( ) != NULL );
@@ -120,18 +215,18 @@ void Enode::addParent ( Enode * p )
   }
   else
   {
-    ( etype == ENODE_TYPE_TERM );
     // Build or update samecar circular list
     assert( getParent( )->getSameCar( ) != NULL );
     p->setSameCar( getParent( )->getSameCar( ) );
     getParent( )->setSameCar( p );
   }
-} 
+}
 
 void Enode::removeParent ( Enode * p )
 {
   if ( isEnil( ) ) return;
 
+  assert( isList( ) || isTerm( ) );
   assert( getParent( ) != NULL );
   assert( getParentSize( ) > 0 );
   setParentSize( getParentSize( ) - 1 );
@@ -143,7 +238,7 @@ void Enode::removeParent ( Enode * p )
     return;
   }
   // Otherwise adds remove p from the samecar/cdr list
-  if ( etype == ENODE_TYPE_LIST )
+  if ( isList( ) )
   {
     // Build or update samecdr circular list
     assert( getParent( )->getSameCdr( ) == p );
@@ -155,49 +250,72 @@ void Enode::removeParent ( Enode * p )
     assert( getParent( )->getSameCar( ) == p );
     getParent( )->setSameCar( p->getSameCar( ) );
   }
-} 
+}
 
 void Enode::print( ostream & os )
 {
   Enode * p = NULL;
 
-  switch( etype )
+  if( isSymb( ) )
+    os << getName( );
+  else if ( isNumb( ) )
   {
-    case ENODE_TYPE_SYMBOL:
-      os << getName( );
-      break;
-
-    case ENODE_TYPE_NUMBER:
-      os << getName( );
-      break;
-
-    case ENODE_TYPE_TERM:
-      if ( !cdr->isEnil( ) ) 
-	os << "(";
-
-      car->print( os );
-
-      p = cdr;
-      while ( !p->isEnil( ) )
+    if ( isDTypeBitVec( ) )
+    {
+    // Choose binary or decimal value; binary won't work with most solvers
+#if 0
+      os << "bvbin" << getName();
+#else
+      os << "bv" << getValue( ) << "[" << strlen(getName()) << "]";
+#endif
+    }
+    else
+    {
+      Real r = getValue();
+#if USE_GMP
+      if (r < 0)
       {
-	os << " ";
-	p->car->print( os );
-	p = p->cdr;
+	if (r.get_den() != 1)
+	  os << "(/ " << "(~ " << abs(r.get_num()) <<")" << " " << r.get_den() << ")";
+	else
+	  os << "(~ " << abs(r) <<")";
       }
-
-      if ( !cdr->isEnil( ) ) 
-	os << ")";
-
-      break;
-
-    case ENODE_TYPE_LIST:
-
-      if ( isEnil( ) )
+      else
       {
-	os << "enil";
-	break;
+	if (r.get_den() != 1)
+	  os << "(/ " << r.get_num() << " " << r.get_den() << ")";
+	else
+	  os << r;
       }
+#else
+      os << r;
+#endif
+    }
+  }
+  else if ( isTerm( ) )
+  {
+    if ( !cdr->isEnil( ) )
+      os << "(";
 
+    car->print( os );
+
+    p = cdr;
+    while ( !p->isEnil( ) )
+    {
+      os << " ";
+      p->car->print( os );
+      p = p->cdr;
+    }
+
+    if ( !cdr->isEnil( ) )
+      os << ")";
+  }
+  else if ( isList( ) )
+  {
+    if ( isEnil( ) )
+      os << "-";
+    else
+    {
       os << "[";
       car->print( os );
 
@@ -210,25 +328,27 @@ void Enode::print( ostream & os )
       }
 
       os << "]";
-      break;
-
-    case ENODE_TYPE_DEF:
-      os << ":= " << car;
-      break;
-
-    case ENODE_TYPE_UNDEF:
-      assert( isEnil( ) );
-      os << "-";
-      break;
-
-    default:
-      cerr << "ERROR: Unknown case value" << endl;
-      exit( 1 );
+    }
   }
+  else if ( isDef( ) )
+  {
+    os << ":= " << car;
+  }
+  else if ( isEnil( ) )
+  {
+    os << "-";
+  }
+  else
+    error( "unknown case value", "" );
 }
 
 void Enode::printSig( ostream & os )
 {
-  Pair( int ) sig = getSig( );
+#ifdef BUILD_64
+  enodeid_pair_t sig = getSig( );
+  os << "(" << (sig>>sizeof(enodeid_t)*8) << ", " << (sig|0x00000000FFFFFFFF) << ")";
+#else
+  Pair( enodeid_t ) sig = getSig( );
   os << "(" << sig.first << ", " << sig.second << ")";
+#endif
 }

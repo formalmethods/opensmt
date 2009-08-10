@@ -1,7 +1,7 @@
 /*********************************************************************
-Author: Roberto Bruttomesso <roberto.bruttomesso@unisi.ch>
+Author: Roberto Bruttomesso <roberto.bruttomesso@gmail.com>
 
-OpenSMT -- Copyright (C) 2008, Roberto Bruttomesso
+OpenSMT -- Copyright (C) 2009, Roberto Bruttomesso
 
 OpenSMT is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -24,11 +24,9 @@ along with OpenSMT. If not, see <http://www.gnu.org/licenses/>.
 #define OTL_H
 
 #include "global.h"
+#include "SolverTypes.h"
 
 #define Pair( T ) pair< T, T >
-
-// TODO: move to config
-#define USE_HASH
 
 namespace __gnu_cxx
 {
@@ -42,6 +40,16 @@ namespace __gnu_cxx
       return p.first ^ p.second;
     }
   };
+  // Hash function for pairs of integer
+  template<>
+  class hash< Clause * >
+  {
+  public:
+    size_t operator( )( Clause * c ) const
+    {
+      return (size_t)c;
+    }
+  };
 }
 
 struct strEq { inline bool operator( )( const char * s1, const char * s2 ) const { assert( s1 && s2 ); return strcmp( s1, s2 ) == 0; } };
@@ -49,16 +57,12 @@ struct strEq { inline bool operator( )( const char * s1, const char * s2 ) const
 class Enode;
 class EnodeSymbol;
 
-#ifdef USE_HASH
 #define Set( T )              hash_set< T >
 #define Map( T1, T2 )         hash_map< T1, T2 > 
-#else
-#define Set( T )              set< T >
-#define Map( T1, T2 )         map< T1, T2 > 
-#endif
-
+#define OrderedSet( T )       set< T >
 #define MapNameInt            map< string, int >
+#define MapNameUint           map< string, uint32_t >
 #define MapNameEnode          map< string, Enode * >
-#define MapPairEnode          Map( Pair( int ), Enode * )
+#define MapPairEnode          map< Pair( int ), Enode * >
 
 #endif

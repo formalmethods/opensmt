@@ -1,7 +1,7 @@
 /*********************************************************************
-Author: Roberto Bruttomesso <roberto.bruttomesso@unisi.ch>
+Author: Roberto Bruttomesso <roberto.bruttomesso@gmail.com>
 
-OpenSMT -- Copyright (C) 2008, Roberto Bruttomesso
+OpenSMT -- Copyright (C) 2009, Roberto Bruttomesso
 
 OpenSMT is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -23,8 +23,9 @@ along with OpenSMT. If not, see <http://www.gnu.org/licenses/>.
 //
 // Performs the actual cnfization
 //
-bool Tseitin::cnfize( Enode * formula, Map( int, Enode * ) & cnf_cache )
+bool Tseitin::cnfize( Enode * formula, Map( enodeid_t, Enode * ) & cnf_cache )
 {
+  assert( formula );
   assert( !formula->isAnd( ) );
 
   vector< Enode * > unprocessed_enodes;       // Stack for unprocessed enodes
@@ -35,10 +36,10 @@ bool Tseitin::cnfize( Enode * formula, Map( int, Enode * ) & cnf_cache )
   while( !unprocessed_enodes.empty( ) )
   {
     Enode * enode = unprocessed_enodes.back( );
-    // 
+    //
     // Skip if the node has already been processed before
     //
-    if ( cnf_cache.find( enode->getId( ) ) != cnf_cache.end( ) )
+    if ( egraph.valDupMap( enode ) != NULL )
     {
       unprocessed_enodes.pop_back( );
       continue;
@@ -46,8 +47,8 @@ bool Tseitin::cnfize( Enode * formula, Map( int, Enode * ) & cnf_cache )
 
     bool unprocessed_children = false;
     Enode * arg_list;
-    for ( arg_list = enode->getCdr( ) ; 
-	  arg_list != egraph.enil ; 
+    for ( arg_list = enode->getCdr( ) ;
+	  arg_list != egraph.enil ;
 	  arg_list = arg_list->getCdr( ) )
     {
       Enode * arg = arg_list->getCar( );
@@ -56,8 +57,8 @@ bool Tseitin::cnfize( Enode * formula, Map( int, Enode * ) & cnf_cache )
       //
       // Push only if it is an unprocessed boolean operator
       //
-      if ( enode->isBooleanOperator( ) 
-	&& cnf_cache.find( arg->getId( ) ) == cnf_cache.end( ) )
+      if ( enode->isBooleanOperator( )
+	&& egraph.valDupMap( arg ) == NULL )
       {
 	unprocessed_enodes.push_back( arg );
 	unprocessed_children = true;
@@ -68,7 +69,7 @@ bool Tseitin::cnfize( Enode * formula, Map( int, Enode * ) & cnf_cache )
       //
       else if ( arg->isAtom( ) )
       {
-	cnf_cache.insert( make_pair( arg->getId( ), arg ) );
+	egraph.storeDupMap( arg, arg );
       }
     }
     //
@@ -77,7 +78,7 @@ bool Tseitin::cnfize( Enode * formula, Map( int, Enode * ) & cnf_cache )
     if ( unprocessed_children )
       continue;
 
-    unprocessed_enodes.pop_back( );                      
+    unprocessed_enodes.pop_back( );
     Enode * result = NULL;
     //
     // At this point, every child has been processed
@@ -93,18 +94,24 @@ bool Tseitin::cnfize( Enode * formula, Map( int, Enode * ) & cnf_cache )
     }
     else if ( enode->isNot( ) )
     {
-      Enode * arg_def = cnf_cache[ enode->get1st( )->getId( ) ];       
+      Enode * arg_def = egraph.valDupMap( enode->get1st( ) );
       assert( arg_def );
       result = egraph.mkNot( egraph.cons( arg_def ) ); // Toggle the literal
     }
     else
     {
-      Enode * new_arg_list = egraph.copyEnodeEtypeListWithCache( enode->getCdr( ), cnf_cache );
-
-      sprintf( def_name, "CNF_DEF_%d", enode->getId( ) );
-      egraph.newSymbol( def_name, ENODE_ARITY_0, TYPE_BOOL );  
-
-      Enode * arg_def = egraph.mkVar( def_name ); 
+      Enode * arg_def = NULL;
+      Enode * new_arg_list = egraph.copyEnodeEtypeListWithCache( enode->getCdr( ) );
+      //
+      // If the enode is not top-level it needs a definition
+      //
+      if ( formula != enode )
+      {
+	sprintf( def_name, CNF_STR, enode->getId( ) );
+	egraph.newSymbol( def_name, DTYPE_BOOL );
+	arg_def = egraph.mkVar( def_name );
+      }
+      
       //
       // Handle boolean operators
       //
@@ -121,146 +128,242 @@ bool Tseitin::cnfize( Enode * formula, Map( int, Enode * ) & cnf_cache )
       else if ( enode->isImplies( ) )
 	cnfizeImplies( new_arg_list, arg_def );
       else
-      {
-	cerr << "Error: Operator not handled" << endl;
-	exit( 1 );
-      }
+	error( "operator not handled ", enode->getCar( ) );
 
-      result = arg_def;
+      if ( arg_def != NULL )
+	result = arg_def;
     }
 
-    assert( result );
-    assert( cnf_cache.find( enode->getId( ) ) == cnf_cache.end( ) );
-    cnf_cache[ enode->getId( ) ] = result;
+    assert( egraph.valDupMap( enode ) == NULL );
+    egraph.storeDupMap( enode, result );
   }
 
-  Enode * top_enode = cnf_cache[ formula->getId( ) ];
-  vector< Enode * > top_clause;
-  top_clause.push_back( top_enode );
-  if ( dump_cnf ) dump_list.push_back( top_clause );
-  return solver.addSMTClause( top_clause );
+  if ( formula->isNot( ) )
+  {
+    // Retrieve definition of argument
+    Enode * arg_def = egraph.valDupMap( formula->get1st( ) );
+    assert( arg_def );
+    vector< Enode * > clause;
+    clause.push_back( toggleLit( arg_def ) );
+    return solver.addSMTClause( clause );
+  }
+
+  return true;
 }
 
 void Tseitin::cnfizeAnd( Enode * list, Enode * arg_def )
 {
   assert( list );
   assert( list->isList( ) );
-  //
-  // ( a_0 & ... & a_{n-1} ) 
-  //
-  // <=>
-  //
-  // aux = ( -aux | a_0 ) & ... & ( -aux | a_{n-1} ) & ( aux & -a_0 & ... & -a_{n-1} ) 
-  //
-  vector< Enode * > little_clause;
-  vector< Enode * > big_clause;
-  little_clause.push_back( toggleLit( arg_def ) );
-  big_clause   .push_back( arg_def ); 
-  for ( ; list != egraph.enil ; list = list->getCdr( ) )
+  if ( arg_def == NULL )
   {
-    Enode * arg = list->getCar( );
-    little_clause.push_back( arg );
-    big_clause   .push_back( toggleLit( arg ) );  
-    if ( dump_cnf ) dump_list.push_back( little_clause );
-    solver       .addSMTClause( little_clause );        // Adds a little clause to the solver
-    little_clause.pop_back( );
+    for ( ; list != egraph.enil ; list = list->getCdr( ) )
+    {
+      Enode * arg = list->getCar( );
+      vector< Enode * > little_clause;
+      little_clause.push_back( arg );
+      solver.addSMTClause( little_clause );        // Adds a little clause to the solver
+    }
   }
-  if ( dump_cnf ) dump_list.push_back( big_clause );
-  solver.addSMTClause( big_clause );                    // Adds a big clause to the solver
-} 
+  else
+  {
+    //
+    // ( a_0 & ... & a_{n-1} )
+    //
+    // <=>
+    //
+    // aux = ( -aux | a_0 ) & ... & ( -aux | a_{n-1} ) & ( aux & -a_0 & ... & -a_{n-1} )
+    //
+    vector< Enode * > little_clause;
+    vector< Enode * > big_clause;
+    little_clause.push_back( toggleLit( arg_def ) );
+    big_clause   .push_back( arg_def );
+    for ( ; list != egraph.enil ; list = list->getCdr( ) )
+    {
+      Enode * arg = list->getCar( );
+      little_clause.push_back( arg );
+      big_clause   .push_back( toggleLit( arg ) );
+      solver       .addSMTClause( little_clause );        // Adds a little clause to the solver
+      little_clause.pop_back( );
+    }
+    solver.addSMTClause( big_clause );                    // Adds a big clause to the solver
+  }
+}
 
 void Tseitin::cnfizeOr( Enode * list, Enode * arg_def )
 {
   assert( list );
   assert( list->isList( ) );
-  //
-  // ( a_0 | ... | a_{n-1} ) 
-  //
-  // <=>
-  //
-  // aux = ( aux | -a_0 ) & ... & ( aux | -a_{n-1} ) & ( -aux | a_0 | ... | a_{n-1} ) 
-  //
-  vector< Enode * > little_clause;
-  vector< Enode * > big_clause;
-  little_clause.push_back( arg_def );
-  big_clause   .push_back( toggleLit( arg_def ) );
-  for ( ; list != egraph.enil ; list = list->getCdr( ) )
+  if ( arg_def == NULL )
   {
-    Enode * arg = list->getCar( );
-    little_clause.push_back( toggleLit( arg ) );
-    big_clause   .push_back( arg ); 
-    if ( dump_cnf ) dump_list.push_back( little_clause );
-    solver       .addSMTClause( little_clause );        // Adds a little clause to the solver
-    little_clause.pop_back( );
+    vector< Enode * > big_clause;
+    for ( ; list != egraph.enil ; list = list->getCdr( ) )
+    {
+      Enode * arg = list->getCar( );
+      big_clause.push_back( arg );
+    }
+    solver.addSMTClause( big_clause );        
   }
-  if ( dump_cnf ) dump_list.push_back( big_clause );
-  solver.addSMTClause( big_clause );                    // Adds a big clause to the solver
-} 
+  else
+  {
+    //
+    // ( a_0 | ... | a_{n-1} )
+    //
+    // <=>
+    //
+    // aux = ( aux | -a_0 ) & ... & ( aux | -a_{n-1} ) & ( -aux | a_0 | ... | a_{n-1} )
+    //
+    vector< Enode * > little_clause;
+    vector< Enode * > big_clause;
+    little_clause.push_back( arg_def );
+    big_clause   .push_back( toggleLit( arg_def ) );
+    for ( ; list != egraph.enil ; list = list->getCdr( ) )
+    {
+      Enode * arg = list->getCar( );
+      little_clause.push_back( toggleLit( arg ) );
+      big_clause   .push_back( arg );
+      solver       .addSMTClause( little_clause );        // Adds a little clause to the solver
+      little_clause.pop_back( );
+    }
+    solver.addSMTClause( big_clause );                    // Adds a big clause to the solver
+  }
+}
 
-//
-// Not yet handled
-//
-void Tseitin::cnfizeXor( Enode *, Enode * )
+void Tseitin::cnfizeXor( Enode * list, Enode * arg_def )
 {
-  //
-  // ( a_0 xor a_1 ) 
-  //
-  // <=>
-  //
-  // aux = ( -aux | a_0  | a_1 ) & ( -aux | -a_0 | -a_1 ) &
-  //	   (  aux | -a_0 | a_1 ) & (  aux |  a_0 |  a_1 ) 
-  //
-  assert( false );
-} 
+  assert( list );
+  if ( arg_def == NULL )
+  {
+    Enode * arg0 = list->getCar();
+    Enode * arg1 = list->getCdr( )->getCar();
+
+    vector< Enode * > clause;
+
+    clause.push_back( arg0 );
+    clause.push_back( arg1 );
+    solver.addSMTClause( clause );        
+
+    clause.pop_back( );
+    clause.pop_back( );
+
+    clause.push_back( toggleLit( arg0 ) );
+    clause.push_back( toggleLit( arg1 ) );
+    solver.addSMTClause( clause );        
+  }
+  else
+  {
+    //
+    // ( a_0 xor a_1 )
+    //
+    // <=>
+    //
+    // aux = ( -aux | a_0  | a_1 ) & ( -aux | -a_0 | -a_1 ) &
+    //       (  aux | -a_0 | a_1 ) & (  aux |  a_0 |  a_1 )
+    //
+    Enode * arg0 = list->getCar();
+    Enode * arg1 = list->getCdr( )->getCar();
+    vector< Enode *> clause;
+
+    clause.push_back(toggleLit(arg_def) );
+
+    // First clause
+    clause.push_back(arg0);
+    clause.push_back(arg1 );
+    solver.addSMTClause(clause); // Adds a little clause to the solver
+    clause.pop_back();
+    clause.pop_back();
+
+    // Second clause
+    clause.push_back(toggleLit(arg0) );
+    clause.push_back(toggleLit(arg1) );
+    solver.addSMTClause(clause); // Adds a little clause to the solver
+    clause.pop_back();
+    clause.pop_back();
+
+    clause.pop_back();
+    clause.push_back(arg_def);
+
+    // Third clause
+    clause.push_back(toggleLit(arg0));
+    clause.push_back(arg1);
+    solver.addSMTClause(clause); // Adds a little clause to the solver
+    clause.pop_back();
+    clause.pop_back();
+
+    // Fourth clause
+    clause.push_back(arg0 );
+    clause.push_back(toggleLit(arg1) );
+    solver.addSMTClause( clause );           // Adds a little clause to the solver
+  }
+}
 
 void Tseitin::cnfizeIff( Enode * list, Enode * arg_def )
 {
-  //
-  // ( a_0 <-> a_1 ) 
-  //
-  // <=>
-  //
-  // aux = ( -aux |  a_0 | -a_1 ) & ( -aux | -a_0 |  a_1 ) &
-  //	   (  aux |  a_0 |  a_1 ) & (  aux | -a_0 | -a_1 ) 
-  //
-  assert( list->getArity( ) == 2 );
-  Enode * arg0 = list->getCar( );
-  Enode * arg1 = list->getCdr( )->getCar( );
-  vector< Enode * > clause;
+  if ( arg_def == NULL )
+  {
+    Enode * arg0 = list->getCar();
+    Enode * arg1 = list->getCdr( )->getCar();
 
-  clause.push_back( toggleLit( arg_def ) );
-  
-  // First clause
-  clause.push_back( arg0 );
-  clause.push_back( toggleLit( arg1 ) );
-  if ( dump_cnf ) dump_list.push_back( clause );
-  solver.addSMTClause( clause );           // Adds a little clause to the solver
-  clause.pop_back( );
-  clause.pop_back( );
+    vector< Enode * > clause;
 
-  // Second clause
-  clause.push_back( toggleLit( arg0 ) );
-  clause.push_back( arg1 );
-  if ( dump_cnf ) dump_list.push_back( clause );
-  solver.addSMTClause( clause );           // Adds a little clause to the solver
-  clause.pop_back( );
-  clause.pop_back( );
+    clause.push_back( arg0 );
+    clause.push_back( toggleLit( arg1 ) );
+    solver.addSMTClause( clause );        
 
-  clause.pop_back( );
-  clause.push_back( arg_def );
-  
-  // Third clause
-  clause.push_back( arg0 );
-  clause.push_back( arg1 );
-  if ( dump_cnf ) dump_list.push_back( clause );
-  solver.addSMTClause( clause );           // Adds a little clause to the solver
-  clause.pop_back( );
-  clause.pop_back( );
+    clause.pop_back( );
+    clause.pop_back( );
 
-  // Fourth clause
-  clause.push_back( toggleLit( arg0 ) );
-  clause.push_back( toggleLit( arg1 ) );
-} 
+    clause.push_back( toggleLit( arg0 ) );
+    clause.push_back( arg1 );
+    solver.addSMTClause( clause );        
+  }
+  else
+  {
+    //
+    // ( a_0 <-> a_1 )
+    //
+    // <=>
+    //
+    // aux = ( -aux |  a_0 | -a_1 ) & ( -aux | -a_0 |  a_1 ) &
+    //	   (  aux |  a_0 |  a_1 ) & (  aux | -a_0 | -a_1 )
+    //
+    assert( list->getArity( ) == 2 );
+    Enode * arg0 = list->getCar( );
+    Enode * arg1 = list->getCdr( )->getCar( );
+    vector< Enode * > clause;
+
+    clause.push_back( toggleLit( arg_def ) );
+
+    // First clause
+    clause.push_back( arg0 );
+    clause.push_back( toggleLit( arg1 ) );
+    solver.addSMTClause( clause );           // Adds a little clause to the solver
+    clause.pop_back( );
+    clause.pop_back( );
+
+    // Second clause
+    clause.push_back( toggleLit( arg0 ) );
+    clause.push_back( arg1 );
+    solver.addSMTClause( clause );           // Adds a little clause to the solver
+    clause.pop_back( );
+    clause.pop_back( );
+
+    clause.pop_back( );
+    clause.push_back( arg_def );
+
+    // Third clause
+    clause.push_back( arg0 );
+    clause.push_back( arg1 );
+    solver.addSMTClause( clause );           // Adds a little clause to the solver
+    clause.pop_back( );
+    clause.pop_back( );
+
+    // Fourth clause
+    clause.push_back( toggleLit( arg0 ) );
+    clause.push_back( toggleLit( arg1 ) );
+    solver.addSMTClause( clause );           // Adds a little clause to the solver
+  }
+}
 
 //
 // Not yet handled
@@ -268,7 +371,7 @@ void Tseitin::cnfizeIff( Enode * list, Enode * arg_def )
 void Tseitin::cnfizeImplies( Enode *, Enode * )
 {
   //
-  // ( a_0 -> a_1 ) 
+  // ( a_0 -> a_1 )
   //
   // <=>
   //
@@ -279,45 +382,73 @@ void Tseitin::cnfizeImplies( Enode *, Enode * )
 
 void Tseitin::cnfizeIfthenelse( Enode * list, Enode * arg_def )
 {
-  //  (!a | !i | t) & (!a | i | e) & (a | !i | !t) & (a | i | !e) 
-  //
-  // ( if a_0 then a_1 else a_2 ) 
-  //
-  // <=>
-  //
-  // aux = ( -aux | -a_0 |  a_1 ) & 
-  //       ( -aux |  a_0 |  a_2 ) & 
-  //       (  aux | -a_0 | -a_1 ) &
-  //       (  aux |  a_0 | -a_2 )
-  //
-  assert( list->getArity( ) == 3 );
-  Enode * arg0 = list->getCar( );
-  Enode * arg1 = list->getCdr( )->getCar( );
-  Enode * arg2 = list->getCdr( )->getCdr( )->getCar( );
-  vector< Enode * > clause;
+  if ( arg_def == NULL )
+  {
+    Enode * i = list->getCar();
+    Enode * t = list->getCdr( )->getCar( );
+    Enode * e = list->getCdr( )->getCdr( )->getCar( );
 
-  clause.push_back( toggleLit( arg_def ) );
-  
-  // First clause
-  clause.push_back( toggleLit( arg0 ) );
-  clause.push_back( arg1 );
-  clause.pop_back( );
-  clause.pop_back( );
-  // Second clause
-  clause.push_back( arg0 );
-  clause.push_back( arg2 );
-  clause.pop_back( );
-  clause.pop_back( );
+    vector< Enode * > clause;
 
-  clause.pop_back( );
-  clause.push_back( arg_def );
-  
-  // Third clause
-  clause.push_back( toggleLit( arg0 ) );
-  clause.push_back( toggleLit( arg1 ) );
-  clause.pop_back( );
-  clause.pop_back( );
-  // Fourth clause
-  clause.push_back( arg0 );
-  clause.push_back( toggleLit( arg2 ) );
+    clause.push_back( toggleLit( i ) );
+    clause.push_back( t );
+    solver.addSMTClause( clause );        
+
+    clause.pop_back( );
+    clause.pop_back( );
+
+    clause.push_back( i );
+    clause.push_back( e );
+    solver.addSMTClause( clause );        
+  }
+  else
+  {
+    //  (!a | !i | t) & (!a | i | e) & (a | !i | !t) & (a | i | !e)
+    //
+    // ( if a_0 then a_1 else a_2 )
+    //
+    // <=>
+    //
+    // aux = ( -aux | -a_0 |  a_1 ) &
+    //       ( -aux |  a_0 |  a_2 ) &
+    //       (  aux | -a_0 | -a_1 ) &
+    //       (  aux |  a_0 | -a_2 )
+    //
+    assert( list->getArity( ) == 3 );
+    Enode * arg0 = list->getCar( );
+    Enode * arg1 = list->getCdr( )->getCar( );
+    Enode * arg2 = list->getCdr( )->getCdr( )->getCar( );
+    vector< Enode * > clause;
+
+    clause.push_back( toggleLit( arg_def ) );
+
+    // First clause
+    clause.push_back( toggleLit( arg0 ) );
+    clause.push_back( arg1 );
+    solver.addSMTClause( clause );
+    clause.pop_back( );
+    clause.pop_back( );
+
+    // Second clause
+    clause.push_back( arg0 );
+    clause.push_back( arg2 );
+    solver.addSMTClause( clause );
+    clause.pop_back( );
+    clause.pop_back( );
+
+    clause.pop_back( );
+    clause.push_back( arg_def );
+
+    // Third clause
+    clause.push_back( toggleLit( arg0 ) );
+    clause.push_back( toggleLit( arg1 ) );
+    solver.addSMTClause( clause );
+    clause.pop_back( );
+    clause.pop_back( );
+
+    // Fourth clause
+    clause.push_back( arg0 );
+    clause.push_back( toggleLit( arg2 ) );
+    solver.addSMTClause( clause );
+  }
 }

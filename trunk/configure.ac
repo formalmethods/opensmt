@@ -1,5 +1,5 @@
-AC_PREREQ(2.57)
-AC_INIT([OpenSMT], [0.1], [roberto.bruttomesso@unisi.ch])
+AC_PREREQ(2.59)
+AC_INIT([OpenSMT], [0.2], [roberto.bruttomesso@gmail.com])
 AC_CONFIG_AUX_DIR(autotools)
 AM_INIT_AUTOMAKE
 
@@ -13,6 +13,25 @@ AC_PROG_MAKE_SET
 
 AC_DISABLE_SHARED
 AC_PROG_LIBTOOL
+#
+# Statically linked version
+#
+AC_ARG_ENABLE(statically,
+  AC_HELP_STRING([--enable-statically],
+                 [enable statically linked libraries (--static) (default=no)]),
+  enablestatically=$enableval,
+  enablestatically="no")
+
+if test $enablestatically = "yes" ;
+then
+  config_statically="--static"
+elif test $enablestatically = "no" ;
+then
+  config_statically="" 
+else
+  config_statically=$enablestatically
+fi
+echo "setting static flags to... ${config_statically:-none}"
 # 
 # Profiling
 #
@@ -130,8 +149,8 @@ then
   exit
 fi
 
-AM_CFLAGS="-W -Wall -g $config_profiling $config_optimization $config_external_tool $config_pedantic_debug $config_smtcomp"
-AM_CXXFLAGS="-W -Wall -g $config_profiling $config_optimization $config_external_tool $config_pedantic_debug $config_smtcomp"
+AM_CFLAGS="-W -Wall -g $config_profiling $config_optimization $config_external_tool $config_pedantic_debug $config_smtcomp $config_statically"
+AM_CXXFLAGS="-W -Wall -g $config_profiling $config_optimization $config_external_tool $config_pedantic_debug $config_smtcomp $config_statically"
 CFLAGS=""
 CXXFLAGS=""
 AC_SUBST(AM_CFLAGS)
@@ -141,15 +160,20 @@ AC_SUBST(CXXFLAGS)
 #
 # List of directories to include
 #
-config_includedirs="-I\${top_srcdir}/src \\
--I\${top_srcdir}/src/otl \\
--I\${top_srcdir}/src/minisat/mtl \\
--I\${top_srcdir}/src/minisat/core \\
--I\${top_srcdir}/src/egraph \\
--I\${top_srcdir}/src/smtsolvers \\
--I\${top_srcdir}/src/cnfizers \\
--I\${top_srcdir}/src/tsolvers \\
--I\${top_srcdir}/src/tsolvers/emptysolver"
+config_includedirs="-I\${top_srcdir}/src \\\
+-I\${top_srcdir}/src/otl \\\
+-I\${top_srcdir}/src/minisat/mtl \\\
+-I\${top_srcdir}/src/minisat/core \\\
+-I\${top_srcdir}/src/egraph \\\
+-I\${top_srcdir}/src/smtsolvers \\\
+-I\${top_srcdir}/src/simplifiers \\\
+-I\${top_srcdir}/src/cnfizers \\\
+-I\${top_srcdir}/src/tsolvers \\\
+-I\${top_srcdir}/src/tsolvers/emptysolver \\\
+-I\${top_srcdir}/src/tsolvers/bvsolver \\\
+-I\${top_srcdir}/src/tsolvers/bvsolver/minisatp \\\
+-I\${top_srcdir}/src/tsolvers/lrasolver \\\
+-I\${top_srcdir}/src/tsolvers/dlsolver"
 
 AC_SUBST(config_includedirs)
 
@@ -158,10 +182,17 @@ AC_CONFIG_FILES([ \
 		  src/Makefile \
 		  src/parsers/Makefile \
 		  src/parsers/smt/Makefile \
+		  src/parsers/ys/Makefile \
 		  src/egraph/Makefile \
 		  src/cnfizers/Makefile \
 		  src/smtsolvers/Makefile \
+		  src/simplifiers/Makefile \
 		  src/tsolvers/Makefile \
 		  src/tsolvers/emptysolver/Makefile \
+		  src/tsolvers/bvsolver/Makefile \
+		  src/tsolvers/lrasolver/Makefile \
+		  src/tsolvers/bvsolver/minisatp/Makefile \
+		  src/tsolvers/dlsolver/Makefile \
+		  src/otl/Makefile \
 		  ])
 AC_OUTPUT

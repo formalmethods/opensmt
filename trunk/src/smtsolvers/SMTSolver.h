@@ -1,7 +1,7 @@
 /*********************************************************************
-Author: Roberto Bruttomesso <roberto.bruttomesso@unisi.ch>
+Author: Roberto Bruttomesso <roberto.bruttomesso@gmail.com>
 
-OpenSMT -- Copyright (C) 2008, Roberto Bruttomesso
+OpenSMT -- Copyright (C) 2009, Roberto Bruttomesso
 
 OpenSMT is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -52,6 +52,7 @@ public:
   virtual bool   addSMTClause  ( vector< Enode * > & )      = 0;
   virtual lbool  smtSolve      ( )                          = 0;
   virtual Var    newVar        ( bool = true, bool = true ) = 0;
+  virtual void   setFrozen     ( Var, bool )                = 0;
 
 protected:
 
