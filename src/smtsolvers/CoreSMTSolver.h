@@ -1,7 +1,7 @@
 /*********************************************************************
-Author: Roberto Bruttomesso <roberto.bruttomesso@unisi.ch>
+Author: Roberto Bruttomesso <roberto.bruttomesso@gmail.com>
 
-OpenSMT -- Copyright (C) 2008, Roberto Bruttomesso
+OpenSMT -- Copyright (C) 2009, Roberto Bruttomesso
 
 OpenSMT is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -39,6 +39,10 @@ OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWA
 #ifndef MINISATSMTSOLVER_H
 #define MINISATSMTSOLVER_H
 
+#define CACHE_POLARITY     0
+#define LAZY_COMMUNICATION 1
+#define DUMP_CNF           0
+
 #include "SMTSolver.h"
 
 #include <cstdio>
@@ -52,14 +56,14 @@ OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWA
 //=================================================================================================
 // Solver -- the main class:
 
-class MinisatSMTSolver : public SMTSolver 
+class CoreSMTSolver : public SMTSolver 
 {
 public:
 
     // Constructor/Destructor:
     //
-    MinisatSMTSolver( Egraph &, SMTConfig & );
-    ~MinisatSMTSolver();
+    CoreSMTSolver( Egraph &, SMTConfig & );
+    ~CoreSMTSolver();
 
     // Problem specification:
     //
@@ -126,8 +130,8 @@ protected:
 
     friend class VarFilter;
     struct VarFilter {
-        const MinisatSMTSolver& s;
-        VarFilter(const MinisatSMTSolver& _s) : s(_s) {}
+        const CoreSMTSolver& s;
+        VarFilter(const CoreSMTSolver& _s) : s(_s) {}
         bool operator()(Var v) const { return toLbool(s.assigns[v]) == l_Undef && s.decision_var[v]; }
     };
 
@@ -155,6 +159,10 @@ protected:
     double              random_seed;      // Used by the random variable selection.
     double              progress_estimate;// Set by 'search()'.
     bool                remove_satisfied; // Indicates whether possibly inefficient linear scan for satisfied clauses should be performed in 'simplify'.
+
+#if CACHE_POLARITY
+    vec<char>           prev_polarity;    // The previous polarity of each variable.
+#endif
 
     // Temporaries (to reduce allocation overhead). Each variable is prefixed by the method in which it is
     // used, exept 'seen' wich is used in several places.
@@ -184,6 +192,9 @@ protected:
     //
     void     varDecayActivity ();                      // Decay all variables with the specified factor. Implemented by increasing the 'bump' value instead.
     void     varBumpActivity  (Var v);                 // Increase a variable with the current 'bump' value.
+
+    // Added Line
+    void     boolVarDecActivity( );                    // Decrease boolean atoms activity
     void     claDecayActivity ();                      // Decay all clauses with the specified factor. Implemented by increasing the 'bump' value instead.
     void     claBumpActivity  (Clause& c);             // Increase a clause with the current 'bump' value.
 
@@ -205,6 +216,9 @@ protected:
     void     printLit         (Lit l);
     template<class C>
     void     printClause      (const C& c);
+    // Added Line
+    template<class C>
+    void     printSMTClause   ( ostream & os, const C& c );
     void     verifyModel      ();
     void     checkLiteralCount();
 
@@ -228,19 +242,42 @@ protected:
 
 public:
 
-    bool  addSMTClause ( vector< Enode * > & ); // Adds clause to SAT solver
-    lbool smtSolve     ( );                     // Solve
-    void  printModel   ( );                     // Prints model
-    void  printTrail   ( );                     // Prints the trail (debugging)
+    bool  addSMTClause      ( vector< Enode * > & ); // Adds clause to SAT solver
+    lbool smtSolve          ( );                     // Solve
 
 protected:
 
-    int   checkTheory         ( bool );         // Checks consistency in theory
-    int   deduceTheory        ( );              // Perform theory-deductions
+#ifdef STATISTICS
+    void   printStatistics     ( ostream & );   // Prints statistics
+#endif
+#ifndef SMTCOMP
+    void   printModel          ( ostream & );   // Prints model
+#endif
+    void   printTrail          ( );             // Prints the trail (debugging)
+    int    checkTheory         ( bool );        // Checks consistency in theory
+    int    deduceTheory        ( );             // Perform theory-deductions
+    void   cancelUntilVar      ( Var );         // Backtrack until a certain variable
+    int    restartNextLimit    ( int );         // Next conflict limit for restart
 
-    Clause * fake_clause;                       // Fake clause for unprovided reasons
-    vec< Clause * > cleanup;                    // For cleaning up 
-    bool first_model_found;                     // True if we found a first boolean model
+    Clause *	       fake_clause;             // Fake clause for unprovided reasons
+    vec< Clause * >    cleanup;                 // For cleaning up 
+    bool	       first_model_found;       // True if we found a first boolean model
+    double	       skip_step;               // Steps to skip in calling tsolvers
+    long               skipped_calls;           // Calls skipped so far
+    long               learnt_t_lemmata;        // T-Lemmata stored during search
+    long               perm_learnt_t_lemmata;   // T-Lemmata stored during search
+    unsigned           luby_i;                  // Keep track of luby index
+    unsigned           luby_k;                  // Keep track of luby k
+    vector< unsigned > luby_previous;           // Previously computed luby numbers
+    //
+    // TODO: move more data in STATISTICS
+    //
+#ifdef STATISTICS
+    double             preproc_time;
+    double             tsolvers_time;
+    unsigned           elim_tvars;
+    unsigned           total_tvars;
+#endif
 
 // Added Code
 //=================================================================================================
@@ -251,11 +288,11 @@ protected:
 // Implementation of inline methods:
 
 
-inline void MinisatSMTSolver::insertVarOrder(Var x) {
+inline void CoreSMTSolver::insertVarOrder(Var x) {
     if (!order_heap.inHeap(x) && decision_var[x]) order_heap.insert(x); }
 
-inline void MinisatSMTSolver::varDecayActivity() { var_inc *= var_decay; }
-inline void MinisatSMTSolver::varBumpActivity(Var v) {
+inline void CoreSMTSolver::varDecayActivity() { var_inc *= var_decay; }
+inline void CoreSMTSolver::varBumpActivity(Var v) {
     if ( (activity[v] += var_inc) > 1e100 ) {
         // Rescale:
         for (int i = 0; i < nVars(); i++)
@@ -266,31 +303,64 @@ inline void MinisatSMTSolver::varBumpActivity(Var v) {
     if (order_heap.inHeap(v))
         order_heap.decrease(v); }
 
-inline void MinisatSMTSolver::claDecayActivity() { cla_inc *= clause_decay; }
-inline void MinisatSMTSolver::claBumpActivity (Clause& c) {
+//=================================================================================================
+// Added Code
+
+inline void CoreSMTSolver::boolVarDecActivity( ) 
+{
+#if 1
+  for (int i = 2; i < nVars(); i++)
+  {
+    Enode * e = theory_handler->varToEnode( i );
+#if 1
+    if ( !e->isVar( ) && !first_model_found )
+    {
+      activity[i] += e->getWeightInc( ) * var_inc;
+      // Update order_heap with respect to new activity:
+      if (order_heap.inHeap(i))
+	order_heap.decrease(i); 
+    }
+#else
+    if ( e->isVar( ) && !first_model_found )
+    {
+      activity[i] += var_inc;
+      // Update order_heap with respect to new activity:
+      if (order_heap.inHeap(i))
+	order_heap.decrease(i); 
+    }
+#endif
+  }
+#endif
+}
+	
+// Added Code
+//=================================================================================================
+
+inline void CoreSMTSolver::claDecayActivity() { cla_inc *= clause_decay; }
+inline void CoreSMTSolver::claBumpActivity (Clause& c) {
         if ( (c.activity() += cla_inc) > 1e20 ) {
             // Rescale:
             for (int i = 0; i < learnts.size(); i++)
                 learnts[i]->activity() *= 1e-20;
             cla_inc *= 1e-20; } }
 
-inline bool     MinisatSMTSolver::enqueue         (Lit p, Clause* from)   { return value(p) != l_Undef ? value(p) != l_False : (uncheckedEnqueue(p, from), true); }
-inline bool     MinisatSMTSolver::locked          (const Clause& c) const { return reason[var(c[0])] == &c && value(c[0]) == l_True; }
-inline void     MinisatSMTSolver::newDecisionLevel()                      { trail_lim.push(trail.size()); }
+inline bool     CoreSMTSolver::enqueue         (Lit p, Clause* from)   { return value(p) != l_Undef ? value(p) != l_False : (uncheckedEnqueue(p, from), true); }
+inline bool     CoreSMTSolver::locked          (const Clause& c) const { return reason[var(c[0])] == &c && value(c[0]) == l_True; }
+inline void     CoreSMTSolver::newDecisionLevel()                      { trail_lim.push(trail.size()); }
 
-inline int      MinisatSMTSolver::decisionLevel ()      const   { return trail_lim.size(); }
-inline uint32_t MinisatSMTSolver::abstractLevel (Var x) const   { return 1 << (level[x] & 31); }
-inline lbool    MinisatSMTSolver::value         (Var x) const   { return toLbool(assigns[x]); }
-inline lbool    MinisatSMTSolver::value         (Lit p) const   { return toLbool(assigns[var(p)]) ^ sign(p); }
-inline lbool    MinisatSMTSolver::modelValue    (Lit p) const   { return model[var(p)] ^ sign(p); }
-inline int      MinisatSMTSolver::nAssigns      ()      const   { return trail.size(); }
-inline int      MinisatSMTSolver::nClauses      ()      const   { return clauses.size(); }
-inline int      MinisatSMTSolver::nLearnts      ()      const   { return learnts.size(); }
-inline int      MinisatSMTSolver::nVars         ()      const   { return assigns.size(); }
-inline void     MinisatSMTSolver::setPolarity   (Var v, bool b) { polarity    [v] = (char)b; }
-inline void     MinisatSMTSolver::setDecisionVar(Var v, bool b) { decision_var[v] = (char)b; if (b) { insertVarOrder(v); } }
-inline bool     MinisatSMTSolver::solve         ()              { vec<Lit> tmp; return solve(tmp); }
-inline bool     MinisatSMTSolver::okay          ()      const   { return ok; }
+inline int      CoreSMTSolver::decisionLevel ()      const   { return trail_lim.size(); }
+inline uint32_t CoreSMTSolver::abstractLevel (Var x) const   { return 1 << (level[x] & 31); }
+inline lbool    CoreSMTSolver::value         (Var x) const   { return toLbool(assigns[x]); }
+inline lbool    CoreSMTSolver::value         (Lit p) const   { return toLbool(assigns[var(p)]) ^ sign(p); }
+inline lbool    CoreSMTSolver::modelValue    (Lit p) const   { return model[var(p)] ^ sign(p); }
+inline int      CoreSMTSolver::nAssigns      ()      const   { return trail.size(); }
+inline int      CoreSMTSolver::nClauses      ()      const   { return clauses.size(); }
+inline int      CoreSMTSolver::nLearnts      ()      const   { return learnts.size(); }
+inline int      CoreSMTSolver::nVars         ()      const   { return assigns.size(); }
+inline void     CoreSMTSolver::setPolarity   (Var v, bool b) { polarity    [v] = (char)b; }
+inline void     CoreSMTSolver::setDecisionVar(Var v, bool b) { decision_var[v] = (char)b; if (b) { insertVarOrder(v); } }
+inline bool     CoreSMTSolver::solve         ()              { vec<Lit> tmp; return solve(tmp); }
+inline bool     CoreSMTSolver::okay          ()      const   { return ok; }
 
 
 
@@ -325,20 +395,38 @@ static inline const char* showBool(bool b) { return b ? "true" : "false"; }
 static inline void check(bool expr) { assert(expr); }
 
 
-inline void MinisatSMTSolver::printLit(Lit l)
+inline void CoreSMTSolver::printLit(Lit l)
 {
     reportf("%s%d:%c", sign(l) ? "-" : "", var(l)+1, value(l) == l_True ? '1' : (value(l) == l_False ? '0' : 'X'));
 }
 
 
 template<class C>
-inline void MinisatSMTSolver::printClause(const C& c)
+inline void CoreSMTSolver::printClause(const C& c)
 {
     for (int i = 0; i < c.size(); i++){
         printLit(c[i]);
         fprintf(stderr, " ");
     }
 }
+
+//=================================================================================================
+// Added code
+
+template<class C>
+inline void CoreSMTSolver::printSMTClause( ostream & os, const C& c )
+{
+  for (int i = 0; i < c.size(); i++)
+  {
+    Var v = var(c[i]);
+    if ( v <= 1 ) continue;
+    Enode * e = theory_handler->varToEnode( v );
+    os << (sign(c[i])?"(not ":" ") << e << (sign(c[i])?") ":" ");
+  }
+}
+
+// Added code
+//=================================================================================================
 
 //=================================================================================================
 
