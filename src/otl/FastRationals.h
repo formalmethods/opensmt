@@ -14,7 +14,6 @@ Copyright (c) 2008, 2009 Centre national de la recherche scientifique (CNRS)
 #include <string>
 #include <sstream>
 #include <gmpxx.h>
-#include <limits.h>
 #include <stdlib.h>
 #include <errno.h>
 #include <cassert>
@@ -24,6 +23,7 @@ typedef int32_t  word;
 typedef uint32_t uword;
 typedef int64_t  lword;
 typedef uint64_t ulword;
+const word WORD_MIN = -(1<<31), WORD_MAX = (1<<31)-1;
 
 //#define FAST_GCD
 //#define PRECOMPUTED_GCD
@@ -607,7 +607,7 @@ inline bool FastInteger::operator==(const FastInteger& b) const {
 }
 
 inline FastInteger FastInteger::operator-() const {
-  if (has_word && num > LONG_MIN) {
+  if (has_word && num > WORD_MIN) {
     return FastInteger(-num);
   } else {
     force_make_mpz();
@@ -700,7 +700,7 @@ inline bool FastRational::operator==(const FastRational& b) const {
 }
 
 inline FastRational FastRational::operator-() const {
-  if (has_word && num > LONG_MIN) {
+  if (has_word && num > WORD_MIN) {
     return FastRational(-num, den);
   } else {
     force_make_mpq();
@@ -813,7 +813,7 @@ template<uword> uword gcd(uword a, uword b);
 #define CHECK_WORD(var, value) \
   do { \
     lword tmp = value; \
-    if (tmp < LONG_MIN/2 || tmp > LONG_MAX/2) { \
+    if (tmp < WORD_MIN/2 || tmp > WORD_MAX/2) { \
       goto overflow; \
     } \
     var = tmp;\
@@ -830,7 +830,7 @@ template<uword> uword gcd(uword a, uword b);
   do { \
     CHECK_POSITIVE(value); \
     ulword tmp = value; \
-    if (tmp > LONG_MAX) { \
+    if (tmp > WORD_MAX) { \
       goto overflow; \
     } \
     var = tmp;\
