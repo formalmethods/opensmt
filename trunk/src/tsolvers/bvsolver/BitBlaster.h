@@ -66,9 +66,7 @@ private:
   vector< Enode * > & bbBvmul      ( Enode * );
   vector< Enode * > & bbBvudiv     ( Enode * );
   vector< Enode * > & bbBvurem     ( Enode * );
-  /*vector< Enode * > & bbBvsub      ( Enode * );*/
   vector< Enode * > & bbSignExtend ( Enode * );
-  vector< Enode * > & bbBvashr     ( Enode * );
   vector< Enode * > & bbVar        ( Enode * );
   vector< Enode * > & bbConstant   ( Enode * );
   vector< Enode * > & bbDistinct   ( Enode * );

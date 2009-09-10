@@ -36,90 +36,57 @@ template< class T > DLGraph<T>::~DLGraph( )
 }
 
 //
-// We assume that each atom has been
-// rewritten (by DLCanonizer)
-// into one of the following forms:
+// DL Atoms have one of these shapes
 //
-// x <= y
-// x - y <= c
+// (<= (+ (* 1 x) (* (~ 1) y)) c)
+// (<= (+ (* (~ 1) x) (* 1 y)) c)
+// (<= (* (~ 1) x) c)
+// (<= (* 1 x) c)
 //
 template <class T> DLComplEdges<T> DLGraph<T>::getDLEdge(Enode *e)
 {
   if (edgeMap.find(e) == edgeMap.end())
   {
+    bool invert = false;
     assert( !e->hasPolarity( ) );
     Enode * lhs = e->get1st( );
     Enode * rhs = e->get2nd( );
-    const bool lhs_v_c = lhs->isVar( ) || lhs->isConstant( ) || ( lhs->isUminus( ) && lhs->get1st( )->isConstant( ) );
-    const bool rhs_v_c = rhs->isVar( ) || rhs->isConstant( ) || ( rhs->isUminus( ) && rhs->get1st( )->isConstant( ) );
-
-    Enode * x = NULL;
-    Enode * y = NULL;
-
-    if ( lhs_v_c && rhs_v_c )
+    if ( lhs->isConstant( ) )
     {
-      if ( lhs->isVar( ) && rhs->isVar( ) )
-      {
-	tmp_edge_weight = 0;
-	x = lhs;
-	y = rhs;
-      }
-      else if ( lhs->isVar( ) )
-      {
-	assert( rhs->isConstant( ) || ( rhs->isUminus( ) && rhs->get1st( )->isConstant( ) ) );
-	tmp_edge_weight = rhs->isConstant( )
-	                ? rhs->getCar( )->getValue( )
-#if FAST_RATIONALS
-	                : Real(-rhs->get1st( )->getCar( )->getValue( ));
-#else
-	                : -1 * rhs->get1st( )->getCar( )->getValue( );
-#endif
-	x = lhs;
-      }
-      else
-      {
-	assert( lhs->isConstant( ) || ( lhs->isUminus( ) && lhs->get1st( )->isConstant( ) ) );
-	tmp_edge_weight = lhs->isConstant( )
-	                ? lhs->getCar( )->getValue( )
-#if FAST_RATIONALS
-	                : Real(-(rhs->get1st( )->getCar( )->getValue( )));
-#else
-	                : -1 * rhs->get1st( )->getCar( )->getValue( );
-#endif
-	y = rhs;
-      }
+      Enode * tmp = lhs;
+      lhs = rhs;
+      rhs = tmp;
+      invert = true;
     }
-    else
+    Real one_ = 1;
+    Real mone_ = -1;
+    Enode * one = egraph.mkNum( one_ );
+    Enode * mone = egraph.mkNum( mone_ );
+    assert( rhs->isConstant( ) );
+    assert( lhs->isPlus( ) );
+    assert( lhs->get1st( )->isTimes( ) );
+    assert( lhs->get2nd( )->isTimes( ) );
+    assert( lhs->get1st( )->get1st( ) == one || lhs->get1st( )->get1st( ) == mone );
+    assert( lhs->get2nd( )->get1st( ) == one || lhs->get2nd( )->get1st( ) == mone );
+    Enode * x = lhs->get1st( )->get2nd( );
+    Enode * y = lhs->get2nd( )->get2nd( );
+    Enode * con = rhs;
+    tmp_edge_weight = con->getCar( )->getValue( );
+    if ( invert )
+      tmp_edge_weight = -tmp_edge_weight;
+    //
+    // Swap variables if not right
+    //
+    if ( ( lhs->get1st( )->get1st( ) == mone && !invert ) 
+      || ( lhs->get1st( )->get1st( ) == one  &&  invert ) )
     {
-      Enode * d = e->get1st( )->isMinus( ) ? e->get1st( ) : e->get2nd( );
-      Enode * c = e->get1st( )->isMinus( ) ? e->get2nd( ) : e->get1st( );
-
-      assert( c->isConstant( ) || ( c->isUminus( ) && c->get1st( )->isConstant( ) ) );
-
-#if FAST_RATIONALS
-      tmp_edge_weight = c->isConstant( )
-                      ? c->getCar( )->getValue( )
-	              : Real(-c->get1st( )->getCar( )->getValue( ));
-      tmp_edge_weight = e->get1st( )->isMinus( )
-                      ? tmp_edge_weight
-                      : Real(-tmp_edge_weight);
-#else
-      tmp_edge_weight = c->isConstant( )
-                      ? c->getCar( )->getValue( )
-                      : -1 * c->get1st( )->getCar( )->getValue( );
-      tmp_edge_weight = e->get1st( )->isMinus( )
-                      ? tmp_edge_weight
-                      : -1 * tmp_edge_weight;
-#endif
-      x = e->get1st( )->isMinus( ) ? d->get1st( ) : d->get2nd( );
-      y = e->get1st( )->isMinus( ) ? d->get2nd( ) : d->get1st( );
+      Enode * tmp = x;
+      x = y;
+      y = tmp;
     }
 
-#if RESCALE_IN_DL
     T posWeight = getPosWeight( posWeight ) * ( config.logic == QF_RDL ? egraph.getRescale( posWeight ) : 1 );
-#else
-    T posWeight = getPosWeight( posWeight );
-#endif
+
 #if FAST_RATIONALS
     T negWeight = -posWeight -1;
 #else
@@ -128,8 +95,8 @@ template <class T> DLComplEdges<T> DLGraph<T>::getDLEdge(Enode *e)
 
     DLVertex<T> *u = getDLVertex(x);
     DLVertex<T> *v = getDLVertex(y);
-    DLEdge<T> *pos = new DLEdge<T>(e, 2*edgeMap.size( ), u, v, posWeight);
-    DLEdge<T> *neg = new DLEdge<T>(e, 2*edgeMap.size( ) + 1, v, u, negWeight);
+    DLEdge<T> * pos = new DLEdge<T>(e, 2*edgeMap.size( ), u, v, posWeight);
+    DLEdge<T> * neg = new DLEdge<T>(e, 2*edgeMap.size( ) + 1, v, u, negWeight);
     DLComplEdges<T> edges = DLComplEdges<T>( pos, neg );
     edgeMap.insert( pair< Enode *, DLComplEdges<T> > (e, edges) );
     return edges;
@@ -170,14 +137,16 @@ template< class T > void DLGraph<T>::deleteActive( Enode * c )
   assert ( edgeMap.find( c ) != edgeMap.end( ) );
   DLComplEdges<T> edges = edgeMap.find( c )->second;
 
-  DLEdge<T> *e = c->getPolarity( ) == l_True ? edges.pos : edges.neg;
-  DLEdge<T> *d = dAdj[ e->u->id ].back( );
+  DLEdge<T> * e = c->getPolarity( ) == l_True ? edges.pos : edges.neg;
+  DLEdge<T> * d = dAdj[ e->u->id ].back( );
+  (void)d;
   assert ( d == e );
   dAdj[ e->u->id ].pop_back( );
   dEdges.back( );
   dEdges.pop_back( );
   assert( e->v->id < (int) dAdjInc.size( ) );
-  DLEdge<T> *i = dAdjInc[ e->v->id ].back( );
+  DLEdge<T> * i = dAdjInc[ e->v->id ].back( );
+  (void)i;
   assert ( i == d );
   dAdjInc[ e->v->id ].pop_back( );
   after_backtrack = true;
@@ -220,6 +189,7 @@ template< class T >void DLGraph<T>::insertImplied( Enode * c )
 
 template < class T >DLEdge<T> * DLGraph<T>::insertDynamic( Enode * c, bool reason )
 {
+  (void)reason;
   assert( c->hasPolarity( ) );
   assert( edgeMap.find( c ) != edgeMap.end( ) );
 

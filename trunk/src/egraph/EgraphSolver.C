@@ -141,6 +141,7 @@ bool Egraph::assertLit_ ( Enode * e )
 
   bool res = true;
   bool n = e->getPolarity( ) == l_False;
+
   // Explanation must be empty
   assert( explanation.empty( ) );
   // Assert positive or negative equality
@@ -1271,6 +1272,7 @@ void Egraph::undoMerge( Enode * y )
       || p->getCdr( )->getRoot( ) != cg->getCdr( )->getRoot( ) )
     {
       Enode * res = sig_tab.insert( p );
+      (void)res;
       assert( res == p );
       p->setCgPtr( p );
     }
@@ -1299,6 +1301,7 @@ void Egraph::undoMerge( Enode * y )
   {
     Enode * yc = y->getConstant( );
     Enode * xc = x->getConstant( );
+    (void)xc;
     assert( yc == xc );
     // Invariant: the constant comes from one class only
     // No merge can occur beteween terms that point to the

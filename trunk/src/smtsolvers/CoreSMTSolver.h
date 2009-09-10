@@ -41,7 +41,6 @@ OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWA
 
 #define CACHE_POLARITY     0
 #define LAZY_COMMUNICATION 1
-#define DUMP_CNF           0
 
 #include "SMTSolver.h"
 
@@ -52,6 +51,8 @@ OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWA
 #include "Alg.h"
 
 #include "SolverTypes.h"
+// Added
+#include "LA.h"
 
 //=================================================================================================
 // Solver -- the main class:
@@ -64,6 +65,11 @@ public:
     //
     CoreSMTSolver( Egraph &, SMTConfig & );
     ~CoreSMTSolver();
+
+#if NEW_SIMPLIFICATIONS
+    vector< LAExpression * > top_level_eqs;
+    bool                     doing_t_simp;
+#endif
 
     // Problem specification:
     //
@@ -257,6 +263,8 @@ protected:
     int    checkTheory         ( bool );        // Checks consistency in theory
     int    deduceTheory        ( );             // Perform theory-deductions
     void   cancelUntilVar      ( Var );         // Backtrack until a certain variable
+    void   cancelUntilVarTempInit ( Var );      // Backtrack until a certain variable
+    void   cancelUntilVarTempDone ( );          // Backtrack until a certain variable
     int    restartNextLimit    ( int );         // Next conflict limit for restart
 
     Clause *	       fake_clause;             // Fake clause for unprovided reasons
@@ -269,6 +277,9 @@ protected:
     unsigned           luby_i;                  // Keep track of luby index
     unsigned           luby_k;                  // Keep track of luby k
     vector< unsigned > luby_previous;           // Previously computed luby numbers
+    bool               cuvti;                   // For cancelUntilVarTemp
+    vec<Lit>           lit_to_restore;          // For cancelUntilVarTemp
+    vec<char>          val_to_restore;          // For cancelUntilVarTemp
     //
     // TODO: move more data in STATISTICS
     //
@@ -392,12 +403,12 @@ static inline const char* showBool(bool b) { return b ? "true" : "false"; }
 
 
 // Just like 'assert()' but expression will be evaluated in the release version as well.
-static inline void check(bool expr) { assert(expr); }
+static inline void check(bool expr) { (void)expr; assert(expr); }
 
 
 inline void CoreSMTSolver::printLit(Lit l)
 {
-    reportf("%s%d:%c", sign(l) ? "-" : "", var(l)+1, value(l) == l_True ? '1' : (value(l) == l_False ? '0' : 'X'));
+    reportf("%s%d:%c:%d", sign(l) ? "-" : " ", var(l)+1, value(l) == l_True ? '1' : (value(l) == l_False ? '0' : 'X'), level[var(l)]);
 }
 
 

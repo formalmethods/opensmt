@@ -19,39 +19,29 @@ You should have received a copy of the GNU General Public License
 along with OpenSMT. If not, see <http://www.gnu.org/licenses/>.
 *********************************************************************/
 
-#ifndef DLCANONIZER_H
-#define DLCANONIZER_H
+#ifndef DLRESCALE_H
+#define DLRESCALE_H
 
 #include "global.h"
 #include "Otl.h"
 #include "Egraph.h"
 
-class DLCanonizer
+class DLRescale
 {
 public:
 
-  DLCanonizer( Egraph & egraph_, SMTConfig & config_ ) 
+  DLRescale( Egraph & egraph_, SMTConfig & config_ ) 
     : egraph            ( egraph_ ) 
     , config            ( config_ ) 
     , curr_constant_sum ( 0 )
   { }
 
-  ~DLCanonizer( ) { }
+  ~DLRescale( ) { }
 
-  Enode * canonize( Enode * );
-  Enode * rescale ( Enode * );
+  Enode * doit ( Enode * );
 
 private:
 
-  typedef map< int, Real > map_int2Real;
-
-  Enode * canonize_atom     ( Enode * );
-  void    multiply_vars     ( map_int2Real &, const Real );
-  void    merge_vars        ( map_int2Real &, map_int2Real & );
-  void    canonize_atom_rec ( Enode * atom, map_int2Real & );
-
-  vector< Enode * >  additional_clauses; 
-  map< int, Enode* > vars_hash;
   Egraph &           egraph;
   SMTConfig &        config;
   Real               curr_constant_sum;

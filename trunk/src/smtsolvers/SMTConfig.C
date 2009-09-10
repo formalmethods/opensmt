@@ -27,9 +27,9 @@ void SMTConfig::parseConfig ( const char * f )
   {
     // No configuration file is found. Print out
     // the current configuration
+    cerr << "# " << endl;
     cerr << "# WARNING: No configuration file found. Using default setting" << endl;
     cerr << "# WARNING: Dumping default setting to " << f << endl;
-    cerr << "# " << endl;
     ofstream fileout( f );
     printConfig( fileout );
     fileout.close( );
@@ -42,7 +42,8 @@ void SMTConfig::parseConfig ( const char * f )
     {
       line ++;
       char buf[ 128 ];
-      fgets( buf, 128, filein );
+      char * res = fgets( buf, 128, filein );
+      (void)res;
       // Stop if finished
       if ( feof( filein ) )
 	break;
@@ -66,6 +67,8 @@ void SMTConfig::parseConfig ( const char * f )
       else if ( sscanf( buf, "sat_preprocess_theory %d\n"  , &(satconfig.preprocess_theory))   == 1 );
       else if ( sscanf( buf, "sat_centrality %d\n"         , &(satconfig.centrality))          == 1 );
       else if ( sscanf( buf, "sat_trade_off %d\n"          , &(satconfig.trade_off))           == 1 );
+      else if ( sscanf( buf, "sat_minimize_conflicts %d\n" , &(satconfig.minimize_conflicts))  == 1 );
+      else if ( sscanf( buf, "sat_dump_cnf %d\n"           , &(satconfig.dump_cnf))            == 1 );
       else if ( sscanf( buf, "sat_verbose %d\n"            , &(satconfig.verbose))             == 1 );
       // EUF SOLVER CONFIGURATION                                                              
       else if ( sscanf( buf, "uf_disable %d\n"             , &(ufconfig.disable))              == 1 );
@@ -166,6 +169,8 @@ void SMTConfig::printConfig ( ostream & out )
   out << "sat_preprocess_theory "   << satconfig.preprocess_theory << endl;
   out << "sat_centrality "          << satconfig.centrality << endl;
   out << "sat_trade_off "           << satconfig.trade_off << endl;
+  out << "sat_minimize_conflicts "  << satconfig.minimize_conflicts << endl;
+  out << "sat_dump_cnf "            << satconfig.dump_cnf << endl;
   out << "sat_verbose "             << satconfig.verbose << endl;
   out << "#" << endl;
   out << "# EUF SOLVER CONFIGURATION" << endl;

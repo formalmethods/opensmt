@@ -221,7 +221,7 @@ public:
     // Reset width
     properties &= ~WIDTH_MASK;
     properties |= w; 
-    assert( getWidth( ) == w ); 
+    assert( getWidth( ) == static_cast<int>( w ) ); 
   }
   inline void    setValue               ( const Real & v )   { assert( cong_data->term_data->value ); *(cong_data->term_data->value) = v; }            
   inline void    setRoot                ( Enode * e )        { assert( isTerm( ) || isList( ) ); assert( cong_data ); cong_data->root = e; }

@@ -29,9 +29,11 @@ template<class V, class T>
 static inline void remove(V& ts, const T& t)
 {
     int j = 0;
-    for (; j < ts.size() && ts[j] != t; j++);
+    for (; j < ts.size() && ts[j] != t; j++)
+      ; // Do nothing
     assert(j < ts.size());
-    for (; j < ts.size()-1; j++) ts[j] = ts[j+1];
+    for (; j < ts.size()-1; j++) ts[j] = ts[j+1]
+      ; // Do nothing
     ts.pop();
 }
 #else
@@ -50,7 +52,8 @@ template<class V, class T>
 static inline bool find(V& ts, const T& t)
 {
     int j = 0;
-    for (; j < ts.size() && ts[j] != t; j++);
+    for (; j < ts.size() && ts[j] != t; j++)
+      ; // Do nothing
     return j < ts.size();
 }
 

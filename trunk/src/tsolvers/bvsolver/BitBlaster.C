@@ -66,6 +66,7 @@ lbool
 BitBlaster::inform ( Enode * e ) 
 { 
   vector< Enode * > & result = bbEnode( e );
+
   assert( result.size( ) == 1 );
   Enode * bb = result.back( );
 
@@ -83,7 +84,7 @@ BitBlaster::inform ( Enode * e )
     enode_id_to_var.resize( e->getId( ) + 1, var_Undef );
   assert( enode_id_to_var[ e->getId( ) ] == var_Undef );
   enode_id_to_var[ e->getId( ) ] = var; 
-  if ( var_to_enode.size( ) <= var )
+  if ( (int)var_to_enode.size( ) <= var )
     var_to_enode.resize( var + 1, NULL );
   assert( var_to_enode[ var ] == NULL );
   var_to_enode[ var ] = e;
@@ -97,7 +98,7 @@ BitBlaster::assertLit ( Enode * e, const bool n )
   assert( e );
   assert( e->isTAtom( ) );
 
-  assert( enode_id_to_var.size( ) > (int)e->getId( ) );
+  assert( static_cast< int >( enode_id_to_var.size( ) ) > e->getId( ) );
   assert( enode_id_to_var[ e->getId( ) ] != var_Undef );
   Var act_var = enode_id_to_var[ e->getId( ) ];
 
@@ -163,9 +164,7 @@ BitBlaster::bbEnode ( Enode * e )
   if ( e->isBvmul      ( ) ) return bbBvmul      ( e );
   if ( e->isBvudiv     ( ) ) return bbBvudiv     ( e );
   if ( e->isBvurem     ( ) ) return bbBvurem     ( e );
-  /*if ( e->isBvsub      ( ) ) return bbBvsub      ( e );*/
   if ( e->isSignExtend ( ) ) return bbSignExtend ( e );
-  if ( e->isBvashr     ( ) ) return bbBvashr     ( e );
   if ( e->isVar        ( ) ) return bbVar        ( e );
   if ( e->isConstant   ( ) ) return bbConstant   ( e );
   // if ( e->isUf         ( ) ) return bbUf         ( e );
@@ -306,9 +305,13 @@ vector< Enode * > &
 BitBlaster::bbBvule( Enode * e )
 { 
   assert( e );
+  //
   // What ? Isn't it an eq ? Well lt are translated into le
   // in creation, still we want to encode le as if it was
   // an eq, as le = lt or eq
+  //
+  // Later comment: What did I mean ?? :-)
+  //
   assert( e->isBvule( ) );
 
   // Return previous result if computed
@@ -1016,12 +1019,8 @@ BitBlaster::bbBvurem( Enode * e )
     }
     else
     {
-      for ( int j = 0 ; j < size ; j ++ )
+      for ( unsigned j = 0 ; j < size ; j ++ )
       {
-	// Old
-	// (*result)[ j ] = minuend[ j ];
-        // divisor != 0 -> !lt_prev
-        // divisor == 0 || !lt_prev
         (*result)[ j ] = E.mkOr( E.cons( div_eq_zero, E.cons( minuend[ j ] ) ) );
       }
     }
@@ -1236,86 +1235,7 @@ BitBlaster::bbSignExtend( Enode * e )
 
   // Save result and return
   bb_cache[ e->getId( ) ] = result;
-  return *result;
-}
 
-vector< Enode * > &
-BitBlaster::bbBvashr( Enode * e ) 
-{ 
-  assert( e );
-  assert( e->isBvashr( ) );
-  //
-  // Return previous result if computed
-  //
-  if ( (int)bb_cache.size( ) <= e->getId( ) )
-    bb_cache.resize( e->getId( ) + 1, NULL );
-  if ( bb_cache[ e->getId( ) ] != NULL )
-    return *bb_cache[ e->getId( ) ];
-  assert( e->getArity( ) == 2 );
-  Enode * term = e->get1st( );
-  Enode * num  = e->get2nd( );
-  assert( num->isConstant( ) );
-  //
-  // Convert number into decimal
-  //
-  const int num_width = num->getWidth( );
-  const char * str    = num->getCar( )->getName( );
-  assert( num_width == (int)strlen( str ) );
-  //
-  // Skip leading zeros
-  //
-  int i;
-  for ( i = 0 ; i < num_width && str[ i ] == '0' ; i ++ )
-    ;
-  //
-  // Return term if shift by zero
-  //
-  if ( i == num_width )
-  {
-    assert( bb_cache[ term->getId( ) ] != NULL );
-    return *bb_cache[ term->getId( ) ];
-  }
-  // 
-  // Compute decimal value
-  //
-  i ++;
-  unsigned dec_value = 1;
-  for ( ; i < num_width ; i ++ )
-  {
-    dec_value = dec_value << 1;
-    if ( str[ i ] == '1' )
-      dec_value ++;
-  }
-
-  const int term_width = term->getWidth( );
-  assert( (int)dec_value < term->getWidth( ) );
-
-#if EAGER_FREE_MEMORY
-  garbage_id.push_back( e->getId( ) );
-#endif
-  //
-  // Allocate new result
-  //
-  vector< Enode * > * result = new vector< Enode * >;
-  //
-  // Garbage collect
-  //
-  garbage.push_back( result );
-  vector< Enode * > & bb_term = bbEnode( term );
-  //
-  // Copy x
-  //
-  for ( i = dec_value ; i < bb_term.size( ) ; i ++ ) 
-    result->push_back( bb_term[ i ] );
-  //
-  // Copy msb
-  //
-  for ( ; (int)i < e->getWidth( ) + dec_value ; i ++ )
-    result->push_back( bb_term.back( ) );
-  //
-  // Save result and return
-  //
-  bb_cache[ e->getId( ) ] = result;
   return *result;
 }
 

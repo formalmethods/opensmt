@@ -42,11 +42,12 @@ along with OpenSMT. If not, see <http://www.gnu.org/licenses/>.
 #include <stdint.h>
 #include <limits.h>
 
+#define NEW_SPLIT           0
+#define NEW_SIMPLIFICATIONS 0
+
 #if ( __WORDSIZE == 64 )
 #define BUILD_64
 #endif
-
-#define RESCALE_IN_DL 1
 
 using std::set;
 using std::map;
@@ -140,23 +141,6 @@ typedef enum
   , QF_UFBV       // UF + BV
 } logic_t;
 
-static const char * logicStr ( logic_t l )
-{
-       if ( l == EMPTY )    return "EMPTY";
-  else if ( l == QF_UF )    return "QF_UF";
-  else if ( l == QF_BV )    return "QF_BV";
-  else if ( l == QF_RDL )   return "QF_RDL";
-  else if ( l == QF_IDL )   return "QF_IDL";
-  else if ( l == QF_LRA )   return "QF_LRA";
-  else if ( l == QF_LIA )   return "QF_LIA";
-  else if ( l == QF_UFRDL ) return "QF_UFRDL";
-  else if ( l == QF_UFIDL ) return "QF_UFIDL";
-  else if ( l == QF_UFLRA ) return "QF_UFLRA";
-  else if ( l == QF_UFLIA ) return "QF_UFLIA";
-  else if ( l == QF_UFBV )  return "QF_UFBV";
-  return "";
-}
-
 static inline double cpuTime(void)
 {
     struct rusage ru;
@@ -167,14 +151,15 @@ static inline double cpuTime(void)
 #if defined(__linux__)
 static inline int memReadStat(int field)
 {
-    char    name[256];
+    char name[256];
     pid_t pid = getpid();
     sprintf(name, "/proc/%d/statm", pid);
     FILE*   in = fopen(name, "rb");
     if (in == NULL) return 0;
-    int     value;
+    int value;
+    int ret;
     for (; field >= 0; field--)
-        fscanf(in, "%d", &value);
+        ret = fscanf(in, "%d", &value);
     fclose(in);
     return value;
 }
@@ -203,7 +188,9 @@ static inline uint64_t memUsed()
 static inline uint64_t memUsed() {return 0; }
 #endif
 
-#define CNF_STR "CNF_DEF_%d"
+#define CNF_STR "CNF_%d"
+#define SPL_STR "SPL_%d"
+#define UNC_STR "UNC_%d"
 
 #define error( F, S ) { cerr << "# Error: " << F << S << " (triggered at " <<  __FILE__ << ", " << __LINE__ << ")" << endl; exit( 1 ); }
 

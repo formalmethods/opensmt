@@ -149,8 +149,8 @@ then
   exit
 fi
 
-AM_CFLAGS="-W -Wall -g $config_profiling $config_optimization $config_external_tool $config_pedantic_debug $config_smtcomp $config_statically"
-AM_CXXFLAGS="-W -Wall -g $config_profiling $config_optimization $config_external_tool $config_pedantic_debug $config_smtcomp $config_statically"
+AM_CFLAGS="-W -Wall -g -Wno-deprecated $config_profiling $config_optimization $config_external_tool $config_pedantic_debug $config_smtcomp $config_statically"
+AM_CXXFLAGS="-W -Wall -g  -Wno-deprecated $config_profiling $config_optimization $config_external_tool $config_pedantic_debug $config_smtcomp $config_statically"
 CFLAGS=""
 CXXFLAGS=""
 AC_SUBST(AM_CFLAGS)

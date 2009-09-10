@@ -66,7 +66,7 @@ void smterror( char * s )
 %token TK_FLET TK_FLET_STR TK_LET TK_LET_STR TK_DISTINCT
 %token TK_BVSLT TK_BVSGT TK_BVSLE TK_BVSGE
 %token TK_BVULT TK_BVUGT TK_BVULE TK_BVUGE
-%token TK_EXTRACT TK_CONCAT TK_BVAND TK_BVOR TK_BVXOR TK_BVNOT TK_BVADD TK_BVNEG TK_BVMUL
+%token TK_EXTRACT TK_CONCAT TK_BVAND TK_BVOR TK_BVXOR TK_BVNOT TK_BVADD TK_BVNEG TK_BVMUL TK_BVASHR
 %token TK_SIGN_EXTEND TK_ZERO_EXTEND TK_ROTATE_LEFT TK_ROTATE_RIGHT TK_BVLSHR TK_BVSHL TK_BVSREM TK_BVSDIV TK_BVSUB
 %token TK_BVUDIV TK_BVUREM
 
@@ -413,7 +413,7 @@ bitvec_expression: '(' TK_CONCAT bitvec_expression_list ')'
 		   { $$ = parser_egraph->mkConcat( $3 ); }
                  | '(' TK_EXTRACT '[' TK_NUM ':' TK_NUM ']' TK_BVNUM_NO_WIDTH ')'
 		   { 
-		     char tmp[64]; 
+		     char tmp[ 256 ]; 
 		     sprintf( tmp, "%s[%d]", $8, atoi( $4 ) - atoi( $6 ) + 1 ); 
 		     $$ = parser_egraph->mkBvnum( tmp ); 
 		     free( $4 ); free( $6 ); free( $8 ); 
@@ -456,6 +456,8 @@ bitvec_expression: '(' TK_CONCAT bitvec_expression_list ')'
 		   { $$ = parser_egraph->mkBvlshr( $3 ); }
                  | '(' TK_BVSHL bitvec_expression_list ')'
 		   { $$ = parser_egraph->mkBvshl( $3 ); }
+                 | '(' TK_BVASHR bitvec_expression_list ')'
+		   { $$ = parser_egraph->mkBvashr( $3 ); }
                  | TK_BVNUM
 		   { $$ = parser_egraph->mkBvnum( $1 ); free( $1 ); }
 		 | TK_BIT0

@@ -87,6 +87,7 @@ char * pbuffer;
 "bvmul"                  { return TK_BVMUL; }
 "bvneg"                  { return TK_BVNEG; }
 "bvlshr"                 { return TK_BVLSHR; }
+"bvashr"                 { return TK_BVASHR; }
 "bvshl"                  { return TK_BVSHL; }
 "bvsrem"                 { return TK_BVSREM; }
 "bvurem"                 { return TK_BVUREM; }

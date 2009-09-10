@@ -47,28 +47,14 @@ template< class T> DLSolver<T>::~DLSolver( )
 //
 template< class T> lbool DLSolver<T>::inform( Enode * e )
 {
+#if NEW_SIMPLIFICATIONS
+#warning "REMOVE THIS REMOVE THIS REMOVE THIS"
+  return l_Undef;
+#endif
+
   assert( e );
   assert( belongsToT( e ) );
   assert( !e->hasPolarity( ) );
-
-#if DLVERBOSE
-  Enode * d = e->get1st( )->isMinus( ) ? e->get1st( ) : e->get2nd( );
-  Enode * c = e->get1st( )->isMinus( ) ? e->get2nd( ) : e->get1st( );
-
-  assert( c->isConstant( ) || ( c->isUminus( ) && c->get1st( )->isConstant( ) ) );
-
-  Real weight = c->isConstant( ) ? c->getCar( )->getValue( ) : -1 * c->get1st( )->getCar( )->getValue( );
-  weight = e->get1st( )->isMinus( ) ? weight : -1 * weight;
-
-  Enode * x = e->get1st( )->isMinus( ) ? d->get1st( ) : d->get2nd( );
-  Enode * y = e->get1st( )->isMinus( ) ? d->get2nd( ) : d->get1st( );
-
-  cerr << endl;
-  cerr << "=========" << endl;
-  cerr << "inform  : " << x << " --[" << weight << "]--> " << y << endl;
-  cerr << "========="; //<< ;endl;
-#endif
-
   assert( e->isLeq( ) );
   G->insertStatic( e );
   return l_Undef;
@@ -117,7 +103,6 @@ template <class T> bool DLSolver<T>::assertLit ( Enode * e, bool reason )
     if ( config.dlconfig.theory_propagation > 0 )
     {
       G->findHeavyEdges( e );
-      G->ran_floyd_warshall = false;
       sendDeductions( );
     }
     return true;
@@ -179,6 +164,7 @@ template< class T >void DLSolver<T>::popBacktrackPoint ( )
 
 template < class T> bool DLSolver<T>::check( bool complete )
 {
+  (void)complete;
   //
   // Here check for consistency
   //
@@ -186,30 +172,62 @@ template < class T> bool DLSolver<T>::check( bool complete )
 }
 
 //
-// Check if the atom is a DL atom. We assume
-// that each atom has been rewritten (by DLCanonizer)
-// into one of the following forms:
+// DL Atoms have one of these shapes
 //
-// x <= y
-// x - y <= c
+// (<= (+ (* 1 x) (* (~ 1) y)) c)
+// (<= (+ (* (~ 1) x) (* 1 y)) c)
+// (<= (* (~ 1) x) c)
+// (<= (* 1 x) c)
 //
 template< class T>bool DLSolver<T>::belongsToT( Enode * e )
 {
   assert( e );
-
   Enode * lhs = e->get1st( );
   Enode * rhs = e->get2nd( );
-  const bool lhs_v_c = lhs->isVar( ) || lhs->isConstant( ) || ( lhs->isUminus( ) && lhs->get1st( )->isConstant( ) );
-  const bool rhs_v_c = rhs->isVar( ) || rhs->isConstant( ) || ( rhs->isUminus( ) && rhs->get1st( )->isConstant( ) );
+
+  if ( !lhs->isConstant( ) && !rhs->isConstant( ) )
+    return false;
   
-  if ( lhs_v_c && rhs_v_c )
-    return true;
+  if ( lhs->isConstant( ) )
+  {
+    Enode * tmp = lhs;
+    lhs = rhs;
+    rhs = tmp;
+  }
 
-  if ( ( lhs->isMinus( ) && rhs_v_c )
-    || ( rhs->isMinus( ) && lhs_v_c ) )
-    return true;
+  Real one_ = 1;
+  Real mone_ = -1;
+  Enode * one = egraph.mkNum( one_ );
+  Enode * mone = egraph.mkNum( mone_ );
+  //
+  // Two variables
+  //
+  if ( lhs->isPlus( ) )
+  {
+    if ( lhs->getArity( ) != 2 ) return false;
+    Enode * mon_1 = lhs->get1st( );
+    Enode * mon_2 = lhs->get2nd( );
+    if ( !mon_1->isTimes( ) ) return false;
+    if ( !mon_2->isTimes( ) ) return false;
+    Enode * const_1 = mon_1->get1st( );
+    Enode * const_2 = mon_2->get1st( );
+    Enode * var_1 = mon_1->get2nd( );
+    Enode * var_2 = mon_2->get2nd( );
+    if ( !var_1->isVar( ) || !var_2->isVar( ) ) return false;
+    if ( !const_1->isConstant( ) || !const_2->isConstant( ) ) return false;
+    if ( const_1 == one && const_2 == mone ) return true;
+    if ( const_2 == one && const_1 == mone ) return true;
+  }
+  //
+  // One variable
+  //
+  Enode * mon = lhs->get1st( );
+  Enode * con = mon->get1st( );
+  Enode * var = mon->get2nd( );
+  if ( con != one && con != mone ) return false;
+  if ( !var->isVar( ) ) return false;
 
-  return false;
+  return true;
 }
 
 // Backtrack stack to the size

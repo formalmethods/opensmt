@@ -52,7 +52,6 @@ SimpSMTSolver::SimpSMTSolver( Egraph & e, SMTConfig & c )
   , asymm_lits         (0)
   , remembered_clauses (0)
   , elimorder          (1)
-//  , use_simplification (true)
   , use_simplification (c.satconfig.preprocess_booleans > 0)
   , elim_heap          (ElimLt(n_occ))
   , bwdsub_assigns     (0)
@@ -130,6 +129,9 @@ bool SimpSMTSolver::solve(const vec<Lit>& assumps, bool do_simp, bool turn_off_s
   if ( config.satconfig.preprocess_theory == 0 )
     goto skip_theory_preproc;
 
+#if NEW_SIMPLIFICATIONS
+skip_theory_preproc:
+#else
 #ifdef STATISTICS
   total_tvars = t_var.size( ); 
 #endif
@@ -142,12 +144,9 @@ bool SimpSMTSolver::solve(const vec<Lit>& assumps, bool do_simp, bool turn_off_s
 
     set< int > & s = it->second;
     //
-    // TODO: Remove variable from set
+    // Heuristic 1: don't apply if centrality greater parameter
     //
-    //
-    // Heuristic 1: don't apply if centrality greater than 18
-    //
-    if ( s.size( ) > config.satconfig.centrality )
+    if ( static_cast<int>( s.size( ) ) > config.satconfig.centrality )
       continue;
 
     const int to_add = t_pos[ x->getId( ) ].size( ) * t_neg[ x->getId( ) ].size( );
@@ -189,6 +188,7 @@ bool SimpSMTSolver::solve(const vec<Lit>& assumps, bool do_simp, bool turn_off_s
   }
 
 skip_theory_preproc:
+#endif
   
 // Added Code
 //=================================================================================================
@@ -252,6 +252,98 @@ bool SimpSMTSolver::addSMTClause( vector< Enode * > & smt_clause )
   bool first_tatom_found = false;
   static int splits = 0;
 
+#if 0 && NEW_SPLIT
+  // For splitting tlits
+  vec< Lit > sat_clause_2;
+  bool dump_clause_2 = false;
+
+  for ( vector< Enode * >::iterator it = smt_clause.begin( ) ;
+        it != smt_clause.end( ) ;
+	it ++ )
+  {
+    Enode * e = *it;
+    // Do not add false literals
+    if ( e->isFalse( ) ) continue; 
+    // If a literal is true, the clause is true
+    if ( e->isTrue( ) )
+      return true;
+
+    if ( e->isTLit( ) )
+    {
+      if ( !first_tatom_found )
+	first_tatom_found = true;
+      // 
+      // Split clause
+      //
+      else
+      {
+	char def_name[ 32 ];
+	sprintf( def_name, SPL_STR, splits++ );
+	egraph.newSymbol( def_name, DTYPE_BOOL );
+	Enode * split = egraph.mkVar( def_name );
+	Lit sl = theory_handler->enodeToLit( split );
+	sat_clause.push( sl );
+	sat_clause_2.push( sl );
+	if ( dump_clause_2 )
+	{
+	  addClause( sat_clause_2 );
+	  dump_clause_2 = false;
+	}
+	addClause( sat_clause );
+	sat_clause.clear( );
+	sat_clause_2.clear( );
+	sat_clause.push( ~sl );
+	sat_clause_2.push( ~sl );
+      }
+    }
+    //
+    // Theories that needs equality split
+    //
+    if ( ( config.logic == QF_IDL
+        || config.logic == QF_RDL
+        || config.logic == QF_LRA )
+      && ( e->isEq( ) 
+	|| ( e->isNot( ) && e->get1st( )->isEq( ) ) ) )
+    {
+      if ( e->isEq( ) )
+      {
+	Enode * lhs = e->get1st( );
+	Enode * rhs = e->get2nd( );
+	Enode * leq = egraph.mkLeq( egraph.cons( lhs, egraph.cons( rhs ) ) );
+	Enode * geq = egraph.mkGeq( egraph.cons( lhs, egraph.cons( rhs ) ) );
+	Lit l1 = theory_handler->enodeToLit( leq );
+	Lit l2 = theory_handler->enodeToLit( geq );
+	sat_clause  .push( l1 );
+	sat_clause_2.push( l2 );
+	dump_clause_2 = true;
+      }
+      else
+      {
+	Enode * arg = e->get1st( );
+	Enode * lhs = arg->get1st( );
+	Enode * rhs = arg->get2nd( );
+	Enode * lt = egraph.mkLt( egraph.cons( lhs, egraph.cons( rhs ) ) );
+	Enode * gt = egraph.mkGt( egraph.cons( lhs, egraph.cons( rhs ) ) );
+	Lit l1 = theory_handler->enodeToLit( lt );
+	Lit l2 = theory_handler->enodeToLit( gt );
+	sat_clause  .push( l1 );
+	sat_clause  .push( l2 );
+	sat_clause_2.push( l1 );
+	sat_clause_2.push( l2 );
+      }
+    }
+    else
+    {
+      Lit l = theory_handler->enodeToLit( e );
+      sat_clause.push( l );
+      sat_clause_2.push( l );
+    }
+  }
+
+  if ( dump_clause_2 )
+    addClause( sat_clause_2 );
+
+#else
   for ( vector< Enode * >::iterator it = smt_clause.begin( ) ;
         it != smt_clause.end( ) ;
 	it ++ )
@@ -274,7 +366,7 @@ bool SimpSMTSolver::addSMTClause( vector< Enode * > & smt_clause )
       else
       {
 	char def_name[ 32 ];
-	sprintf( def_name, "SPLIT_%d", splits++ );
+	sprintf( def_name, SPL_STR, splits++ );
 	egraph.newSymbol( def_name, DTYPE_BOOL );
 	Enode * split = egraph.mkVar( def_name );
 	Lit sl = theory_handler->enodeToLit( split );
@@ -288,8 +380,20 @@ bool SimpSMTSolver::addSMTClause( vector< Enode * > & smt_clause )
     // Just add the literal
     //
     Lit l = theory_handler->enodeToLit( e );
+
+#if NEW_SIMPLIFICATIONS
+    if ( e->isTAtom( ) )
+    {
+      // if ( var_to_lae.size( ) <= var( l ) )
+	var_to_lae.resize( var( l ) + 1, NULL );
+      if ( var_to_lae[ var( l ) ] == NULL )
+	var_to_lae[ var( l ) ] = new LAExpression( e );
+    }
+#endif
+
     sat_clause.push( l );
   }
+#endif
 
   return addClause( sat_clause );
 }
@@ -300,7 +404,6 @@ bool SimpSMTSolver::addSMTClause( vector< Enode * > & smt_clause )
 
 bool SimpSMTSolver::addClause(vec<Lit>& ps)
 {
-  
 //=================================================================================================
 // Added code
 
@@ -319,16 +422,28 @@ bool SimpSMTSolver::addClause(vec<Lit>& ps)
     if (redundancy_check && implied(ps))
         return true;
 
+//=================================================================================================
+// Added code
+
     //
     // Hack to consider clauses of size 1 that
-    // would be otherwise be not considered by
+    // wouldn't otherwise be considered by
     // MiniSAT
     //
     if ( config.satconfig.preprocess_theory != 0 
-      && ps.size( ) == 1 && var(ps[0]) >= 2 )
+      && ps.size( ) == 1   // Consider unit clauses
+      && var(ps[0]) >= 2 ) // Don't consider true/false
     {
       Var v = var( ps[0] );
       Enode * e = theory_handler->varToEnode( v );
+#if NEW_SIMPLIFICATIONS
+      if ( e->isTAtom( ) )
+      {
+	Clause * uc = Clause_new(ps, false);
+	unary_to_remove.push_back( uc );
+	gatherTVars( e, sign(ps[0]), uc );
+      }
+#else
       if ( e->isTAtom( ) )
       {
         Clause * uc = Clause_new(ps, false);
@@ -343,7 +458,11 @@ bool SimpSMTSolver::addClause(vec<Lit>& ps)
 	t_var[ x ].insert( y->getId( ) );
 	t_var[ y ].insert( x->getId( ) );
       }
+#endif
     }
+
+// Added code
+//=================================================================================================
 
     if (!CoreSMTSolver::addClause(ps))
         return false;
@@ -369,6 +488,18 @@ bool SimpSMTSolver::addClause(vec<Lit>& ps)
 //=================================================================================================
 // Added code
 
+#if NEW_SIMPLIFICATIONS
+	    if ( config.satconfig.preprocess_theory != 0 
+	      && ( config.logic == QF_IDL 
+	        || config.logic == QF_RDL ) )
+	    {
+	      Var v = var(c[i]);
+	      if ( v <= 1 ) continue;
+	      Enode * e = theory_handler->varToEnode( v );
+	      if ( !e->isTAtom( ) ) continue;
+	      gatherTVars( e, sign(ps[0]), &c );
+	    }
+#else
 	    if ( config.satconfig.preprocess_theory != 0 
 	      && ( config.logic == QF_IDL 
 	        || config.logic == QF_RDL ) )
@@ -386,6 +517,7 @@ bool SimpSMTSolver::addClause(vec<Lit>& ps)
 	      t_var[ x ].insert( y->getId( ) );
 	      t_var[ y ].insert( x->getId( ) );
 	    }
+#endif
 
 // Added code
 //=================================================================================================
@@ -841,6 +973,69 @@ bool SimpSMTSolver::eliminate(bool turn_off_elim)
   if (!ok || !use_simplification)
     return ok;
 
+
+#if NEW_SIMPLIFICATIONS
+  CoreSMTSolver::doing_t_simp = true;
+
+  cerr << "*****************" << endl;
+  cerr << "STARTING SATELITE" << endl;
+  cerr << "*****************" << endl;
+  assert( top_level_eqs.empty( ) );
+
+  int iteration = 1;
+  bool modified = false;
+
+  do
+  {
+    cerr << "*****************" << endl;
+    cerr << "ITERATION " << iteration++ << endl;
+    cerr << "*****************" << endl;
+
+    // Main SATElite simplification loop
+    while (subsumption_queue.size() > 0 || elim_heap.size() > 0)
+    {
+      if (!backwardSubsumptionCheck(true))
+	return false;
+
+      for (int cnt = 0; !elim_heap.empty(); cnt++)
+      {
+	Var elim = elim_heap.removeMin();
+
+	if (verbosity >= 2 && cnt % 100 == 0)
+	  reportf("elimination left: %10d\r", elim_heap.size());
+
+	if (!frozen[elim] && !eliminateVar(elim))
+	  return false;
+      }
+
+      assert(subsumption_queue.size() == 0);
+      gatherTouchedClauses();
+    }
+
+    size_t top_level_done = top_level_eqs.size( );
+    // Perform gaussian elimination to obtain substitutions
+    gaussianElimination( );
+    // Simplify by means of substitutions
+    substituteInClauses( );
+    // Go again to SATElite if simplifications not done
+    if ( top_level_done != top_level_eqs.size( ) )
+      continue;
+    // Resolve using LRA-resolution
+    modified = dpfm( );
+  } 
+  while ( modified );
+  
+  // Clean constraints
+  while ( !top_level_eqs.empty( ) )
+  {
+    delete top_level_eqs.back( );
+    top_level_eqs.pop_back( );
+  }
+
+  CoreSMTSolver::doing_t_simp = false;
+
+#else
+
   // Main simplification loop:
   //assert(subsumption_queue.size() == 0);
   //gatherTouchedClauses();
@@ -865,6 +1060,8 @@ bool SimpSMTSolver::eliminate(bool turn_off_elim)
     assert(subsumption_queue.size() == 0);
     gatherTouchedClauses();
   }
+
+#endif
 
   // Cleanup:
   cleanUpClauses();
@@ -935,12 +1132,62 @@ void SimpSMTSolver::cleanUpClauses()
 //=================================================================================================
 // Added Code
 
+#if NEW_SIMPLIFICATIONS
+void SimpSMTSolver::gatherTVars( Enode * e, bool negate, Clause * c )
+{
+  assert( config.satconfig.preprocess_theory != 0 );
+  assert( e->isTAtom( ) );
+  assert( e->isEq( ) || e->isLeq( ) );
+  //
+  // Each variable is both positive and negative
+  //
+  Var v = var( theory_handler->enodeToLit( e ) );
+  LAExpression & lae = *(var_to_lae[ v ]);
+  cerr << "e   : " << e << endl;
+  cerr << "lae : " << lae << endl;
+  const bool is_eq = e->isEq( );
+  for ( LAExpression::iterator it = lae.begin( )
+      ; it != lae.end( )
+      ; it ++ )
+  {
+    Enode * e_var = it->first;
+    if ( e_var == 0 ) continue;
+    if ( is_eq )
+    {
+      t_pos[ e_var->getId( ) ].push_back( c ); 
+      t_neg[ e_var->getId( ) ].push_back( c );
+    }
+    else
+    {
+      Real & coeff = it->second;
+      if ( coeff * ( negate ? -1 : 1 ) < 0 )
+	t_neg[ e_var->getId( ) ].push_back( c );
+      else
+	t_pos[ e_var->getId( ) ].push_back( c );
+    }
+  }
+}
+//
+// DPFM-based reductions
+//
+bool SimpSMTSolver::dpfm( )
+{
+  for ( set< Enode * >::iterator it = t_var.begin( )
+      ; it != t_var.end( )
+      ; it ++ )
+  {
+    Enode * x = *it;
+  }
+  return false;
+}
+#else
 void SimpSMTSolver::getDLVars( Enode * e, bool negate, Enode ** x, Enode ** y )
 {
   assert( config.satconfig.preprocess_theory != 0 );
   assert( e->isLeq( ) );
   Enode * lhs = e->get1st( );
   Enode * rhs = e->get2nd( );
+  (void)rhs;
   assert( lhs->isMinus( ) );
   assert( rhs->isConstant( ) || ( rhs->isUminus( ) && rhs->get1st( )->isConstant( ) ) );
 
@@ -954,7 +1201,14 @@ void SimpSMTSolver::getDLVars( Enode * e, bool negate, Enode ** x, Enode ** y )
     *y = tmp;
   }	
 }
+#endif
 
+
+#if NEW_SIMPLIFICATIONS
+void SimpSMTSolver::eliminateTVar( Enode * x )
+{
+}
+#else
 void SimpSMTSolver::eliminateTVar( Enode * x )
 {
   assert( config.satconfig.preprocess_theory != 0 );
@@ -973,7 +1227,7 @@ void SimpSMTSolver::eliminateTVar( Enode * x )
     Clause & pc = *(*pt);
 
     Enode * atom_pos = NULL;
-    bool neg_pos;
+    bool neg_pos = false;
     //
     // Scan pc to detect the theory atom with positive x
     //
@@ -1012,9 +1266,9 @@ void SimpSMTSolver::eliminateTVar( Enode * x )
       Clause & nc = *(*nt);
 
       Enode * atom_neg = NULL;
-      bool neg_neg;
+      bool neg_neg = false;
       //
-      // Scan pc to detect the theory atom
+      // Scan nc to detect the theory atom
       //
       for (int i = 0; i < nc.size(); i++)
       {
@@ -1039,11 +1293,8 @@ void SimpSMTSolver::eliminateTVar( Enode * x )
       //
       Enode * res = mergeTAtoms( atom_pos, neg_pos, atom_neg, neg_neg, x );
 
-      // Nothing to do
       if ( res->isTrue( ) )
-      {
-
-      }
+	; // Do nothing
       // Drop merge
       else if ( res->isFalse( ) )
       {
@@ -1059,9 +1310,159 @@ void SimpSMTSolver::eliminateTVar( Enode * x )
       }
     }
   }
-
-  // cerr << "Added       : " << added << endl;
 }
+#endif
+
+#if NEW_SIMPLIFICATIONS
+void SimpSMTSolver::gaussianElimination( )
+{
+  cerr << "Doing Gaussian Elimination" << endl;
+  cerr << "EQs: " << top_level_eqs.size( ) << endl;
+
+  assert( config.logic == QF_IDL
+       || config.logic == QF_RDL
+       || config.logic == QF_LRA );
+
+  //
+  // If just one equality, produce substitution right away
+  //
+  if ( top_level_eqs.size( ) == 0 )
+    ; // Do nothing
+  else if ( top_level_eqs.size( ) == 1 )
+  {
+    LAExpression & lae = *top_level_eqs[ 0 ];
+    if ( lae.solve( ) == NULL )
+      error( "there is something wrong here", "" );
+  }
+  //
+  // Otherwise obtain substitutions 
+  // by means of Gaussian Elimination
+  //
+  else
+  {
+    // 
+    // FORWARD substitution
+    // We put the matrix top_level_eqs into upper triangular form
+    //
+    for ( unsigned i = 0 ; i + 1 < top_level_eqs.size( ) ; i ++ )
+    {
+      LAExpression & s = *top_level_eqs[ i ];
+      // Solve w.r.t. first variable
+      if ( s.solve( ) == NULL )
+      {
+	if ( s.toEnode( egraph ) == egraph.mkTrue( ) )
+	  continue;
+	error( "handle this please", "" );
+      }
+      // Use the first variable x in s to generate a
+      // substitution and replace x in lac
+      for ( unsigned j = i + 1 ; j < top_level_eqs.size( ) ; j ++ )
+      {
+	LAExpression & lac = *top_level_eqs[ j ];
+	combine( s, lac );
+      }
+    }
+    //
+    // BACKWARD substitution
+    // From the last equality to the first we put
+    // the matrix top_level_eqs into canonical form
+    //
+    for ( int i = top_level_eqs.size( ) - 1 ; i >= 1 ; i -- )
+    {
+      LAExpression & s = *top_level_eqs[ i ];
+      // Solve w.r.t. first variable
+      if ( s.solve( ) == NULL )
+      {
+	if ( s.toEnode( egraph ) == egraph.mkTrue( ) )
+	  continue;
+	error( "handle this please", "" );
+      }
+      // Use the first variable x in s to generate a
+      // substitution and replace x in lac
+      for ( int j = i - 1 ; j >= 0 ; j -- )
+      {
+	LAExpression & lac = *top_level_eqs[ j ];
+	combine( s, lac );
+      }
+    }
+    //
+    // Now, for each row we get a substitution
+    //
+    for ( unsigned i = 0 ; i < top_level_eqs.size( ) ; i ++ )
+    {
+      LAExpression & lae = *top_level_eqs[ i ];
+      cerr << "S: " << lae << endl;
+    }
+  }
+}
+
+void SimpSMTSolver::substituteInClauses ( )
+{
+  // 
+  // Inefficient to traverse all clauses
+  // everytime -- better to keep track
+  // of just those that contain theory atoms
+  //
+  int removed_clauses = 0;
+  int removed_literals = 0;
+  for ( int i = 0 ; i < clauses.size( ) ; i ++ )
+  {
+    Clause & c = *clauses[ i ];
+    // Skip already removed clauses
+    if ( c.mark( ) ) continue;
+    // Do we need to replace this clause ?
+    bool modified = false;
+    vec< Lit > new_clause;
+    for ( int j = 0 ; j < c.size( ) ; j ++ )
+    {
+      Lit l = c[ j ];
+      Var v = var( l );
+      if ( v < var_to_lae.size( ) && var_to_lae[ v ] != NULL )
+      {
+	LAExpression & lae = *var_to_lae[ v ];
+	//
+	// Eliminate all possible variables
+	//
+	for ( int k = 0 ; k < top_level_eqs.size( ) ; k ++ )
+	{
+	  if ( lae.isTrue( ) || lae.isFalse( ) ) break;
+	  LAExpression & sub = *top_level_eqs[ k ];
+	  combine( sub, lae );
+	}
+	// 
+	// l is true under assumptions, so we can remove the
+	// entire clause
+	//
+	if ( lae.isTrue( ) )
+	{
+	  cerr << "LA IS TRUE" << endl;
+	  modified = false;
+	  removeClause( c );
+	  removed_clauses ++;
+	  break;
+	}
+	else if ( lae.isFalse( ) )
+	{
+	  cerr << "LA IS FALSE" << endl;
+	  removed_literals ++;
+	  modified = true;
+	}
+	else
+	  new_clause.push( l );
+      }
+    }
+    if ( modified )
+    {
+      // Remove current clause
+      removeClause( c );
+      // Add new clause
+      addClause( new_clause );
+    }
+  }
+  cerr << "Removed clauses : " << removed_clauses << endl;
+  cerr << "Removed literals: " << removed_literals << endl;
+}
+#endif
 
 Enode * SimpSMTSolver::mergeTAtoms( Enode * atom_pos
                                   , bool neg_pos

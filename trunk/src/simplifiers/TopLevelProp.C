@@ -1,7 +1,7 @@
 /*********************************************************************
 Author: Roberto Bruttomesso <roberto.bruttomesso@unisi.ch>
 
-OpenSMT -- Copyright (C) 2008, Roberto Bruttomesso
+OpenSMT -- Copyright (C) 2009, Roberto Bruttomesso
 
 OpenSMT is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -18,6 +18,8 @@ along with OpenSMT. If not, see <http://www.gnu.org/licenses/>.
 *********************************************************************/
 
 #include "TopLevelProp.h"
+#include "LA.h"
+#include "BVNormalize.h"
 
 #define INLINE_CONSTANTS         0
 #define SIMPLIFY_TWIN_EQUALITIES 1
@@ -27,10 +29,26 @@ TopLevelProp::doit( Enode * formula )
 {
   assert( formula );
   //
-  // Learn some transitivity atoms for UF
+  // Learn some eq atoms useful for diamonds 
+  // benchmarks in SMTLIB
   //
   if ( config.logic == QF_UF )
-    formula = learnTransitivity( formula );
+    formula = learnEqTransitivity( formula );
+  //
+  // Canonize Arithmetic
+  //
+  if ( config.logic == QF_IDL
+    || config.logic == QF_RDL
+    || config.logic == QF_LRA )
+    formula = canonize( formula );
+  //
+  // Canonize BVs
+  //
+  if ( config.logic == QF_BV )
+  {
+    BVNormalize normalizer( egraph, config );
+    formula = normalizer.doit( formula );
+  }
   //
   // Repeat until fix point
   //
@@ -41,15 +59,14 @@ TopLevelProp::doit( Enode * formula )
     // Step 1: gather top-level facts (including predicates)
     //
     Map( enodeid_t, Enode * ) substitutions;
-    Map( enodeid_t, bool ) top_level_atoms;
-    retrieveSubstitutions( formula, substitutions, top_level_atoms );
+    retrieveSubstitutions( formula, substitutions );
     //
     // Step 2: produce a new formula with substitutions done (if any to use)
     //
     bool sub_stop = true;
 
     if ( !substitutions.empty( ) )
-      formula = substitute( formula, substitutions, top_level_atoms, sub_stop );
+      formula = substitute( formula, substitutions, sub_stop );
     //
     // Step 3: Only for BV remove unconstrained terms
     //
@@ -64,20 +81,28 @@ TopLevelProp::doit( Enode * formula )
       formula = simplifyTwinEqualities( formula, twin_stop );
 #endif
     }
-
     stop = sub_stop && unc_stop && twin_stop;
   }
+
+#if NEW_SPLIT
+#else
+  if ( config.logic == QF_IDL
+    || config.logic == QF_RDL
+    || config.logic == QF_LRA )
+    formula = splitEqs( formula );
+#endif
 
   return formula;
 }
 
 void
 TopLevelProp::retrieveSubstitutions( Enode * formula
-                                   , Map( enodeid_t, Enode * ) & substitutions
-				   , Map( enodeid_t, bool ) & top_level_atoms )
+                                   , Map( enodeid_t, Enode * ) & substitutions )
 {
   vector< Enode * > unprocessed_enodes;
   vector< bool >    unprocessed_polarity;
+  vector< Enode * > top_level_arith;
+
   egraph.initDup1( );
 
   unprocessed_enodes  .push_back( formula );
@@ -155,12 +180,28 @@ TopLevelProp::retrieveSubstitutions( Enode * formula
     //
     else if ( enode->isAtom( ) )
     {
+      if ( enode->isTrue( ) )
+      {
+	substitutions[ enode->getId( ) ] = egraph.mkTrue( );
+	continue;
+      }
+
+      if ( enode->isFalse( ) )
+      {
+	substitutions[ enode->getId( ) ] = egraph.mkFalse( );
+	continue;
+      }
+
       // Substitute boolean variable with true/false
       if ( enode->isVar( ) ) 
       {
-	substitutions[ enode->getId( ) ] = polarity ? egraph.mkTrue( ) : egraph.mkFalse( );
+	substitutions[ enode->getId( ) ] = polarity 
+	                                 ? egraph.mkTrue( ) 
+					 : egraph.mkFalse( );
 	continue;
       }
+
+      assert( enode->isTAtom( ) );
 
       // Substitute positive equalities
       if ( !enode->isEq( ) || !polarity )
@@ -169,47 +210,10 @@ TopLevelProp::retrieveSubstitutions( Enode * formula
       assert( enode->isEq( ) );
       assert( polarity );
 
-      Enode * lhs = enode->get1st( );
-      Enode * rhs = enode->get2nd( );
-
-      if ( ( config.logic == QF_IDL 
-	  || config.logic == QF_RDL )
-	&& enode->isEq( ) )
+      if ( config.logic == QF_UF )
       {
-	Enode * norm = normalizeDLAtom( enode );
-	//
-	// It might be the case that norm is simplified to true/false
-	//
-	if ( norm->isTrue( ) || norm->isFalse( ) )
-	{
-	  substitutions[ enode->getId( ) ] = norm;
-	  continue;
-	}
-
-	lhs = norm->get1st( );
-	rhs = norm->get2nd( );
-	//
-	// Case x-y = c
-	//
-	if ( enode->isEq( ) 
-	  && !lhs->isVar( ) 
-	  && !rhs->isVar( ) )
-	{
-	  assert( lhs->isMinus( ) || rhs->isMinus( ) );
-	  if ( lhs->isMinus( ) )
-	  {
-	    assert( rhs->isConstant( ) );
-	    rhs = egraph.mkPlus( egraph.cons( lhs->get2nd( ), egraph.cons( rhs ) ) );
-	    lhs = lhs->get1st( );
-	  }	  
-	  else if ( rhs->isMinus( ) )
-	  {
-	    assert( lhs->isConstant( ) );
-	    lhs = egraph.mkPlus( egraph.cons( rhs->get2nd( ), egraph.cons( lhs ) ) );
-	    rhs = rhs->get1st( );
-	  }	  
-	  assert( lhs->isVar( ) || rhs->isVar( ) );
-	}
+	Enode * lhs = enode->get1st( );
+	Enode * rhs = enode->get2nd( );
 
 	if ( !lhs->isVar( ) && !rhs->isVar( ) )
 	  continue;
@@ -223,40 +227,122 @@ TopLevelProp::retrieveSubstitutions( Enode * formula
 	// Substitute variable with term that does not contain it
 	substitutions[ var->getId( ) ] = term;
       }
-      else if ( enode->isEq( ) )
+      else if ( config.logic == QF_IDL
+	     || config.logic == QF_RDL
+	     || config.logic == QF_LRA )
       {
-#if INLINE_CONSTANTS
-	if ( lhs->isConstant( ) )
-	{
-	  assert( !rhs->isConstant( ) );
-	  substitutions[ rhs->getId( ) ] = lhs;
-	  continue;
-	}
-	else if ( rhs->isConstant( ) )
-	{
-	  assert( !lhs->isConstant( ) );
-	  substitutions[ lhs->getId( ) ] = rhs;
-	  continue;
-	}
-#endif
-
-	if ( !lhs->isVar( ) && !rhs->isVar( ) )
-	  continue;
-
-	Enode * var  = lhs->isVar( ) ? lhs : rhs;
-	Enode * term = lhs->isVar( ) ? rhs : lhs;
-
-	if ( contains( term, var ) )
-	  continue;
-
-	// Substitute variable with term that does not contain it
-	substitutions[ var->getId( ) ] = term;
+	top_level_arith.push_back( enode );
+      }
+      else
+      {
+	error( "logic not supported yet", "" );
       }
     }
   }
 
   // Done with cache
   egraph.doneDup1( );
+  //
+  // Gaussian elimination for top-level arith
+  //
+  if ( config.logic == QF_IDL 
+    || config.logic == QF_RDL
+    || config.logic == QF_LRA )
+  {
+    vector< LAExpression * > equalities;
+    // Initialize
+    while ( !top_level_arith.empty( ) )
+    {
+      equalities.push_back( new LAExpression( top_level_arith.back( ) ) );
+      top_level_arith.pop_back( );
+    }
+    //
+    // If just one equality, produce substitution right away
+    //
+    if ( equalities.size( ) == 0 )
+      ; // Do nothing
+    else if ( equalities.size( ) == 1 )
+    {
+      LAExpression & lae = *equalities[ 0 ];
+      if ( lae.solve( ) == NULL )
+	error( "there is something wrong here", "" );
+      pair< Enode *, Enode * > sub = lae.getSubst( egraph );
+      assert( sub.first );
+      assert( sub.second );
+      assert( substitutions.find( (sub.first)->getId( ) ) == substitutions.end( ) );
+      substitutions[ (sub.first)->getId( ) ] = sub.second;
+    }
+    //
+    // Otherwise obtain substitutions 
+    // by means of Gaussian Elimination
+    //
+    else
+    {
+      // 
+      // FORWARD substitution
+      // We put the matrix equalities into upper triangular form
+      //
+      for ( unsigned i = 0 ; i + 1 < equalities.size( ) ; i ++ )
+      {
+	LAExpression & s = *equalities[ i ];
+	// Solve w.r.t. first variable
+	if ( s.solve( ) == NULL )
+	{
+	  if ( s.toEnode( egraph ) == egraph.mkTrue( ) )
+	    continue;
+	  error( "handle this please", "" );
+	}
+	// Use the first variable x in s to generate a
+	// substitution and replace x in lac
+	for ( unsigned j = i + 1 ; j < equalities.size( ) ; j ++ )
+	{
+	  LAExpression & lac = *equalities[ j ];
+	  combine( s, lac );
+	}
+      }
+      //
+      // BACKWARD substitution
+      // From the last equality to the first we put
+      // the matrix equalities into canonical form
+      //
+      for ( int i = equalities.size( ) - 1 ; i >= 1 ; i -- )
+      {
+	LAExpression & s = *equalities[ i ];
+	// Solve w.r.t. first variable
+	if ( s.solve( ) == NULL )
+	{
+	  if ( s.toEnode( egraph ) == egraph.mkTrue( ) )
+	    continue;
+	  error( "handle this please", "" );
+	}
+	// Use the first variable x in s to generate a
+	// substitution and replace x in lac
+	for ( int j = i - 1 ; j >= 0 ; j -- )
+	{
+	  LAExpression & lac = *equalities[ j ];
+	  combine( s, lac );
+	}
+      }
+      //
+      // Now, for each row we get a substitution
+      //
+      for ( unsigned i = 0 ; i < equalities.size( ) ; i ++ )
+      {
+	LAExpression & lae = *equalities[ i ];
+	pair< Enode *, Enode * > sub = lae.getSubst( egraph );
+	assert( sub.first );
+	assert( sub.second );
+	assert( substitutions.find( (sub.first)->getId( ) ) == substitutions.end( ) );
+	substitutions[ (sub.first)->getId( ) ] = sub.second;
+      }
+    }
+    // Clean constraints
+    while ( !equalities.empty( ) )
+    {
+      delete equalities.back( );
+      equalities.pop_back( );
+    }
+  }
 }
 
 bool
@@ -321,7 +407,6 @@ TopLevelProp::contains( Enode * term, Enode * var )
 Enode *
 TopLevelProp::substitute( Enode * formula
                         , Map( enodeid_t, Enode * ) & substitutions
-                        , Map( enodeid_t, bool ) & top_level_atoms
 			, bool & sub_stop )
 {
   assert( formula );
@@ -387,18 +472,14 @@ TopLevelProp::substitute( Enode * formula
       Map( enodeid_t, Enode * )::iterator it = substitutions.find( enode->getId( ) );
       // Substitute
       if ( it != substitutions.end( ) )
-      {
 	result = it->second;
-      }
     }
     else if ( enode->isTAtom( ) )
     {
       Map( enodeid_t, Enode * )::iterator it = substitutions.find( enode->getId( ) );
       // Substitute
       if ( it != substitutions.end( ) )
-      {
 	result = it->second;
-      }
     }
 #endif
 
@@ -406,10 +487,19 @@ TopLevelProp::substitute( Enode * formula
       result = egraph.copyEnodeEtypeTermWithCache( enode );
     else
       sub_stop = false;
-
-    if ( result->isTAtom( ) 
-      && ( config.logic == QF_IDL || config.logic == QF_RDL ) )
-      result = normalizeDLAtom( result );
+    //
+    // Canonize again arithmetic/bitvectors theory atoms
+    //
+    if ( result->isTAtom( ) )
+    {
+      if ( config.logic == QF_IDL
+	|| config.logic == QF_RDL
+	|| config.logic == QF_LRA )
+      {
+	LAExpression a( result );
+	result = a.toEnode( egraph );
+      }
+    }
 
     assert( result );
     assert( egraph.valDupMap( enode ) == NULL );
@@ -423,269 +513,8 @@ TopLevelProp::substitute( Enode * formula
   return new_formula;
 }
 
-//
-// Performs reccursive canonization of an atom, results are returned in vars;
-//
-Enode * TopLevelProp::normalizeDLAtom( Enode * e )
-{
-  assert( e->isTAtom( ) );
-  assert( e->isEq( ) || e->isLeq( ) );
-
-  Enode * result = NULL;
-
-  Enode * lhs = e->get1st( );
-  Enode * rhs = e->get2nd( );
-  const bool lhs_v_c = lhs->isVar( ) || lhs->isConstant( ) || ( lhs->isUminus( ) && lhs->get1st( )->isConstant( ) );
-  const bool rhs_v_c = rhs->isVar( ) || rhs->isConstant( ) || ( rhs->isUminus( ) && rhs->get1st( )->isConstant( ) );
-
-  //
-  // Check some common shapes which we leave intact
-  //
-  // Case 1: x ~ y
-  //
-  if ( lhs_v_c && rhs_v_c )
-  {
-    result = e->isLeq( ) 
-           ? egraph.mkLeq( e->getCdr( ) )
-	   : egraph.mkEq ( e->getCdr( ) );
-  }
-  //
-  // Case 2: x - y ~ c
-  //
-  else if ( ( lhs->isMinus( ) && lhs->get1st( )->isVar( ) && lhs->get2nd( )->isVar( ) && rhs_v_c )
-         || ( rhs->isMinus( ) && rhs->get1st( )->isVar( ) && rhs->get2nd( )->isVar( ) && lhs_v_c ) )
-  {
-    result = e->isLeq( ) 
-           ? egraph.mkLeq( e->getCdr( ) )
-	   : egraph.mkEq ( e->getCdr( ) );
-  }
-  //
-  // Otherwise we rewrite the term 
-  // in the form of case 2
-  //
-  else
-  {
-    map_int2Real lhs_vars, rhs_vars;
-    normalizeDLAtomRec( lhs, lhs_vars );
-    normalizeDLAtomRec( rhs, rhs_vars );
-
-    multiplyVars( rhs_vars, -1 );
-    mergeVars( lhs_vars, rhs_vars );
-
-    //
-    // Gets the free member of an equation
-    //
-    Real free_member = 0;
-    if ( lhs_vars.find( -1 ) != lhs_vars.end( ) )
-    {
-      free_member = -lhs_vars[-1];
-      lhs_vars.erase( -1 );
-    }
-    //
-    // Number of variables must be 1 or 2
-    //
-    vector< int > garbage;
-    for ( map_int2Real::iterator it = lhs_vars.begin( ) ; it != lhs_vars.end( ) ; it ++ )
-      if ( it->second == 0 )
-	garbage.push_back( it->first );
-    while ( !garbage.empty( ) )
-    {
-      lhs_vars.erase( garbage.back( ) );
-      garbage.pop_back( );
-    }
-
-    if ( lhs_vars.size( ) == 0 )
-    {
-      if ( e->isEq( ) )
-      {
-	if ( free_member == 0 ) 
-	  return egraph.mkTrue( );
-	else 
-	  return egraph.mkFalse( );
-      }
-      else
-      {
-	if ( free_member >= 0 ) 
-	  return egraph.mkTrue( );
-	else 
-	  return egraph.mkFalse( );
-      }
-    }
-
-    if ( lhs_vars.size( ) > 2 )
-      error( "not a DL atom: ", e );
-    //
-    // If only one variable return x ~ c
-    //
-    map_int2Real::iterator it = lhs_vars.begin( );
-    if ( lhs_vars.size( ) == 1 )
-    {
-      Enode * x = vars_hash[ it->first ];
-      const Real c_ = free_member / it->second;
-      Enode * c = egraph.mkNum( c_ ); 
-      Enode * list = egraph.cons( x, egraph.cons( c ) );
-      result = e->isLeq( ) 
-	     ? egraph.mkLeq( list )
-	     : egraph.mkEq ( list );
-    }
-    //
-    // If two variables return x - y ~ c 
-    //
-    if ( lhs_vars.size( ) == 2 )
-    {
-      Enode * x = vars_hash[ it->first ]; 
-      const Real & x_coeff = it->second;
-      it ++;
-      Enode * y = vars_hash[ it->first ];
-      const Real & y_coeff = it->second;
-      assert( x_coeff == 1 || x_coeff == -1 );
-      assert( y_coeff == 1 || y_coeff == -1 );
-      assert( x_coeff + y_coeff == 0 );
-
-      Enode * c = egraph.mkNum( free_member ); 
-      Enode * minus = NULL;
-
-      if ( x_coeff == 1 )
-	minus = egraph.mkMinus( egraph.cons( x, egraph.cons( y ) ) ); 
-      else
-	minus = egraph.mkMinus( egraph.cons( y, egraph.cons( x ) ) ); 
-
-      Enode * list = egraph.cons( minus, egraph.cons( c ) );
-
-      result = e->isLeq( ) 
-	     ? egraph.mkLeq( list )
-	     : egraph.mkEq ( list );
-    }
-  }
-
-  assert( result );
-  return result;
-}
-//
-// Performs reccursive canonization of an atom, results are returned in vars;
-//
-void TopLevelProp::normalizeDLAtomRec(Enode * atom, map_int2Real & vars)
-{
-  // Check all accepting types of atoms
-  if (atom->isPlus())
-  {
-    // canonize all operands and merge the resulting vars maps
-    for (Enode * arg_list = atom->getCdr() ; arg_list != egraph.enil; arg_list
-        = arg_list->getCdr() )
-    {
-      map_int2Real tmp;
-      normalizeDLAtomRec(arg_list->getCar(), tmp);
-      mergeVars(vars, tmp);
-    }
-  }
-  else if (atom->isMinus())
-  {
-    assert( atom->getArity( ) == 2 );
-
-    Enode * arg_list= atom->getCdr( );
-    // canonize first operand
-    assert( !arg_list->isEnil( ) );
-    normalizeDLAtomRec(arg_list->getCar(), vars);
-
-    // canonize all negated operands
-    for (arg_list = arg_list->getCdr( ) ; arg_list != egraph.enil; arg_list = arg_list->getCdr() )
-    {
-      map_int2Real tmp;
-      normalizeDLAtomRec(arg_list->getCar(), tmp);
-      multiplyVars(tmp, -1);
-      mergeVars(vars, tmp);
-    }
-  }
-  else if (atom->isTimes())
-  {
-    assert(atom->getCdr() );
-    assert(atom->getCdr( )->getCdr() );
-    assert(atom->getCdr( )->getCdr( )->getCdr( )->isEnil() );
-    Enode * arg1 = atom->get1st();
-    Enode * arg2 = atom->get2nd();
-
-    // canonize both operands
-    map_int2Real tmp1, tmp2;
-    normalizeDLAtomRec(arg1, tmp1);
-    normalizeDLAtomRec(arg2, tmp2);
-
-    // if tmp1 is a constant
-    if (tmp1.size()==1 && tmp1.find(-1)!=tmp1.end())
-    {
-      multiplyVars(tmp2, tmp1[-1]);
-      mergeVars(vars, tmp2);
-    }
-    // if tmp2 is a constant
-    else if (tmp2.size()==1 && tmp2.find(-1)!=tmp2.end())
-    {
-      multiplyVars(tmp1, tmp2[-1]);
-      mergeVars(vars, tmp1);
-    }
-    // None of operands is constant -> non-linear
-    else
-    {
-      error( "atom is non-linear ", atom );
-    }
-  }
-  else if (atom->isConstant())
-  {
-    // Read numerical value
-    vars[-1]= atom->getCar( )->getValue();
-  }
-  else if (atom->isUminus())
-  {
-    map_int2Real tmp;
-    normalizeDLAtomRec( atom->get1st( ), tmp );
-    multiplyVars( tmp, -1 );
-    mergeVars( vars, tmp );
-  }
-  else if (atom->isVar())
-  {
-    // Read the variable
-    vars[atom->getId( )]=1;
-    vars_hash[atom->getId( )] = atom;
-  }
-  else if (atom->isDiv())
-  {
-      // Read the (/ a b) clause
-    assert(atom->get1st( )->isConstant() || atom->get1st( )->isUminus());
-    assert(atom->get2nd( )->isConstant());
-    if (atom->get1st( )->isUminus())
-      vars[-1] = -atom->get1st( )->get1st()->getCar( )->getValue();
-    else
-      vars[-1] = atom->get1st( )->getCar( )->getValue();
-
-    vars[-1] /= atom->get2nd( )->getCar( )->getValue();
-  }
-  else
-  {
-    error( "something wrong with ", atom );
-  }
-}
-
-//
-// Multiply all values in map_int2Real by real
-//
-void TopLevelProp::multiplyVars(map_int2Real & vars, const Real value)
-{
-  for (map_int2Real::iterator it = vars.begin(); it!=vars.end(); it++)
-    it->second = it->second * value;
-}
-//
-// Merge map_int2Real dst and src into dst
-//
-void TopLevelProp::mergeVars(map_int2Real & dst, map_int2Real & src)
-{
-  // Values of intersecting entries are summarized
-  for (map_int2Real::iterator it = src.begin(); it!=src.end(); it++)
-    if (dst.find(it->first)!=dst.end())
-      dst[it->first]+=it->second;
-    else
-      dst[it->first]=it->second;
-}
-
 Enode * 
-TopLevelProp::learnTransitivity( Enode * formula )
+TopLevelProp::learnEqTransitivity( Enode * formula )
 {
   list< Enode * > implications;
   vector< Enode * > unprocessed_enodes;
@@ -919,7 +748,6 @@ Enode *
 TopLevelProp::propagateUnconstrainedVariables( Enode * formula, bool & unc_stop )
 {
   bool fix_point_not_reached = true;
-  int i = 0;
   while ( fix_point_not_reached )
   {
     vector< int > id_to_inc_edges;
@@ -936,8 +764,8 @@ TopLevelProp::propagateUnconstrainedVariables( Enode * formula, bool & unc_stop 
 
 Enode *
 TopLevelProp::replaceUnconstrainedTerms( Enode * formula
-                                      , vector< int > & id_to_inc_edges
-                                      , bool & fix_point_not_reached )
+                                       , vector< int > & id_to_inc_edges
+                                       , bool & fix_point_not_reached )
 {
   vector< Enode * > unprocessed_enodes;
   egraph.initDupMap( );
@@ -1005,7 +833,7 @@ TopLevelProp::replaceUnconstrainedTerms( Enode * formula
 	  sprintf( def_name, "UNC_%d", enode->getId( ) );
 	  egraph.newSymbol( def_name, DTYPE_BITVEC | enode->getWidth( ) );
 	  result = egraph.mkVar( def_name );
-	  if ( id_to_inc_edges.size( ) < result->getId( ) )
+	  if ( static_cast< int >( id_to_inc_edges.size( ) ) < result->getId( ) )
 	    id_to_inc_edges.resize( result->getId( ) + 1, 0 );
 	  fix_point_not_reached = true;
 	  break;
@@ -1063,7 +891,7 @@ TopLevelProp::replaceUnconstrainedTerms( Enode * formula
 	  sprintf( def_name, "UNC_%d", enode->getId( ) );
 	  egraph.newSymbol( def_name, DTYPE_BOOL );
 	  result = egraph.mkVar( def_name );
-	  if ( id_to_inc_edges.size( ) < result->getId( ) )
+	  if ( static_cast< int >( id_to_inc_edges.size( ) ) < result->getId( ) )
 	    id_to_inc_edges.resize( result->getId( ) + 1, 0 );
 	  fix_point_not_reached = true;
 	  break;
@@ -1090,7 +918,7 @@ TopLevelProp::replaceUnconstrainedTerms( Enode * formula
 	sprintf( def_name, "UNC_%d", enode->getId( ) );
 	egraph.newSymbol( def_name, DTYPE_BOOL );
 	result = egraph.mkVar( def_name );
-	if ( id_to_inc_edges.size( ) < result->getId( ) )
+	if ( static_cast< int >( id_to_inc_edges.size( ) ) < result->getId( ) )
 	  id_to_inc_edges.resize( result->getId( ) + 1, 0 );
 	fix_point_not_reached = true;
       }
@@ -1110,7 +938,7 @@ TopLevelProp::replaceUnconstrainedTerms( Enode * formula
 	  sprintf( def_name, "UNC_%d", enode->getId( ) );
 	  egraph.newSymbol( def_name, DTYPE_BITVEC | enode->getWidth( ) );
 	  result = egraph.mkVar( def_name );
-	  if ( id_to_inc_edges.size( ) < result->getId( ) )
+	  if ( static_cast< int >( id_to_inc_edges.size( ) ) < result->getId( ) )
 	    id_to_inc_edges.resize( result->getId( ) + 1, 0 );
 	  fix_point_not_reached = true;
 	}
@@ -1198,110 +1026,158 @@ void TopLevelProp::computeIncomingEdges( Enode * formula
   egraph.doneDup1( );
 }
 
-/*
-void
-TopLevelProp::retrieveDistinctions( Enode * formula )
+Enode *
+TopLevelProp::canonize( Enode * formula )
 {
   vector< Enode * > unprocessed_enodes;
-  egraph.initDup1( );
+  egraph.initDupMap( );
 
-  unprocessed_enodes  .push_back( formula );
+  unprocessed_enodes.push_back( formula );
   //
   // Visit the DAG of the formula from the leaves to the root
   //
   while( !unprocessed_enodes.empty( ) )
   {
     Enode * enode = unprocessed_enodes.back( );
-    unprocessed_enodes.pop_back( );
     // 
     // Skip if the node has already been processed before
     //
-    if ( egraph.isDup1( enode ) )
+    if ( egraph.valDupMap( enode ) != NULL )
+    {
+      unprocessed_enodes.pop_back( );
       continue;
-
-    egraph.storeDup1( enode );
-    //
-    // Process children
-    //
-    if ( enode->isAnd( ) )
-    {
-      Enode * arg_list;
-      for ( arg_list = enode->getCdr( ) 
-	  ; arg_list != egraph.enil 
-	  ; arg_list = arg_list->getCdr( ) )
-      {
-	Enode * arg = arg_list->getCar( );
-	if ( arg->isDistinct( ) )
-	  unprocessed_enodes.push_back( arg );
-      }
     }
-    else if ( enode->isDistinct( ) )
+
+    bool unprocessed_children = false;
+    Enode * arg_list;
+    for ( arg_list = enode->getCdr( ) 
+	; arg_list != egraph.enil 
+	; arg_list = arg_list->getCdr( ) )
     {
+      Enode * arg = arg_list->getCar( );
+      assert( arg->isTerm( ) );
       //
-      // Set distinct flag for the list of arguments
+      // Push only if it is unprocessed
       //
-      Enode * arg_list;
-      for ( arg_list = enode->getCdr( ) 
-	  ; arg_list != egraph.enil 
-	  ; arg_list = arg_list->getCdr( ) )
+      if ( egraph.valDupMap( arg ) == NULL )
       {
-	Enode * arg = arg_list->getCar( );
-	if ( enode_to_dist_index.find( arg->getId( ) ) == enode_to_dist_index.end( ) )
-	  enode_to_dist_index[ arg->getId( ) ] = 0;
-	enode_to_dist_index[ arg->getId( ) ] |= SETBIT(distinctions.size( ));
-      }
-
-      distinctions.push_back( enode ); 
-    }
-  }
-
-  // Done with cache
-  egraph.doneDup1( );
-}
-
-void
-TopLevelProp::retrieveNe( Enode * formula )
-{
-  vector< Enode * > unprocessed_enodes;
-  egraph.initDup1( );
-
-  unprocessed_enodes  .push_back( formula );
-  //
-  // Visit the DAG of the formula from the leaves to the root
-  //
-  while( !unprocessed_enodes.empty( ) )
-  {
-    Enode * enode = unprocessed_enodes.back( );
-    unprocessed_enodes.pop_back( );
-    // 
-    // Skip if the node has already been processed before
-    //
-    if ( egraph.isDup1( enode ) )
-      continue;
-
-    egraph.storeDup1( enode );
-    //
-    // Process children
-    //
-    if ( enode->isAnd( ) )
-    {
-      Enode * arg_list;
-      for ( arg_list = enode->getCdr( ) 
-	  ; arg_list != egraph.enil 
-	  ; arg_list = arg_list->getCdr( ) )
-      {
-	Enode * arg = arg_list->getCar( );
 	unprocessed_enodes.push_back( arg );
+	unprocessed_children = true;
       }
     }
-    else if ( enode->isNot( ) && enode->get1st( )->isEq( ) )
+    //
+    // SKip if unprocessed_children
+    //
+    if ( unprocessed_children )
+      continue;
+
+    unprocessed_enodes.pop_back( );                      
+    Enode * result = NULL;
+    // 
+    // Replace arithmetic atoms with canonized version
+    //
+    if ( enode->isTAtom( ) )
     {
-      ne.push_back( enode->get1st( ) ); 
-    }
+      LAExpression a( enode );
+      result = a.toEnode( egraph );
+    } 
+    //
+    // If nothing have been done copy and simplify
+    //
+    if ( result == NULL )
+      result = egraph.copyEnodeEtypeTermWithCache( enode );
+
+    assert( egraph.valDupMap( enode ) == NULL );
+    egraph.storeDupMap( enode, result );
   }
 
-  // Done with cache
-  egraph.doneDup1( );
-}
-*/
+  Enode * new_formula = egraph.valDupMap( formula );
+  assert( new_formula );
+  egraph.doneDupMap( );
 
+  return new_formula;
+}
+
+#if NEW_SPLIT
+#else
+Enode *
+TopLevelProp::splitEqs( Enode * formula )
+{
+  assert( config.logic == QF_IDL
+       || config.logic == QF_RDL
+       || config.logic == QF_LRA );
+
+  vector< Enode * > unprocessed_enodes;
+  egraph.initDupMap( );
+
+  unprocessed_enodes.push_back( formula );
+  //
+  // Visit the DAG of the formula from the leaves to the root
+  //
+  while( !unprocessed_enodes.empty( ) )
+  {
+    Enode * enode = unprocessed_enodes.back( );
+    // 
+    // Skip if the node has already been processed before
+    //
+    if ( egraph.valDupMap( enode ) != NULL )
+    {
+      unprocessed_enodes.pop_back( );
+      continue;
+    }
+
+    bool unprocessed_children = false;
+    Enode * arg_list;
+    for ( arg_list = enode->getCdr( ) 
+	; arg_list != egraph.enil 
+	; arg_list = arg_list->getCdr( ) )
+    {
+      Enode * arg = arg_list->getCar( );
+      assert( arg->isTerm( ) );
+      //
+      // Push only if it is unprocessed
+      //
+      if ( egraph.valDupMap( arg ) == NULL )
+      {
+	unprocessed_enodes.push_back( arg );
+	unprocessed_children = true;
+      }
+    }
+    //
+    // SKip if unprocessed_children
+    //
+    if ( unprocessed_children )
+      continue;
+
+    unprocessed_enodes.pop_back( );                      
+    Enode * result = NULL;
+    // 
+    // Replace arithmetic atoms with canonized version
+    //
+    if ( enode->isTAtom( ) && enode->isEq( ) )
+    {
+      LAExpression a( enode );
+      Enode * e = a.toEnode( egraph );
+      Enode * lhs = e->get1st( );
+      Enode * rhs = e->get2nd( );
+      Enode * leq = egraph.mkLeq( egraph.cons( lhs, egraph.cons( rhs ) ) );
+      Enode * geq = egraph.mkGeq( egraph.cons( lhs, egraph.cons( rhs ) ) );
+      result = egraph.mkAnd( egraph.cons( leq, egraph.cons( geq ) ) );
+    } 
+    //
+    // If nothing have been done copy and simplify
+    //
+    if ( result == NULL )
+      result = egraph.copyEnodeEtypeTermWithCache( enode );
+
+    assert( egraph.valDupMap( enode ) == NULL );
+    egraph.storeDupMap( enode, result );
+  }
+
+  Enode * new_formula = egraph.valDupMap( formula );
+  assert( new_formula );
+  egraph.doneDupMap( );
+
+  return new_formula;
+}
+#endif
