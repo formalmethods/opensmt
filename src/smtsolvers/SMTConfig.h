@@ -51,6 +51,8 @@ struct SConfig
   int    preprocess_booleans;
   int    preprocess_theory;
   int    centrality;
+  int    minimize_conflicts;   // Conflict minimization: 0 none, 1 bool only, 2 full
+  int    dump_cnf;
   int    trade_off;
   int    verbose;
 };
@@ -93,6 +95,8 @@ struct SMTConfig
     satconfig.preprocess_theory   = 0;
     satconfig.centrality          = 18;
     satconfig.trade_off           = 8192;
+    satconfig.minimize_conflicts  = 1;
+    satconfig.dump_cnf            = 0;
     ufconfig.disable              = 0;
     ufconfig.theory_propagation   = 1;
     ufconfig.verbose              = 0;

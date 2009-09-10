@@ -70,7 +70,6 @@ inline  Lit  id          (Lit p, bool sgn) { Lit q; q.x = p.x ^ (int)sgn; return
 const Lit lit_Undef(var_Undef, false);  // }- Useful special constants.
 const Lit lit_Error(var_Undef, true );  // }
 
-
 //=================================================================================================
 // Lifted booleans:
 

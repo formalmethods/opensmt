@@ -32,6 +32,7 @@ along with OpenSMT. If not, see <http://www.gnu.org/licenses/>.
 // 
 lbool EmptySolver::inform( Enode * e )  
 { 
+  (void)e;
   assert( e );
   assert( belongsToT( e ) );
   return l_Undef;
@@ -45,6 +46,8 @@ lbool EmptySolver::inform( Enode * e )
 //
 bool EmptySolver::assertLit ( Enode * e, bool reason )
 {
+  (void)e;
+  (void)reason;
   assert( e );
   assert( belongsToT( e ) );
   return true;
@@ -88,6 +91,7 @@ void EmptySolver::popBacktrackPoint ( )
 //
 bool EmptySolver::check( bool complete )    
 { 
+  (void)complete;
   // Here check for consistency
   return true;
 }
@@ -100,6 +104,7 @@ bool EmptySolver::check( bool complete )
 //
 bool EmptySolver::belongsToT( Enode * e )
 {
+  (void)e;
   assert( e );
   return true;
 }

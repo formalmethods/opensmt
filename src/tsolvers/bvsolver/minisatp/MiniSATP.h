@@ -168,7 +168,7 @@ protected:
     // Data structures required for communicating conflicts and deductions
     // incrementality, backtrackability ...
     //
-    typedef enum oper_t { NEWVAR, NEWUNIT, NEWCLAUSE };
+    enum oper_t { NEWVAR, NEWUNIT, NEWCLAUSE };
 
     const int                      solver_id;           // Id of the t-solver that wraps
     vector< Enode * > &            explanation;         // For conflict sets
@@ -367,7 +367,7 @@ static inline const char* showBool(bool b) { return b ? "true" : "false"; }
 
 
 // Just like 'assert()' but expression will be evaluated in the release version as well.
-static inline void check(bool expr) { assert(expr); }
+static inline void check(bool expr) { (void)expr; assert(expr); }
 
 #if 0
 inline void MiniSATP::printLit(Lit l)

@@ -8,8 +8,6 @@ Copyright (c) 2008, 2009 Centre national de la recherche scientifique (CNRS)
 #ifndef FAST_RATIONALS_H
 #define FAST_RATIONALS_H
 
-// #undef NDEBUG
-
 #include <iostream>
 #include <string>
 #include <sstream>
@@ -18,15 +16,18 @@ Copyright (c) 2008, 2009 Centre national de la recherche scientifique (CNRS)
 #include <errno.h>
 #include <cassert>
 #include <stdint.h>
+#include <limits.h>
 
 typedef int32_t  word;
 typedef uint32_t uword;
 typedef int64_t  lword;
 typedef uint64_t ulword;
-const word WORD_MIN = -(1<<31), WORD_MAX = (1<<31)-1;
-
-//#define FAST_GCD
-//#define PRECOMPUTED_GCD
+// const word WORD_MIN = -(1<<31), WORD_MAX = (1<<31)-1;
+// #define WORD_MIN  0x80000000
+// #define WORD_MAX  0x7FFFFFFF
+#define WORD_MIN  INT_MIN
+#define WORD_MAX  INT_MAX
+#define UWORD_MAX UINT_MAX
 
 static inline size_t djb2(size_t a, size_t b) {
   return (a << 5) + a + b;
@@ -830,7 +831,7 @@ template<uword> uword gcd(uword a, uword b);
   do { \
     CHECK_POSITIVE(value); \
     ulword tmp = value; \
-    if (tmp > WORD_MAX) { \
+    if (tmp > UWORD_MAX) { \
       goto overflow; \
     } \
     var = tmp;\
@@ -1037,7 +1038,6 @@ inline void multiplication(FastRational& dst, const FastRational& a, const FastR
   if (a.has_word && b.has_word) {
     word zn;
     uword zd;
-#if 1
     word common1 = gcd(absVal(a.num), b.den), common2 = gcd(a.den, absVal(b.num));
     lword k1, k2, k3, k4;
     if (common1 > 1) {
@@ -1056,17 +1056,6 @@ inline void multiplication(FastRational& dst, const FastRational& a, const FastR
     }
     CHECK_WORD(zn, k1 * k2);
     CHECK_UWORD(zd, k3 * k4);
-#else
-    lword zn1 = lword(a.num)*b.num;
-    ulword zd1 = ulword(a.den)*b.den;
-    ulword common = gcd(absVal(zn1), zd1);
-    if (common > 1) {
-      zn1 /= common;
-      zd1 /= common;
-    }
-    CHECK_WORD(zn, zn1);
-    CHECK_UWORD(zd, zd1);
-#endif
     dst.num = zn;
     dst.den = zd;
     dst.has_word = true;

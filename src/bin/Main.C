@@ -1,5 +1,5 @@
 /*********************************************************************
-Author: Roberto Bruttomesso <roberto.bruttomesso@unisi.ch>
+Author: Roberto Bruttomesso <roberto.bruttomesso@gmail.com>
 
 OpenSMT -- Copyright (C) 2009 Roberto Bruttomesso
 
@@ -22,12 +22,9 @@ along with OpenSMT. If not, see <http://www.gnu.org/licenses/>.
 #include "SimpSMTSolver.h"
 #include "Tseitin.h"
 #include "ExpandITEs.h"
-#include "BVNormalize.h"
 #include "BVBooleanize.h"
 #include "TopLevelProp.h"
-#include "LATopLevelProp.h"
-#include "LACanonizer.h"
-#include "DLCanonizer.h"
+#include "DLRescale.h"
 
 #include <cstdlib>
 #include <cstdio>
@@ -38,12 +35,13 @@ along with OpenSMT. If not, see <http://www.gnu.org/licenses/>.
 #include <fpu_control.h>
 #endif
 
-void        printResult( const lbool &, const lbool & = l_Undef );
-void        catcher( int );
-extern int  smtset_in( FILE * );
-extern int  smtparse( );
-extern int  ysset_in( FILE * );
-extern int  ysparse( );
+void        loadCustomSettings ( SMTConfig & );
+void        printResult        ( const lbool &, const lbool & = l_Undef );
+void        catcher            ( int );
+extern int  smtset_in          ( FILE * );
+extern int  smtparse           ( );
+extern int  ysset_in           ( FILE * );
+extern int  ysparse            ( );
 Egraph *    parser_egraph;
 SMTConfig * parser_config;
 bool        stop;
@@ -123,6 +121,7 @@ int main( int argc, char * argv[] )
       error( "unknown file extension. Please use .smt or .ys or stdin", "" );
     }
   }
+  
 #endif
 
 #ifndef SMTCOMP
@@ -177,24 +176,8 @@ int main( int argc, char * argv[] )
   if ( print_sharp && verbose ) cerr << "#" << endl;
 #endif
 
-
 #ifdef SMTCOMP
-  // Custom settings for SMTCOMP go here !
-  if ( config.logic == QF_UF
-    || config.logic == QF_BV )
-  {
-    config.satconfig.preprocess_booleans = 1;
-  }
-  else if ( config.logic == QF_LRA )
-  {
-    config.lraconfig.theory_propagation = 0;
-    // config.lraconfig.poly_deduct_size = 10;
-  }
-  else if ( config.logic == QF_IDL )
-  {
-    config.satconfig.preprocess_booleans = 1;
-    config.satconfig.preprocess_theory = 1;
-  }
+  loadCustomSettings( config );
 #endif
 
   assert( config.ufconfig.int_extract_concat == 0
@@ -219,10 +202,6 @@ int main( int argc, char * argv[] )
     formula = booleanizer.doit( formula );
   }
 
-  // Top-Level Simplification
-  TopLevelProp propagator( egraph, config );
-  formula = propagator.doit( formula );
-
   // Removes ITEs if there is any
   if ( egraph.hasItes( ) )
   {
@@ -230,41 +209,16 @@ int main( int argc, char * argv[] )
     formula = expander.doit( formula );
   }
 
-  if ( config.logic == QF_BV )
-  {
-    // Normalize bitvector atoms
-    BVNormalize normalizer( egraph, config );
-    formula = normalizer.doit( formula );
+  // Top-Level Propagator. It also canonize atoms
+  TopLevelProp propagator( egraph, config );
+  formula = propagator.doit( formula );
 
-    // Another round of propagations for BV
-    TopLevelProp propagator( egraph, config );
-    formula = propagator.doit( formula );
-  }
-
-
-  // Canonize arithmetic atoms
-  if ( config.logic == QF_RDL
+  // Convert RDL into IDL, also compute if GMP is needed
+  if ( config.logic == QF_RDL 
     || config.logic == QF_IDL )
   {
-    // Canonize specialized for dl atoms
-    DLCanonizer canonizer( egraph, config );
-    formula = canonizer.canonize( formula );
-
-    if ( config.logic == QF_RDL )
-      formula = canonizer.rescale( formula );
-  }
-  else if ( config.logic == QF_LRA )
-  {
-    /*
-     * Disabled because it's buggy
-     * AT: in fact, it should not be separate from the canonizer, since they work on the same data structures
-     *
-    LATopLevelProp la_propagator( egraph );
-    formula = la_propagator.doit( formula );
-    */
-
-    LACanonizer canonizer( egraph );
-    formula = canonizer.canonize( formula );
+    DLRescale rescaler( egraph, config );
+    formula = rescaler.doit( formula );
   }
 
   lbool result = l_Undef;
@@ -291,19 +245,21 @@ int main( int argc, char * argv[] )
     // Allocates Tseitin-like cnfizer
     Tseitin cnfizer( egraph, solver, config );
 
-    // Compute polarities edges
+    // Compute polarities
     egraph.computePolarities( formula );
 
     // CNFize the input formula and feed clauses to the solver
     result = cnfizer.cnfizeAndGiveToSolver( formula );
 
     // Solve
-    result = solver.smtSolve( config.satconfig.preprocess_booleans != 0
-	                   || config.satconfig.preprocess_theory != 0 );
+    if ( result == l_Undef )
+      result = solver.smtSolve( config.satconfig.preprocess_booleans != 0
+	                     || config.satconfig.preprocess_theory   != 0 );
 
     // If computation has been stopped, return undef
     if ( stop ) result = l_Undef;
 
+    // Prints the result and check against status
     printResult( result, config.status );
   }
 
@@ -375,4 +331,22 @@ void printResult( const lbool & result, const lbool & config_status )
     reportf( "#\n" );
   }
 #endif
+}
+
+void loadCustomSettings( SMTConfig & config )
+{
+  if ( config.logic == QF_UF
+    || config.logic == QF_BV )
+  {
+    config.satconfig.preprocess_booleans = 1;
+  }
+  else if ( config.logic == QF_LRA )
+  {
+    config.lraconfig.theory_propagation = 0;
+  }
+  else if ( config.logic == QF_IDL )
+  {
+    config.satconfig.preprocess_booleans = 1;
+    config.satconfig.preprocess_theory = 1;
+  }
 }

@@ -337,8 +337,6 @@ struct SymbData
     {
       assert( etype_ == ETYPE_NUMB );
       assert( (dtype_ & DTYPE_BITVEC) == DTYPE_BITVEC );
-      const unsigned width = dtype_ & WIDTH_MASK;
-      assert( width > 0 );
 #if USE_GMP
       value = new Real( name_, 2 );
 #else

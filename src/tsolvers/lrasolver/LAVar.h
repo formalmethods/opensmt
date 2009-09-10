@@ -41,7 +41,7 @@ public:
   {
     _size = 0;
   }
-  inline const unsigned size( )
+  inline unsigned size( )
   {
     return _size;
   }
@@ -63,7 +63,7 @@ public:
         return it;
     }
 
-    assert( false );
+    return this->end( );
   }
 
   void erase( int key )

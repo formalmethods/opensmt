@@ -246,7 +246,7 @@ void LAVar::getSimpleDeductions( vector<Enode *>& dst, bool upper, int solver_id
 
   if( upper && !allBounds[uBound].delta->isInf( ) )
   {
-    for( int it = uBound + 1; it < allBounds.size( ) - 1; it++ )
+    for( int it = uBound + 1; it < static_cast< int >( allBounds.size( ) ) - 1; it++ )
     {
       if( allBounds[it].boundType && !allBounds[it].e->hasPolarity( ) && !allBounds[it].e->isDeduced( ) )
       {
@@ -259,6 +259,7 @@ void LAVar::getSimpleDeductions( vector<Enode *>& dst, bool upper, int solver_id
 
 void LAVar::getSuggestions( vector<Enode *>& dst, int solver_id )
 {
+  (void)solver_id;
   if( M( ) > U( ) )
   {
     allBounds[uBound].e->setDecPolarity( allBounds[uBound].reverse );

@@ -45,8 +45,11 @@ Var THandler::enodeToVar( Enode * atm )
   {
     lbool state = l_Undef;
     // Inform core solver about the existence of this atom
+#if NEW_SIMPLIFICATIONS
+#else
     if ( atm->isTAtom( ) )
       state = core_solver.inform( atm );
+#endif
 
     if ( state == l_Undef )
     {
@@ -143,7 +146,6 @@ bool THandler::assertLits( )
 
     assert( !e->hasPolarity( ) );
     e->setPolarity( (sign( l ) ? l_False : l_True) );
-
     res = core_solver.assertLit( e );
 
 #ifdef EXTERNAL_TOOL
@@ -161,10 +163,8 @@ bool THandler::check( bool complete )
 {
   const bool res = core_solver.check( complete );
 #if EXTERNAL_TOOL
-  if ( complete) verifyCallWithExternalTool( res, trail.size( ) - 1 );
+  if ( complete ) verifyCallWithExternalTool( res, trail.size( ) - 1 );
 #endif
-  core_solver.checkEmptyExpl( );
-
   return res;
 }
 
@@ -184,6 +184,7 @@ void THandler::backtrack( )
       continue;
 
     core_solver.popBacktrackPoint( );
+
     assert( e->isTAtom( ) );
     assert( e->hasPolarity( ) );
     assert( e->getPolarity( ) == l_True
@@ -267,8 +268,8 @@ Lit THandler::getSuggestion( )
 void THandler::getReason( Lit l, vec< Lit > & reason )
 {
 #if LAZY_COMMUNICATION
-  assert( checked_trail_size == (int)stack.size( ) );
-  assert( checked_trail_size == (int)trail.size( ) );
+  assert( checked_trail_size == stack.size( ) );
+  assert( static_cast< int >( checked_trail_size ) == trail.size( ) );
 #else
 #endif
 
@@ -294,21 +295,11 @@ void THandler::getReason( Lit l, vec< Lit > & reason )
   const bool res = core_solver.assertLit( e, true ) &&
                    core_solver.check( true );
   // Result must be false
-#ifdef SMTCOMP
-  //
-  // This is a critical condition that should not happen
-  // Still for one instance (out of ALL) it shows up.
-  // We prefer to return unknown instead of letting the
-  // solver to run in an incorrect state ...
-  //
   if ( res )
   {
     cout << endl << "unknown" << endl;
     exit( 1 );
   }
-#else
-  assert( !res );
-#endif
 
   // Get Explanation
   vector< Enode * > & explanation = core_solver.getConflict( true );

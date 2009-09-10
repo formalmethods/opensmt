@@ -36,8 +36,8 @@ DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
 OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 **************************************************************************************************/
 
-#ifndef SIMP_SMT_SOLVER_HH
-#define SIMP_SMT_SOLVER_HH
+#ifndef SIMP_SMT_SOLVER_H
+#define SIMP_SMT_SOLVER_H
 
 #include "Queue.h"
 #include "CoreSMTSolver.h"
@@ -53,18 +53,34 @@ class SimpSMTSolver : public CoreSMTSolver
 //=================================================================================================
 // Added Code
 
-    bool              addSMTClause  ( vector< Enode * > & );
-    inline lbool      smtSolve      ( bool do_simp = true ) { return solve( do_simp, false ); }
-    void              getDLVars     ( Enode *, bool, Enode **, Enode ** );
-    Enode *           mergeTAtoms   ( Enode *, bool, Enode *, bool, Enode * );
-    void              eliminateTVar ( Enode * );
+    bool              addSMTClause        ( vector< Enode * > & );
+    inline lbool      smtSolve            ( bool do_simp = true ) { return solve( do_simp, false ); }
+    Enode *           mergeTAtoms         ( Enode *, bool, Enode *, bool, Enode * );
+    void              eliminateTVar       ( Enode * );
+
+#if NEW_SIMPLIFICATIONS
+    void              gatherTVars         ( Enode *, bool, Clause * );
+    void              gaussianElimination ( );
+    void              substituteInClauses ( );
+    bool              dpfm                ( );
+#else
+    void              getDLVars           ( Enode *, bool, Enode **, Enode ** );
+#endif
 
     set< Clause * >                      to_remove;
     vector< Clause * >                   unary_to_remove;
+#if NEW_SIMPLIFICATIONS
+    set< Enode * >                       t_var; // Theory variables 
+#else
     // TODO: change to vector< list< Clauses * > >
     map< Enode *, set< enodeid_t > >     t_var; // Variables to which is connected to
+#endif
     map< enodeid_t, vector< Clause * > > t_pos; // Clauses where theory variable appears positively
     map< enodeid_t, vector< Clause * > > t_neg; // Clauses where theory variable appears negatively
+
+#if NEW_SIMPLIFICATIONS
+    vector< LAExpression * >             var_to_lae;
+#endif
 
 // Added Code
 //=================================================================================================

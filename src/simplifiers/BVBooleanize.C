@@ -131,6 +131,8 @@ Enode * BVBooleanize::propagateExtractRec( Enode * e )
     return e;
 
   const int init_width = e->getWidth( );
+  // To fool compiler
+  (void)init_width;
 
   Enode * arg = e->get1st( );
   Enode * res = e;

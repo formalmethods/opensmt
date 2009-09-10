@@ -58,6 +58,7 @@ lbool BVSolver::inform( Enode * e )
 //
 bool BVSolver::assertLit ( Enode * e, bool reason )
 {
+  (void)reason;
   assert( e );
   assert( belongsToT( e ) );
 

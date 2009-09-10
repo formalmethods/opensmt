@@ -200,7 +200,7 @@ void Egraph::cbeUpdate( Enode * e, const int lsb, const int msb )
   else
   {
     assert( e->isExtract( ) );
-    int arg_lsb, arg_msb;
+    int arg_lsb = 0, arg_msb = 0;
     e->isExtract( &arg_msb, &arg_lsb );
     assert( arg_msb - arg_lsb >= msb - lsb );
     Enode * arg = e->get1st( );
@@ -230,7 +230,7 @@ void Egraph::cbeUpdate( Enode * e, const int lsb, const int msb )
     if ( !cbeIsInCb( current_slice ) )
     {
       assert( current_slice->isExtract( ) );
-      int arg_lsb, arg_msb;
+      int arg_lsb = 0, arg_msb = 0;
       current_slice->isExtract( &arg_msb, &arg_lsb );
       assert( arg_msb - arg_lsb >= current_msb - current_lsb );
       Enode * arg = current_slice->get1st( );
@@ -457,6 +457,7 @@ void Egraph::cbeRetrieve( Enode * e
   assert( config.ufconfig.int_extract_concat );
 
   Enode * cb = e->getCb( );
+  (void)cb;
   assert( cb->isCbe( ) || e == cb );
 
   list< Enode * > unproc_slice;
@@ -474,7 +475,7 @@ void Egraph::cbeRetrieve( Enode * e
   else
   {
     assert( e->isExtract( ) );
-    int arg_lsb, arg_msb;
+    int arg_lsb = 0, arg_msb = 0;
     e->isExtract( &arg_msb, &arg_lsb );
     assert( arg_msb - arg_lsb >= msb - lsb );
     Enode * arg = e->get1st( );
@@ -508,7 +509,7 @@ void Egraph::cbeRetrieve( Enode * e
     if ( !cbeIsInCb( current_slice ) )
     {
       assert( current_slice->isExtract( ) );
-      int arg_lsb, arg_msb;
+      int arg_lsb = 0, arg_msb = 0;
       current_slice->isExtract( &arg_msb, &arg_lsb );
       assert( arg_msb - arg_lsb >= current_msb - current_lsb );
       Enode * arg = current_slice->get1st( );
@@ -925,7 +926,7 @@ bool Egraph::cbeIsExternal( Enode * e, const int msb, const int lsb )
     return false;
   for ( Enode * list = cb->getCdr( ) ; !list->isEnil( ) ; list = list->getCdr( ) )
   {
-    int m, l;
+    int m = 0, l = 0;
     list->getCar( )->isExtract( &m, &l );
     if ( msb < l ) continue;
     // Intersection

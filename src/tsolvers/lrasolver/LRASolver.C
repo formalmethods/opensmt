@@ -36,6 +36,12 @@ lbool LRASolver::inform( Enode * e )
     return l_Undef;
   }
   assert( e->isAtom( ) );
+
+#if NEW_SIMPLIFICATIONS
+#warning "REMOVE THIS REMOVE THIS REMOVE THIS"
+  return l_Undef;
+#endif
+
   assert( e->isLeq( ) );
 
   Enode * arg1 = e->get1st( );
@@ -89,7 +95,7 @@ lbool LRASolver::inform( Enode * e )
       slack_vars.push_back( x );
       enode_lavar[var->getId( )] = x;
 
-      if( x->ID( ) >= columns.size( ) )
+      if( x->ID( ) >= static_cast< int >( columns.size( ) ) )
         columns.resize( x->ID( ) + 1, NULL );
       columns[x->ID( )] = x;
 
@@ -130,11 +136,11 @@ lbool LRASolver::inform( Enode * e )
 
       assert( s->basicID( ) != -1 );
 
-      if( s->ID( ) >= columns.size( ) )
+      if( s->ID( ) >= static_cast< int >( columns.size( ) ) )
         columns.resize( s->ID( ) + 1, NULL );
       columns[s->ID( )] = s;
 
-      if( s->basicID( ) >= ( int )rows.size( ) )
+      if( s->basicID( ) >= static_cast< int >( rows.size( ) ) )
         rows.resize( s->basicID( ) + 1, NULL );
       rows[s->basicID( )] = s;
 
@@ -186,7 +192,7 @@ lbool LRASolver::inform( Enode * e )
             slack_vars.push_back( x );
             enode_lavar[var->getId( )] = x;
 
-            if( x->ID( ) >= columns.size( ) )
+            if( x->ID( ) >= static_cast< int >( columns.size( ) ) )
               columns.resize( x->ID( ) + 1, NULL );
             columns[x->ID( )] = x;
           }
@@ -219,6 +225,7 @@ lbool LRASolver::inform( Enode * e )
 //
 bool LRASolver::check( bool complete )
 {
+  (void)complete;
   // check if we stop reading constraints
   if( status == INIT )
     initSolver( );
@@ -326,6 +333,7 @@ bool LRASolver::check( bool complete )
 //
 bool LRASolver::assertLit( Enode * e, bool reason )
 {
+  (void)reason;
   // check if we stop reading constraints
   if( status == INIT )
     initSolver( );
@@ -456,7 +464,7 @@ void LRASolver::popBacktrackPoint( )
 //
 void LRASolver::doGaussianElimination( )
 {
-  unsigned m;
+  int m;
 
   for( unsigned i = 0; i < columns.size( ); i++ )
     if( !columns[i]->skip && columns[i]->isNonbasic( ) && columns[i]->isUnbounded( ) && columns[i]->bindedRows.size( ) > 0 )
@@ -593,7 +601,7 @@ void LRASolver::update( LAVar * x, const Delta & v )
 
     rows[ it->first ]->incM( *( it->second ) * v_minusM );
 
-    if( rows[it->first]->polynomial.size( ) <= config.lraconfig.poly_deduct_size )
+    if( static_cast< int >( rows[it->first]->polynomial.size( ) ) <= config.lraconfig.poly_deduct_size )
       touched_rows.insert( rows[it->first] );
 
     //TODO: make a separate config value for suggestions
@@ -634,7 +642,7 @@ void LRASolver::pivotAndUpdate( LAVar * x, LAVar * y, const Delta & v )
     {
       //      cout << rows[it->first]->polynomial.find( y->ID( ) )->second << " - " << it->second << (rows[it->first]->polynomial.find( y->ID( ) )->second != it->second?" -> diff":"") << endl;
       rows[it->first]->incM( *( it->second ) * tetha );
-      if( rows[it->first]->polynomial.size( ) <= config.lraconfig.poly_deduct_size )
+      if( static_cast< int >( rows[it->first]->polynomial.size( ) ) <= config.lraconfig.poly_deduct_size )
         touched_rows.insert( rows[it->first] );
     }
   }
@@ -739,7 +747,7 @@ void LRASolver::pivotAndUpdate( LAVar * x, LAVar * y, const Delta & v )
       assert( ( rows[it->first]->polynomial.find( y->ID( ) ) == rows[it->first]->polynomial.end( ) ) );
 
       // mark the affected row (for deductions)
-      if( rows[it->first]->polynomial.size( ) <= config.lraconfig.poly_deduct_size )
+      if( static_cast< int >( rows[it->first]->polynomial.size( ) ) <= config.lraconfig.poly_deduct_size )
         touched_rows.insert( rows[it->first] );
     }
   }
@@ -758,7 +766,7 @@ void LRASolver::pivotAndUpdate( LAVar * x, LAVar * y, const Delta & v )
   x->bindRow( y->basicID( ), y->polynomial.find( x->ID( ) )->second );
   y->bindedRows.clear( );
 
-  if( y->polynomial.size( ) <= config.lraconfig.poly_deduct_size )
+  if( static_cast< int >( y->polynomial.size( ) ) <= config.lraconfig.poly_deduct_size )
     touched_rows.insert( y );
   touched_rows.erase( x );
 

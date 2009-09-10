@@ -243,7 +243,6 @@ public:
       , max_adj_list_size  ( 0 )
       , max_dyn_vertex_id  ( 0 )
       , max_dyn_edges      ( 0 )
-      , ran_floyd_warshall ( false )
       , after_backtrack    ( false )
       , config             ( config_ )
       , egraph             ( egraph_ )
@@ -306,20 +305,17 @@ public:
   bool        checkNegCycleDFS ( Enode *, bool );
   void	      findHeavyEdges( Enode * );
   void	      iterateInactive( DLEdge<T> * );
+
   inline bool isParallelAndHeavy( DLEdge<T> *e )
   {
-    // check if there is a parallel edge of smaller weight - if yes: return
+    // Check if there is a parallel edge of smaller weight - if yes: return
     AdjList & adj_list_x = dAdj[ e->u->id ];
     for ( typename AdjList::iterator it = adj_list_x.begin( ); it != adj_list_x.end( ); ++ it )
-    {
-      if ( ( (*it)->v->id == e->v->id )  && ( (*it)->wt < e->wt )  )
-      {
+      if ( ( (*it)->v->id == e->v->id ) && ( (*it)->wt < e->wt )  )
 	return true;
-      }
-
-    }
     return false;
   }
+
   inline void addIfHeavy( const T & rpath_wt, DLEdge<T> * e, DLEdge<T> *edge ) 
   {
     assert ( ! e->c->hasPolarity( ) && ! e->c->isDeduced( ) );
@@ -351,13 +347,10 @@ public:
   inline void printStatAdj ( ) { printAdj(sAdj); }
   inline void printDynAdj  ( ) { printAdj(dAdj); }
 
-  bool ran_floyd_warshall;
-  bool after_backtrack;
-  
   Real tmp_edge_weight;
   
   vector< DLVertex<T> * > vertices;
-  vector< DLEdge<T> * >   heavy_edges; // TODO: deal with it when backtracking!
+  vector< DLEdge<T> * >   heavy_edges;              // TODO: deal with it when backtracking!
 
   vector< Enode *  >    undo_stack_inactive_enodes; //  stack of inactive edges
   vector< DLEdge<T> * > undo_stack_deduced_edges;   //  stack of deduced edges
@@ -382,7 +375,7 @@ private:
 
   DLComplEdges<T> getDLEdge( Enode *);
 
-  inline Real & getPosWeight ( Real & weight ) { return tmp_edge_weight; }
+  inline Real & getPosWeight ( Real & weight ) { (void)weight; return tmp_edge_weight; }
   inline long & getPosWeight ( long & weight ) 
   { 
     weight = atol( tmp_edge_weight.get_str( ).c_str( ) ); 
@@ -682,12 +675,14 @@ private:
   unsigned total_in_deg_dx_rel;
   unsigned total_out_deg_dy_rel;
 
-  T max_dist_from_src;
-  T max_dist_from_dst;
+  T        max_dist_from_src;
+  T        max_dist_from_dst;
 
   unsigned max_adj_list_size;
   unsigned max_dyn_vertex_id;
   unsigned max_dyn_edges;
+
+  bool	   after_backtrack;
 
   SMTConfig & config;
   Egraph &    egraph;

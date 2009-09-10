@@ -25,8 +25,17 @@ along with OpenSMT. If not, see <http://www.gnu.org/licenses/>.
 //
 bool Tseitin::cnfize( Enode * formula, Map( enodeid_t, Enode * ) & cnf_cache )
 {
+  (void)cnf_cache;
   assert( formula );
   assert( !formula->isAnd( ) );
+
+  Enode * arg_def = egraph.valDupMap( formula );
+  if ( arg_def != NULL )
+  {
+    vector< Enode * > clause;
+    clause.push_back( arg_def );
+    return solver.addSMTClause( clause );
+  }
 
   vector< Enode * > unprocessed_enodes;       // Stack for unprocessed enodes
   unprocessed_enodes.push_back( formula );    // formula needs to be processed
@@ -111,7 +120,6 @@ bool Tseitin::cnfize( Enode * formula, Map( enodeid_t, Enode * ) & cnf_cache )
 	egraph.newSymbol( def_name, DTYPE_BOOL );
 	arg_def = egraph.mkVar( def_name );
       }
-      
       //
       // Handle boolean operators
       //

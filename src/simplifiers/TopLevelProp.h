@@ -17,8 +17,8 @@ You should have received a copy of the GNU General Public License
 along with OpenSMT. If not, see <http://www.gnu.org/licenses/>.
 *********************************************************************/
 
-#ifndef TOP_LEVEL_PROP_HH
-#define TOP_LEVEL_PROP_HH
+#ifndef TOP_LEVEL_PROP_H
+#define TOP_LEVEL_PROP_H
 
 #include "global.h"
 #include "Otl.h"
@@ -39,33 +39,23 @@ public:
 
 private:
 
-  typedef map< int, Real > map_int2Real;
+  Enode * learnEqTransitivity             ( Enode * );
 
-  /*
-  void    retrieveDistinctions            ( Enode * );
-  void    retrieveNe                      ( Enode * );
-  */
-  void    retrieveSubstitutions           ( Enode *, Map( enodeid_t, Enode * ) &, Map( enodeid_t, bool ) & );
+  void    retrieveSubstitutions           ( Enode *, Map( enodeid_t, Enode * ) & );
   bool    contains                        ( Enode *, Enode * );
-  Enode * substitute                      ( Enode *, Map( enodeid_t, Enode * ) &, Map( enodeid_t, bool ) &, bool & );
-  Enode * normalizeDLAtom                 ( Enode * );
-  void    normalizeDLAtomRec              ( Enode *, map_int2Real & );
-  void    multiplyVars                    ( map_int2Real &, const Real );
-  void    mergeVars                       ( map_int2Real &, map_int2Real & );
-  Enode * learnTransitivity               ( Enode * );
+  Enode * substitute                      ( Enode *, Map( enodeid_t, Enode * ) &, bool & );
+  Enode * canonize                        ( Enode * );
+#if NEW_SPLIT
+#else
+  Enode * splitEqs                        ( Enode * );
+#endif
   Enode * simplifyTwinEqualities          ( Enode *, bool & );
   Enode * propagateUnconstrainedVariables ( Enode *, bool & );
   Enode * replaceUnconstrainedTerms       ( Enode *, vector< int > & , bool & );
   void    computeIncomingEdges            ( Enode *, vector< int > & );
   
-  map< enodeid_t, Enode* > vars_hash;
-
-  Egraph &                       egraph;               // Reference to Egraph
-  SMTConfig &                    config;               // Reference to Config
-
-  map< enodeid_t, int >          enode_to_dist_index;  
-  vector< Enode * >              distinctions;
-  vector< Enode * >              ne;
+  Egraph &    egraph; // Reference to Egraph
+  SMTConfig & config; // Reference to Config
 };
 
 #endif

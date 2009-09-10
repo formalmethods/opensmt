@@ -47,13 +47,6 @@ SigTab::~SigTab( )
 #endif
 }
 
-void SigTab::initialize( vector< int > & e )
-{
-  assert( false );
-  assert( !initialized );
-  initialized = true;
-}
-
 Enode * SigTab::insert ( const enodeid_t id, Enode * car, Enode * cdr )
 {
   assert( initialized );

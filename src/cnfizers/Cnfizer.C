@@ -39,6 +39,7 @@ lbool Cnfizer::cnfizeAndGiveToSolver( Enode * formula )
   for ( unsigned i = 0 ; i < top_level_formulae.size( ) && res ; i ++ )
   {
     Enode * f = top_level_formulae[ i ];
+
     // Give it to the solver if already in CNF
     if ( checkCnf( f ) )
     {
@@ -53,10 +54,6 @@ lbool Cnfizer::cnfizeAndGiveToSolver( Enode * formula )
     else
     {
       Map( enodeid_t, int ) enodeid_to_incoming_edges;
-#define OLDCIE 0
-#if OLDCIE
-      enodeid_to_incoming_edges[ f->getId( ) ] = 1;
-#endif
       computeIncomingEdges( f, enodeid_to_incoming_edges ); // Compute incoming edges for f and children
       f = rewriteMaxArity( f, enodeid_to_incoming_edges );  // Rewrite f with maximum arity for operators
       res = cnfize( f, cnf_cache );                         // Perform actual cnfization (implemented in subclasses)
@@ -101,23 +98,6 @@ void Cnfizer::computeIncomingEdges( Enode * e, Map( enodeid_t, int ) & enodeid_t
 {
   assert( e );
 
-#if OLDCIE
-  if ( !e->isBooleanOperator( ) ) 
-    return;
-
-  for ( Enode * list = e->getCdr( ) ; 
-        !list->isEnil( ) ; 
-	list = list->getCdr( ) )
-  {
-    Enode * arg = list->getCar( );
-    Map( enodeid_t, int )::iterator it = enodeid_to_incoming_edges.find( arg->getId( ) );
-    if ( it == enodeid_to_incoming_edges.end( ) )
-      enodeid_to_incoming_edges[ arg->getId( ) ] = 1;
-    else
-      it->second ++;
-    computeIncomingEdges( arg, enodeid_to_incoming_edges );
-  }
-#else
   vector< Enode * > unprocessed_enodes;       // Stack for unprocessed enodes
   unprocessed_enodes.push_back( e );    // formula needs to be processed
   //
@@ -174,7 +154,6 @@ void Cnfizer::computeIncomingEdges( Enode * e, Map( enodeid_t, int ) & enodeid_t
     assert ( enodeid_to_incoming_edges.find( enode->getId( ) ) == enodeid_to_incoming_edges.end( ) );
     enodeid_to_incoming_edges[ enode->getId( ) ] = 1;
   }
-#endif
 }
 
 //

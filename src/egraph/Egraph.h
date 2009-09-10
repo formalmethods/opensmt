@@ -129,12 +129,6 @@ public:
   inline Enode * mkGeq         ( Enode * args ) { return              mkLeq( swapList( args ) ); }
   inline Enode * mkGt          ( Enode * args ) { return mkNot( cons( mkLeq(           args ) ) ); }
 
-  inline Enode * mkPlus        ( Enode * args ) { return cons( id_to_enode[ ENODE_ID_PLUS ]  , args ); }
-  inline Enode * mkMinus       ( Enode * args ) { return cons( id_to_enode[ ENODE_ID_MINUS ] , args ); }
-  inline Enode * mkTimes       ( Enode * args ) { return cons( id_to_enode[ ENODE_ID_TIMES ] , args ); }
-  inline Enode * mkDiv         ( Enode * args ) { return cons( id_to_enode[ ENODE_ID_DIV ]   , args ); }
-  inline Enode * mkUminus      ( Enode * args ) { return cons( id_to_enode[ ENODE_ID_UMINUS ], args ); }
-  
   inline Enode * mkTrue        ( )              { return etrue; }  
   inline Enode * mkFalse       ( )              { return efalse; } 
   
@@ -152,6 +146,13 @@ public:
   //
   // Implemented in EgraphStore.C
   //
+  Enode * mkPlus             ( Enode * );
+  Enode * mkMinus            ( Enode * );
+  Enode * mkTimes            ( Enode * );
+  Enode * mkDiv              ( Enode * );
+  
+  Enode * mkUminus           ( Enode * );
+
   Enode * mkBvand            ( Enode * );
   Enode * mkBvor             ( Enode * );
   Enode * mkBvnot            ( Enode * );
@@ -227,8 +228,8 @@ public:
 
   // Rescale factor
   inline void         setRescale( Real & r ) { rescale_factor = r; rescale_factor_l = atol( r.get_str( ).c_str( ) ); }
-  inline const Real & getRescale( Real & p ) { return rescale_factor; }
-  inline const long & getRescale( long & p ) { return rescale_factor_l; }
+  inline const Real & getRescale( Real & p ) { (void)p; return rescale_factor; }
+  inline const long & getRescale( long & p ) { (void)p; return rescale_factor_l; }
 
   inline bool hasItes                   ( ) { return has_ites; }
 
@@ -284,8 +285,6 @@ public:
   Enode *             getSuggestion           ( );                       // Return a suggested literal based on the current state
   vector< Enode * > & getConflict             ( bool = false );          // Get explanation
   bool                check                   ( bool );		         // Check satisfiability
-
-  bool checkEmptyExpl( ) { assert( exp_cleanup.empty( ) ); }
 
   // member functions to check if we have to use gmp
   inline void setUseGmp( ) { use_gmp = true; }
@@ -358,7 +357,7 @@ private:
   vector< int >      id_to_belong_mask;                      // Table ENODE_ID --> ENODE
   vector< int >      id_to_fan_in;                           // Table ENODE_ID --> fan in
   vector< Enode * >  index_to_dist;                          // Table distinction index --> enode
-  vector< Enode * >  assumptions;                            // List of assumptions
+  list< Enode * >    assumptions;                            // List of assumptions
   vector< Enode * >  cache;                                  // Cache simplifications
   Enode *            top;                                    // Top node of the formula
   //
@@ -422,6 +421,23 @@ private:
   void     expCleanup           ( );                            // Undoes the effect of expExplain
   void     expPushNewReason     ( Reason * );                   // Allocates a new reason
   void     expDeleteLastReason  ( );                            // Delete a previously allocated reason
+
+  inline const char * logicStr ( logic_t l )
+  {
+    if ( l == EMPTY )    return "EMPTY";
+    else if ( l == QF_UF )    return "QF_UF";
+    else if ( l == QF_BV )    return "QF_BV";
+    else if ( l == QF_RDL )   return "QF_RDL";
+    else if ( l == QF_IDL )   return "QF_IDL";
+    else if ( l == QF_LRA )   return "QF_LRA";
+    else if ( l == QF_LIA )   return "QF_LIA";
+    else if ( l == QF_UFRDL ) return "QF_UFRDL";
+    else if ( l == QF_UFIDL ) return "QF_UFIDL";
+    else if ( l == QF_UFLRA ) return "QF_UFLRA";
+    else if ( l == QF_UFLIA ) return "QF_UFLIA";
+    else if ( l == QF_UFBV )  return "QF_UFBV";
+    return "";
+  }
 
   bool                        theoryInitialized;                // True if theory solvers are initialized
   bool                        state;                            // the hell is this ?
