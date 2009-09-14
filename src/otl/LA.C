@@ -322,15 +322,15 @@ LAExpression::canonize( )
   //
   polynome_t::iterator it = polynome.begin( );
   if ( it->first == 0 ) it ++;
-  const Real abs_coeff = ( it->second > 0 ? it->second : -it->second );
-  //
-  // Divide polynome by coeff
-  //
-  for ( it = polynome.begin( )
-      ; it != polynome.end( )
-      ; it ++ )
+  if ( r == LEQ )
   {
-    it->second /= abs_coeff;
+    const Real abs_coeff = ( it->second > 0 ? it->second : -it->second );
+    for ( it = polynome.begin( ) ; it != polynome.end( ) ; it ++ ) it->second /= abs_coeff;
+  }
+  else
+  {
+    const Real coeff = it->second;
+    for ( it = polynome.begin( ) ; it != polynome.end( ) ; it ++ ) it->second /= coeff;
   }
 
   assert( isCanonized( ) );

@@ -59,7 +59,8 @@ TopLevelProp::doit( Enode * formula )
     // Step 1: gather top-level facts (including predicates)
     //
     Map( enodeid_t, Enode * ) substitutions;
-    retrieveSubstitutions( formula, substitutions );
+    if ( !retrieveSubstitutions( formula, substitutions ) )
+      return egraph.mkFalse( );
     //
     // Step 2: produce a new formula with substitutions done (if any to use)
     //
@@ -95,7 +96,7 @@ TopLevelProp::doit( Enode * formula )
   return formula;
 }
 
-void
+bool
 TopLevelProp::retrieveSubstitutions( Enode * formula
                                    , Map( enodeid_t, Enode * ) & substitutions )
 {
@@ -290,7 +291,8 @@ TopLevelProp::retrieveSubstitutions( Enode * formula
 	{
 	  if ( s.toEnode( egraph ) == egraph.mkTrue( ) )
 	    continue;
-	  error( "handle this please", "" );
+	  assert( s.toEnode( egraph ) == egraph.mkFalse( ) );
+	  return false;
 	}
 	// Use the first variable x in s to generate a
 	// substitution and replace x in lac
@@ -313,9 +315,10 @@ TopLevelProp::retrieveSubstitutions( Enode * formula
 	{
 	  if ( s.toEnode( egraph ) == egraph.mkTrue( ) )
 	    continue;
-	  error( "handle this please", "" );
+	  assert( s.toEnode( egraph ) == egraph.mkFalse( ) );
+	  return false;
 	}
-	// Use the first variable x in s to generate a
+	// Use the first variable x in s as a
 	// substitution and replace x in lac
 	for ( int j = i - 1 ; j >= 0 ; j -- )
 	{
@@ -330,7 +333,7 @@ TopLevelProp::retrieveSubstitutions( Enode * formula
       {
 	LAExpression & lae = *equalities[ i ];
 	pair< Enode *, Enode * > sub = lae.getSubst( egraph );
-	assert( sub.first );
+	if ( sub.first == NULL ) continue;
 	assert( sub.second );
 	assert( substitutions.find( (sub.first)->getId( ) ) == substitutions.end( ) );
 	substitutions[ (sub.first)->getId( ) ] = sub.second;
@@ -343,6 +346,8 @@ TopLevelProp::retrieveSubstitutions( Enode * formula
       equalities.pop_back( );
     }
   }
+
+  return true;
 }
 
 bool
@@ -1153,6 +1158,7 @@ TopLevelProp::splitEqs( Enode * formula )
     Enode * result = NULL;
     // 
     // Replace arithmetic atoms with canonized version
+    // TODO: maybe we can push it inside LAExpression
     //
     if ( enode->isTAtom( ) && enode->isEq( ) )
     {
@@ -1161,7 +1167,11 @@ TopLevelProp::splitEqs( Enode * formula )
       Enode * lhs = e->get1st( );
       Enode * rhs = e->get2nd( );
       Enode * leq = egraph.mkLeq( egraph.cons( lhs, egraph.cons( rhs ) ) );
+      LAExpression b( leq );
+      leq = b.toEnode( egraph );
       Enode * geq = egraph.mkGeq( egraph.cons( lhs, egraph.cons( rhs ) ) );
+      LAExpression c( geq );
+      geq = c.toEnode( egraph );
       result = egraph.mkAnd( egraph.cons( leq, egraph.cons( geq ) ) );
     } 
     //

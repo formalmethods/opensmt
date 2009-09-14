@@ -293,13 +293,12 @@ void LAVar::sortBounds( )
   lBound = 0;
 
   /*
-   cout << this <<" | ";
+   cout << endl << this <<" | ";
    unsigned it=0;
    while(it<allBounds.size())
    {
    cout << *(allBounds[it].delta)<< (allBounds[it].boundType?"[U]":"[L]") << (allBounds[it].reverse?"rev":"") <<" ";
    it++;
    }
-   cout <<endl;
-   */
+  */
 }

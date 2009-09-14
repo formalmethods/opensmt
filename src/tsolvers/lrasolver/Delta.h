@@ -1,6 +1,6 @@
 /*********************************************************************
  Author: Aliaksei Tsitovich <aliaksei.tsitovich@lu.unisi.ch>
- Roberto Bruttomesso <roberto.bruttomesso@unisi.ch>
+       , Roberto Bruttomesso <roberto.bruttomesso@unisi.ch>
 
  OpenSMT -- Copyright (C) 2007, Roberto Bruttomesso
 
@@ -261,7 +261,11 @@ bool operator>=( const Delta &a, const Delta &b )
 
 bool operator==( const Delta &a, const Delta &b )
 {
-  if( a.isPlusInf( ) && b.isPlusInf( ) )
+  if( (a.isInf( ) ^ b.isInf( )) 
+   || (a.isPlusInf( ) && b.isMinusInf( )) 
+   || (b.isPlusInf( ) && a.isMinusInf( )) )
+    return false;
+  else if( a.isPlusInf( ) && b.isPlusInf( ) )
     return true;
   else if( a.isMinusInf( ) && b.isMinusInf( ) )
     return true;
@@ -273,14 +277,7 @@ bool operator==( const Delta &a, const Delta &b )
 
 bool operator!=( const Delta &a, const Delta &b )
 {
-  if( a.isPlusInf( ) && !b.isPlusInf( ) )
-    return true;
-  else if( a.isMinusInf( ) && !b.isMinusInf( ) )
-    return true;
-  else if( a.R( ) != b.R( ) || a.D( ) != b.D( ) )
-    return true;
-  else
-    return false;
+  return !(a == b);
 }
 
 bool operator<( const Delta &a, const Real &c )
