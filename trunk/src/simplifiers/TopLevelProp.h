@@ -41,7 +41,7 @@ private:
 
   Enode * learnEqTransitivity             ( Enode * );
 
-  void    retrieveSubstitutions           ( Enode *, Map( enodeid_t, Enode * ) & );
+  bool    retrieveSubstitutions           ( Enode *, Map( enodeid_t, Enode * ) & );
   bool    contains                        ( Enode *, Enode * );
   Enode * substitute                      ( Enode *, Map( enodeid_t, Enode * ) &, bool & );
   Enode * canonize                        ( Enode * );

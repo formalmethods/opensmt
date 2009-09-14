@@ -1,22 +1,22 @@
 /*********************************************************************
-Author: Aliaksei Tsitovich <aliaksei.tsitovich@lu.unisi.ch>
-      , Roberto Bruttomesso <roberto.bruttomesso@unisi.ch>
+ Author: Aliaksei Tsitovich <aliaksei.tsitovich@lu.unisi.ch>
+ , Roberto Bruttomesso <roberto.bruttomesso@unisi.ch>
 
-OpenSMT -- Copyright (C) 2009, Roberto Bruttomesso
+ OpenSMT -- Copyright (C) 2009, Roberto Bruttomesso
 
-OpenSMT is free software: you can redistribute it and/or modify
-it under the terms of the GNU General Public License as published by
-the Free Software Foundation, either version 3 of the License, or
-(at your option) any later version.
+ OpenSMT is free software: you can redistribute it and/or modify
+ it under the terms of the GNU General Public License as published by
+ the Free Software Foundation, either version 3 of the License, or
+ (at your option) any later version.
 
-OpenSMT is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-GNU General Public License for more details.
+ OpenSMT is distributed in the hope that it will be useful,
+ but WITHOUT ANY WARRANTY; without even the implied warranty of
+ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ GNU General Public License for more details.
 
-You should have received a copy of the GNU General Public License
-along with OpenSMT. If not, see <http://www.gnu.org/licenses/>.
-*********************************************************************/
+ You should have received a copy of the GNU General Public License
+ along with OpenSMT. If not, see <http://www.gnu.org/licenses/>.
+ *********************************************************************/
 
 #ifndef LAVAR_H_
 #define LAVAR_H_
@@ -31,11 +31,11 @@ along with OpenSMT. If not, see <http://www.gnu.org/licenses/>.
 
 class LARow: public vector<pair<int, Real *> >
 {
-  unsigned       _size;
+  unsigned _size;
 
 public:
 
-  vector< bool > is_there;
+  vector<bool> is_there;
 
   LARow( )
   {
@@ -53,8 +53,7 @@ public:
 
   LARow::iterator find( int key )
   {
-    if ( key >= (int)is_there.size( ) 
-      || !is_there[ key ] )
+    if( key >= ( int )is_there.size( ) || !is_there[key] )
       return this->end( );
 
     for( LARow::iterator it = this->begin( ); it != this->end( ); it++ )
@@ -68,8 +67,7 @@ public:
 
   void erase( int key )
   {
-    if ( key >= (int)is_there.size( ) 
-      || !is_there[ key ] )
+    if( key >= ( int )is_there.size( ) || !is_there[key] )
       return;
 
     for( LARow::iterator it = this->begin( ); it != this->end( ); it++ )
@@ -78,7 +76,7 @@ public:
       {
         it->first = -1;
         _size--;
-	is_there[ key ] = false;
+        is_there[key] = false;
         return;
       }
     }
@@ -89,10 +87,10 @@ public:
   void erase( LARow::iterator it )
   {
     const int key = it->first;
-    assert( key < (int)is_there.size( ) );
-    assert( is_there[ key ] );
+    assert( key < ( int )is_there.size( ) );
+    assert( is_there[key] );
 
-    is_there[ key ] = false;
+    is_there[key] = false;
     it->first = -1;
     _size--;
   }
@@ -108,7 +106,7 @@ public:
     {
       if( it->first != -1 )
       {
-	is_there[ it->first ] = false;
+        is_there[it->first] = false;
         it->first = -1;
         _size--;
       }
@@ -162,10 +160,10 @@ public:
     {
       if( key == it->first )
       {
-	if ( key >= (int)is_there.size( ) )
-	  is_there.resize( key + 1, false );
-	assert( !is_there[ key ] );
-	is_there[ key ] = true;
+        if( key >= ( int )is_there.size( ) )
+          is_there.resize( key + 1, false );
+        assert( !is_there[key] );
+        is_there[key] = true;
         it->second = a;
         break;
       }
@@ -180,20 +178,20 @@ public:
     {
       if( found_empty )
       {
-	if ( key >= (int)is_there.size( ) )
-	  is_there.resize( key + 1, false );
-	assert( !is_there[ key ] );
-	is_there[ key ] = true;
+        if( key >= ( int )is_there.size( ) )
+          is_there.resize( key + 1, false );
+        assert( !is_there[key] );
+        is_there[key] = true;
         empty_it->first = key;
         empty_it->second = a;
         _size++;
       }
       else
       {
-	if ( key >= (int)is_there.size( ) )
-	  is_there.resize( key + 1, false );
-	assert( !is_there[ key ] );
-	is_there[ key ] = true;
+        if( key >= ( int )is_there.size( ) )
+          is_there.resize( key + 1, false );
+        assert( !is_there[key] );
+        is_there[key] = true;
         this->push_back( make_pair( key, a ) );
         _size++;
       }
@@ -203,10 +201,10 @@ public:
   inline void assign( LARow::iterator it, Real * a )
   {
     const int key = it->first;
-    if ( key >= (int)is_there.size( ) )
+    if( key >= ( int )is_there.size( ) )
       is_there.resize( key + 1, false );
-    assert( !is_there[ key ] );
-    is_there[ key ] = true;
+    assert( !is_there[key] );
+    is_there[key] = true;
     it->second = a;
   }
 
@@ -234,6 +232,17 @@ public:
       boundType = _boundType;
       reverse = _reverse;
     }
+    
+    inline friend bool operator==( const StructBound &a, const StructBound &b )
+	{
+  		if( (a.e == b.e) 
+   		&& (a.delta == b.delta) 
+   		&& (a.boundType == b.boundType) 
+   		&& (a.reverse == b.reverse))
+   			return true;
+   		else
+   			return false;
+	}
   };
 
 protected:
@@ -243,13 +252,22 @@ protected:
     {
       assert( lhs.delta );
       assert( rhs.delta );
-      if( !lhs.delta->isInf( ) && !rhs.delta->isInf( ) && *( lhs.delta ) == *( rhs.delta ) )
-        if( lhs.boundType != rhs.boundType )
-          return rhs.boundType;
-        else
-          return rhs.reverse;
-      else
+      if (lhs == rhs)
+      	return true;
+      else if( *( lhs.delta ) != *( rhs.delta ) )
         return *( lhs.delta ) < *( rhs.delta );
+      else
+      { 
+      	if( lhs.boundType != rhs.boundType )
+        	return rhs.boundType;
+      	else
+      	{
+        	// if this assertion fails then you have duplicates in the bounds list. Check the canonizer.
+        	assert( rhs.reverse != lhs.reverse );
+//        	cout << *(lhs.delta) << (lhs.boundType?"[U]":"[L]") << (lhs.reverse?"rev":"") <<" == "<< *(rhs.delta) << (lhs.boundType?"[U]":"[L]") << (lhs.reverse?"rev":"")<< endl;
+        	return rhs.reverse;
+      	}
+      }
     }
   };
 
