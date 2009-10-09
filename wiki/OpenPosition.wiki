@@ -1,6 +1,6 @@
-*Research Assistant in Formal Verification*
+= Research Assistant in Formal Verification=
 
-= Introduction =
+*Description*
 
 The Formal Verification Group at Informatics Department of University of Lugano, Switzerland (www.verify.inf.unisi.ch) has an open position for a research assistant in the area of software model checking and decision procedures. The assistant is to join the Ph.D. program at the University of Lugano and to conduct his/her Ph.D. research as part of the funded project on Automated Invariant Discovery for Efficient Security Checks.
 
@@ -11,7 +11,6 @@ Assistants have teaching duties. The classes are expected to be in the areas of 
 Additional questions about the position can be addressed to Professor Natasha Sharygina (natasha.sharygina@usi.ch). Applications should include a curriculum vitae, a statement of research interests, and at least two names of reference people. The position is open as earlier as November 1, 2009 and will be open until fulfilled. Immediate applications are encouraged.
 
 
-= Education =
+*Education*
 
 Applicants *must* have a Master's degree or a Diploma in computer science or a related area. A Bachelor's is not sufficient. An excellent knowledge of English (both written and spoken) is required.
-
