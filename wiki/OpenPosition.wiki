@@ -3,7 +3,7 @@
 
 *Description*
 
-The Formal Verification Group at Informatics Department of University of Lugano, Switzerland [www.verify.inf.unisi.ch] has an open position for a research assistant in the area of software model checking and decision procedures. The assistant is to join the Ph.D. program at the University of Lugano and to conduct his/her Ph.D. research as part of the funded project on Automated Invariant Discovery for Efficient Security Checks.
+The Formal Verification Group at Informatics Department of University of Lugano, Switzerland (http://www.verify.inf.unisi.ch) has an open position for a research assistant in the area of software model checking and decision procedures. The assistant is to join the Ph.D. program at the University of Lugano and to conduct his/her Ph.D. research as part of the funded project on Automated Invariant Discovery for Efficient Security Checks.
 
 A successful candidate is expected to show skills in mathematics, theoretical computer science, as well as practical, system-level programming and tool development. Prior experience with formal methods and formal verification is an additional plus.
 
