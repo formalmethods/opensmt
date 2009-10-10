@@ -22,6 +22,8 @@ along with OpenSMT. If not, see <http://www.gnu.org/licenses/>.
 #include "Tseitin.h"
 #include "SimpSMTSolver.h"
 
+#ifndef SMTCOMP
+
 class OpenSMTContext
 {
 public:
@@ -713,3 +715,5 @@ opensmt_expr opensmt_mk_bv_sge( opensmt_context c, opensmt_expr lhs, opensmt_exp
   Enode * res = context.egraph.mkBvsge( args_list );
   return static_cast< void * >( res );
 }
+
+#endif

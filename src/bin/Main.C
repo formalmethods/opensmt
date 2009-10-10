@@ -314,6 +314,7 @@ void printResult( const lbool & result, const lbool & config_status )
     cout << "error" << endl;
   else
 #endif
+  (void)config_status;
   if ( result == l_True )
     cout << "sat" << endl;
   else if ( result == l_False )
