@@ -360,7 +360,7 @@ public:
 
 private:
 
-  inline DLVertex<T> *getDLVertex( Enode * x )   
+  inline DLVertex<T> * getDLVertex( Enode * x )   
   {	
     if ( vertexMap.find( x ) == vertexMap.end( ) )
     {
@@ -373,7 +373,7 @@ private:
     return vertexMap.find( x )->second;
   }
 
-  DLComplEdges<T> getDLEdge( Enode *);
+  DLComplEdges<T> getDLEdge( Enode * );
 
   inline Real & getPosWeight ( Real & weight ) { (void)weight; return tmp_edge_weight; }
   inline long & getPosWeight ( long & weight ) 

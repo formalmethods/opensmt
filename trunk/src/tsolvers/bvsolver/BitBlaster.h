@@ -20,8 +20,6 @@ along with OpenSMT. If not, see <http://www.gnu.org/licenses/>.
 #ifndef BITBLASTER_H
 #define BITBLASTER_H
 
-#define EAGER_FREE_MEMORY 0
-
 #include "Enode.h"
 #include "Egraph.h"
 #include "MiniSATP.h"
@@ -45,6 +43,8 @@ public:
 
   void pushBacktrackPoint  ( );
   void popBacktrackPoint   ( );
+
+  void computeModel        ( ); 
 
 private:
 
@@ -108,6 +108,9 @@ private:
   vector< Enode * > &             deductions;                    // Reference to deductions
   vector< Enode * > &             suggestions;                   // Reference to suggestions
   vector< vector< Enode * > * >   garbage;                       // Collect for removal
+
+  vector< Enode * >               variables;                     // Variables
+  map< int, Var >                 cnf_var;                       // BB variable to cnf var
 
   MiniSATP *                      _solverP;                      // Solver with proof logger
   MiniSATP &                      solverP;                       // Solver with proof logger

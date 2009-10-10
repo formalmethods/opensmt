@@ -19,8 +19,6 @@ along with OpenSMT. If not, see <http://www.gnu.org/licenses/>.
 
 #include "BitBlaster.h"
 
-#define GLOBAL_MAP_2 1
-
 BitBlaster::BitBlaster ( const int i
 		       , SMTConfig & c
 		       , Egraph & e
@@ -45,16 +43,12 @@ BitBlaster::BitBlaster ( const int i
   constFalse = Lit( solverP.newVar( ) );
   unit.push( ~constFalse );
   addClause( unit, E.mkFalse( ) );
-#if GLOBAL_MAP_2
   E.initDupMap2( );
-#endif
 }
 
 BitBlaster::~BitBlaster ( )
 { 
-#if GLOBAL_MAP_2
   E.doneDupMap2( );
-#endif
   delete _solverP;
   cleanGarbage( );
 }
@@ -69,10 +63,6 @@ BitBlaster::inform ( Enode * e )
 
   assert( result.size( ) == 1 );
   Enode * bb = result.back( );
-
-#if EAGER_FREE_MEMORY
-  cleanGarbage( );
-#endif
 
   if ( bb->isTrue( ) )
     return l_True;
@@ -193,9 +183,6 @@ BitBlaster::bbEq( Enode * e )
   vector< Enode * > * result = new vector< Enode * >;
   // Garbage collection
   garbage.push_back( result );
-#if EAGER_FREE_MEMORY
-  garbage_id.push_back( e->getId( ) );
-#endif
 
   assert( e->getArity( ) == 2 );
   Enode * lhs = e->get1st( );
@@ -241,9 +228,6 @@ BitBlaster::bbBvsle( Enode * e )
   vector< Enode * > * result = new vector< Enode * >;
   // Garbage collect
   garbage.push_back( result );
-#if EAGER_FREE_MEMORY
-  garbage_id.push_back( e->getId( ) );
-#endif
 
   assert( e->getArity( ) == 2 );
   Enode * lhs = e->get1st( );
@@ -324,9 +308,6 @@ BitBlaster::bbBvule( Enode * e )
   vector< Enode * > * result = new vector< Enode * >;
   // Garbage collect
   garbage.push_back( result );
-#if EAGER_FREE_MEMORY
-  garbage_id.push_back( e->getId( ) );
-#endif
 
   assert( e->getArity( ) == 2 );
   Enode * lhs = e->get1st( );
@@ -392,9 +373,6 @@ BitBlaster::bbConcat( Enode * e )
   vector< Enode * > * result = new vector< Enode * >;
   // Garbage collect
   garbage.push_back( result );
-#if EAGER_FREE_MEMORY
-  garbage_id.push_back( e->getId( ) );
-#endif
 
   vector< Enode * > stack;
   // Retrieve arguments and put on the stack
@@ -439,9 +417,6 @@ BitBlaster::bbExtract( Enode * e )
   vector< Enode * > * result = new vector< Enode * >;
   // Garbage collect
   garbage.push_back( result );
-#if EAGER_FREE_MEMORY
-  garbage_id.push_back( e->getId( ) );
-#endif
 
   assert( e->getArity( ) == 1 );
   Enode * arg = e->get1st( );
@@ -477,9 +452,6 @@ BitBlaster::bbBvand( Enode * e )
   vector< Enode * > * result = new vector< Enode * >;
   // Garbage collect
   garbage.push_back( result );
-#if EAGER_FREE_MEMORY
-  garbage_id.push_back( e->getId( ) );
-#endif
 
   vector< vector< Enode * > * > bb_args;
 
@@ -527,9 +499,6 @@ BitBlaster::bbBvor( Enode * e )
   vector< Enode * > * result = new vector< Enode * >;
   // Garbage collect
   garbage.push_back( result );
-#if EAGER_FREE_MEMORY
-  garbage_id.push_back( e->getId( ) );
-#endif
 
   vector< vector< Enode * > * > bb_args;
 
@@ -574,9 +543,6 @@ BitBlaster::bbBvxor( Enode * e )
   vector< Enode * > * result = new vector< Enode * >;
   // Garbage collect
   garbage.push_back( result );
-#if EAGER_FREE_MEMORY
-  garbage_id.push_back( e->getId( ) );
-#endif
 
   Enode * lhs = e->get1st( );
   Enode * rhs = e->get2nd( );
@@ -611,9 +577,6 @@ BitBlaster::bbBvnot( Enode * e )
   vector< Enode * > * result = new vector< Enode * >;
   // Garbage collect
   garbage.push_back( result );
-#if EAGER_FREE_MEMORY
-  garbage_id.push_back( e->getId( ) );
-#endif
 
   Enode * arg = e->get1st( );
   vector< Enode * > & bb_arg = bbEnode( arg );
@@ -643,9 +606,6 @@ BitBlaster::bbBvadd( Enode * e )
   vector< Enode * > * result = new vector< Enode * >;
   // Garbage collect
   garbage.push_back( result );
-#if EAGER_FREE_MEMORY
-  garbage_id.push_back( e->getId( ) );
-#endif
 
   Enode * arg1 = e->get1st( );
   Enode * arg2 = e->get2nd( );
@@ -704,9 +664,6 @@ BitBlaster::bbBvudiv( Enode * e )
   // Garbage collect
   //
   garbage.push_back( result );
-#if EAGER_FREE_MEMORY
-  garbage_id.push_back( e->getId( ) );
-#endif
   vector< Enode * > minuend;
   Enode * arg1 = e->get1st( );
   Enode * arg2 = e->get2nd( );
@@ -877,9 +834,6 @@ BitBlaster::bbBvurem( Enode * e )
   // Garbage collect
   //
   garbage.push_back( result );
-#if EAGER_FREE_MEMORY
-  garbage_id.push_back( e->getId( ) );
-#endif
 
   vector< Enode * > minuend;
   Enode * arg1 = e->get1st( );
@@ -1050,9 +1004,6 @@ BitBlaster::bbBvmul( Enode * e )
   vector< Enode * > * result = new vector< Enode * >;
   // Garbage collect
   garbage.push_back( result );
-#if EAGER_FREE_MEMORY
-  garbage_id.push_back( e->getId( ) );
-#endif
 
   vector< Enode * > acc;
   Enode * arg1 = e->get1st( );
@@ -1133,9 +1084,6 @@ BitBlaster::bbBvsub( Enode * e )
   vector< Enode * > * result = new vector< Enode * >;
   // Garbage collect
   garbage.push_back( result );
-#if EAGER_FREE_MEMORY
-  garbage_id.push_back( e->getId( ) );
-#endif
 
   Enode * arg1 = e->get1st( );
   Enode * arg2 = e->get2nd( );
@@ -1219,9 +1167,6 @@ BitBlaster::bbSignExtend( Enode * e )
   // Garbage collect
   garbage.push_back( result );
 
-#if EAGER_FREE_MEMORY
-  garbage_id.push_back( e->getId( ) );
-#endif
 
   Enode * x = e->get1st( );
   vector< Enode * > & bb_x = bbEnode( x );
@@ -1251,13 +1196,12 @@ BitBlaster::bbVar( Enode * e )
   if ( bb_cache[ e->getId( ) ] != NULL )
     return *bb_cache[ e->getId( ) ];
 
+  // Save variable
+  variables.push_back( e );
   // Allocate new result
   vector< Enode * > * result = new vector< Enode * >;
   // Garbage collect
   garbage.push_back( result );
-#if EAGER_FREE_MEMORY
-  //garbage_id.push_back( e->getId( ) );
-#endif
 
   int width = e->getWidth( );
   // Allocate width new boolean variables
@@ -1289,9 +1233,6 @@ BitBlaster::bbConstant( Enode * e )
   vector< Enode * > * result = new vector< Enode * >;
   // Garbage collect
   garbage.push_back( result );
-#if EAGER_FREE_MEMORY
-  garbage_id.push_back( e->getId( ) );
-#endif
 
   if ( e->isTrue( ) )
   {
@@ -1377,9 +1318,6 @@ BitBlaster::bbDistinct( Enode * e )
   // Garbage collect
   //
   garbage.push_back( result );
-#if EAGER_FREE_MEMORY
-  garbage_id.push_back( e->getId( ) );
-#endif
   //
   // Save result and return
   //
@@ -1459,6 +1397,9 @@ BitBlaster::cnfizeAndGiveToSolver( Enode * bb, Enode * atom )
     {
       // Allocate a new boolean variable for this atom
       Var var = solverP.newVar( );
+      // Keep track to retrieve model
+      assert( cnf_var.find( enode->getId( ) ) == cnf_var.end( ) );
+      cnf_var[ enode->getId( ) ] = var;
       result = Lit( var );
     }
     else if ( enode->isNot( ) )
@@ -1746,16 +1687,8 @@ BitBlaster::cnfizeIfthenelse( Enode * enode, Lit def, Enode * atom )
 void
 BitBlaster::cleanGarbage( )
 {
-#if EAGER_FREE_MEMORY
-  assert( garbage.size( ) == garbage_id.size( ) );
-#endif
   while ( !garbage.empty( ) )
   {
-#if EAGER_FREE_MEMORY
-    const int id = garbage_id.back( );
-    garbage_id.pop_back( );
-    bb_cache[ id ] = NULL;
-#endif
     delete garbage.back( );
     garbage.pop_back( );
   }
@@ -1766,11 +1699,6 @@ Enode * BitBlaster::simplify( Enode * formula )
   assert( formula );
 
   vector< Enode * > unprocessed_enodes;
-#if GLOBAL_MAP_2
-#else
-  E.initDupMap2( );
-#endif
-
   unprocessed_enodes.push_back( formula );
   //
   // Visit the DAG of the formula from the leaves to the root
@@ -1885,10 +1813,6 @@ Enode * BitBlaster::simplify( Enode * formula )
   }
 
   Enode * new_formula = E.valDupMap2( formula );
-#if GLOBAL_MAP_2
-#else
-  E.doneDupMap2( );
-#endif
   assert( new_formula );
   return new_formula;
 }
@@ -2055,4 +1979,28 @@ Enode * BitBlaster::mergeEnodeArgs( Enode * e
   }
 
   return E.cons( e_symb, new_list );
+}
+
+void BitBlaster::computeModel( )
+{
+  for ( unsigned i = 0 ; i < variables.size( ) ; i++ )
+  {
+    Enode * e = variables[ i ];
+    Real value = 0;
+    Real coeff = 1;
+    // Retrieve bitblasted vector
+    vector< Enode * > & blast = *bb_cache[ e->getId( ) ]; 
+    for ( unsigned j = 0 ; j < blast.size( ) ; j ++ )
+    {
+      Enode * b = blast[ j ];
+      if ( cnf_var.find( b->getId( ) ) == cnf_var.end( ) )
+	continue;
+      Var var = cnf_var[ b->getId( ) ];
+      Real bit = solverP.getValue( var ) == l_False ? 0 : 1;
+      value = value + coeff * bit;
+      coeff = Real( 2 ) * coeff;
+    }
+    E.initializeCong( e );
+    e->setValue( value );
+  } 
 }

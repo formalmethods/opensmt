@@ -129,6 +129,7 @@ typedef enum
     UNDEF         // Undefined logic
   , EMPTY         // Empty, for the template solver
   , QF_UF         // Uninterpreted Functions
+  , QF_O          // Orderings
   , QF_BV         // BitVectors
   , QF_RDL        // Real difference logics
   , QF_IDL        // Integer difference logics
@@ -139,6 +140,7 @@ typedef enum
   , QF_UFLRA      // UF + LRA
   , QF_UFLIA      // UF + LIA
   , QF_UFBV       // UF + BV
+  , QF_AX	  // Arrays Extensional
 } logic_t;
 
 static inline double cpuTime(void)
@@ -189,6 +191,7 @@ static inline uint64_t memUsed() {return 0; }
 #endif
 
 #define CNF_STR "CNF_%d"
+#define ITE_STR "ITE_%d"
 #define SPL_STR "SPL_%d"
 #define UNC_STR "UNC_%d"
 

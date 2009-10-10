@@ -18,13 +18,13 @@ along with OpenSMT. If not, see <http://www.gnu.org/licenses/>.
 *********************************************************************/
 
 #include "Egraph.h"
-#include "CoreSMTSolver.h"
 #include "SimpSMTSolver.h"
 #include "Tseitin.h"
 #include "ExpandITEs.h"
 #include "BVBooleanize.h"
 #include "TopLevelProp.h"
 #include "DLRescale.h"
+#include "Ackermanize.h"
 
 #include <cstdlib>
 #include <cstdio>
@@ -44,7 +44,7 @@ extern int  ysset_in           ( FILE * );
 extern int  ysparse            ( );
 Egraph *    parser_egraph;
 SMTConfig * parser_config;
-bool        stop;
+extern bool stop;
 bool        verbose;
 
 /*****************************************************************************\
@@ -193,6 +193,14 @@ int main( int argc, char * argv[] )
 
   if ( config.logic == UNDEF )
     error( "unable to determine logic", "" );
+
+  // Ackermanize away functional symbols
+  if ( config.logic == QF_UFIDL
+    || config.logic == QF_UFLRA )
+  {
+    Ackermanize ackermanizer( egraph, config );
+    formula = ackermanizer.doit( formula );
+  }
 
   // Artificially create a boolean
   // abstraction, if necessary

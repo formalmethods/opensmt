@@ -58,31 +58,58 @@ template <class T> DLComplEdges<T> DLGraph<T>::getDLEdge(Enode *e)
       rhs = tmp;
       invert = true;
     }
-    Real one_ = 1;
+    Real one_  = 1;
     Real mone_ = -1;
-    Enode * one = egraph.mkNum( one_ );
+    Enode * one  = egraph.mkNum( one_ );
     Enode * mone = egraph.mkNum( mone_ );
     assert( rhs->isConstant( ) );
-    assert( lhs->isPlus( ) );
-    assert( lhs->get1st( )->isTimes( ) );
-    assert( lhs->get2nd( )->isTimes( ) );
-    assert( lhs->get1st( )->get1st( ) == one || lhs->get1st( )->get1st( ) == mone );
-    assert( lhs->get2nd( )->get1st( ) == one || lhs->get2nd( )->get1st( ) == mone );
-    Enode * x = lhs->get1st( )->get2nd( );
-    Enode * y = lhs->get2nd( )->get2nd( );
-    Enode * con = rhs;
-    tmp_edge_weight = con->getCar( )->getValue( );
-    if ( invert )
-      tmp_edge_weight = -tmp_edge_weight;
+    Enode * x = NULL;
+    Enode * y = NULL;
     //
-    // Swap variables if not right
+    // Standard DL constraint
     //
-    if ( ( lhs->get1st( )->get1st( ) == mone && !invert ) 
-      || ( lhs->get1st( )->get1st( ) == one  &&  invert ) )
+    if ( lhs->isPlus( ) )
     {
-      Enode * tmp = x;
-      x = y;
-      y = tmp;
+      assert( lhs->get1st( )->isTimes( ) );
+      assert( lhs->get2nd( )->isTimes( ) );
+      assert( lhs->get1st( )->get1st( ) == one || lhs->get1st( )->get1st( ) == mone );
+      assert( lhs->get2nd( )->get1st( ) == one || lhs->get2nd( )->get1st( ) == mone );
+      x = lhs->get1st( )->get2nd( );
+      y = lhs->get2nd( )->get2nd( );
+      tmp_edge_weight = rhs->getCar( )->getValue( );
+      if ( invert )
+	tmp_edge_weight = -tmp_edge_weight;
+      //
+      // Swap variables if not right
+      //
+      if ( ( lhs->get1st( )->get1st( ) == mone && !invert ) 
+        || ( lhs->get1st( )->get1st( ) == one  &&  invert ) )
+      {
+	Enode * tmp = x;
+	x = y;
+	y = tmp;
+      }
+    }
+    // 
+    // Bound constraint ~1*x < c
+    //
+    else
+    {
+      assert( lhs->isTimes( ) );
+      assert( lhs->get1st( ) == one || lhs->get1st( ) == mone );
+      assert( lhs->get2nd( )->isVar( ) );
+      x = lhs->get2nd( );
+      y = NULL;
+      tmp_edge_weight = rhs->getCar( )->getValue( );
+      if ( invert )
+	tmp_edge_weight = -tmp_edge_weight;
+      if ( ( lhs->get1st( ) == mone && !invert ) 
+        || ( lhs->get1st( ) == one  &&  invert ) )
+      {
+	Enode * tmp = x;
+	x = y;
+	y = tmp;
+      }
     }
 
     T posWeight = getPosWeight( posWeight ) * ( config.logic == QF_RDL ? egraph.getRescale( posWeight ) : 1 );
@@ -93,19 +120,21 @@ template <class T> DLComplEdges<T> DLGraph<T>::getDLEdge(Enode *e)
     T negWeight = -1 * posWeight -1;
 #endif
 
-    DLVertex<T> *u = getDLVertex(x);
-    DLVertex<T> *v = getDLVertex(y);
-    DLEdge<T> * pos = new DLEdge<T>(e, 2*edgeMap.size( ), u, v, posWeight);
-    DLEdge<T> * neg = new DLEdge<T>(e, 2*edgeMap.size( ) + 1, v, u, negWeight);
+    DLVertex<T> * u = getDLVertex( x );
+    DLVertex<T> * v = getDLVertex( y );
+    DLEdge<T> * pos = new DLEdge<T>( e, 2*edgeMap.size( ), u, v, posWeight );
+    DLEdge<T> * neg = new DLEdge<T>( e, 2*edgeMap.size( ) + 1, v, u, negWeight );
     DLComplEdges<T> edges = DLComplEdges<T>( pos, neg );
     edgeMap.insert( pair< Enode *, DLComplEdges<T> > (e, edges) );
     return edges;
   }
   else
+  {
     return edgeMap.find(e)->second;
+  }
 }
 
-template<class T> void DLGraph<T>::insertStatic(Enode *c)
+template<class T> void DLGraph<T>::insertStatic( Enode * c )
 {
   DLEdge<T> *pos = getDLEdge( c ).pos;
   DLEdge<T> *neg = getDLEdge( c ).neg;

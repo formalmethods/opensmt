@@ -98,6 +98,19 @@ public:
     int     nLearnts   ()      const;       // The current number of learnt clauses.
     int     nVars      ()      const;       // The current number of variables.
 
+//=================================================================================================
+// Added Code
+
+    void pushBacktrackPoint ( );
+    void popBacktrackPoint  ( );
+    void reset              ( );
+
+    inline void restoreOK   ( )       { ok = true; }
+    inline bool isOK        ( ) const { return ok; }
+
+// Added Code
+//=================================================================================================
+
     // Extra results: (read-only member variable)
     //
     vec<lbool> model;             // If problem is satisfiable, this vector contains the model (if any).
@@ -140,6 +153,23 @@ protected:
         VarFilter(const CoreSMTSolver& _s) : s(_s) {}
         bool operator()(Var v) const { return toLbool(s.assigns[v]) == l_Undef && s.decision_var[v]; }
     };
+
+//=================================================================================================
+// Added Code
+
+    //
+    // Data structures required for communicating conflicts and deductions
+    // incrementality, backtrackability ...
+    //
+    enum oper_t { NEWVAR, NEWUNIT, NEWCLAUSE };
+
+    vector< size_t >               undo_stack_size;     // Keep track of stack_oper size
+    vector< int >                  undo_trail_size;     // Keep track of trail size
+    vector< oper_t >		   undo_stack_oper;     // Keep track of operations
+    vector< void * >		   undo_stack_elem;     // Keep track of aux info
+
+// Added Code
+//=================================================================================================
 
     // Solver state:
     //
@@ -250,14 +280,14 @@ public:
 
     bool  addSMTClause      ( vector< Enode * > & ); // Adds clause to SAT solver
     lbool smtSolve          ( );                     // Solve
+#ifndef SMTCOMP
+    void   printModel       ( ostream & );           // Prints model
+#endif
 
 protected:
 
 #ifdef STATISTICS
     void   printStatistics     ( ostream & );   // Prints statistics
-#endif
-#ifndef SMTCOMP
-    void   printModel          ( ostream & );   // Prints model
 #endif
     void   printTrail          ( );             // Prints the trail (debugging)
     int    checkTheory         ( bool );        // Checks consistency in theory

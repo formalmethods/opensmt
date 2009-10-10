@@ -56,7 +56,7 @@ void smterror( char * s )
 }
 
 %token TK_NUM TK_STR TK_BVNUM TK_BVNUM_NO_WIDTH TK_BIT0 TK_BIT1
-%token TK_BOOL TK_REAL TK_INT TK_BITVEC TK_U
+%token TK_REAL TK_INT TK_BITVEC TK_U TK_ARRAY TK_ARRAY_INDEX TK_ARRAY_ELEMENT
 %token TK_PLUS TK_MINUS TK_TIMES TK_UMINUS TK_DIV
 %token TK_NE TK_EQ TK_LEQ TK_GEQ TK_LT TK_GT
 %token TK_AND TK_OR TK_NOT TK_IFF TK_XOR TK_ITE TK_IFTHENELSE TK_IMPLIES
@@ -69,9 +69,11 @@ void smterror( char * s )
 %token TK_EXTRACT TK_CONCAT TK_BVAND TK_BVOR TK_BVXOR TK_BVNOT TK_BVADD TK_BVNEG TK_BVMUL TK_BVASHR
 %token TK_SIGN_EXTEND TK_ZERO_EXTEND TK_ROTATE_LEFT TK_ROTATE_RIGHT TK_BVLSHR TK_BVSHL TK_BVSREM TK_BVSDIV TK_BVSUB
 %token TK_BVUDIV TK_BVUREM
+%token TK_ARRAY_SELECT TK_ARRAY_STORE
 
-%type <str> TK_STR TK_NUM TK_BVNUM TK_BVNUM_NO_WIDTH TK_ARGUMENT TK_BOOL TK_REAL TK_INT TK_FLET_STR TK_LET_STR
-%type <enode> formula atom expression arithmetic_expression bitvec_expression
+%type <str> TK_STR TK_NUM TK_BVNUM TK_BVNUM_NO_WIDTH TK_ARGUMENT TK_REAL TK_INT TK_FLET_STR TK_LET_STR
+%type <enode> formula atom expression arithmetic_expression bitvec_expression 
+%type <enode> array_expression array_element_expression array_index_expression
 %type <enode> formula_list expression_list arithmetic_expression_list bitvec_expression_list
 %type <type_list> type_list
 
@@ -140,6 +142,7 @@ logic_declaration: TK_LOGIC TK_STR
 		   { 
                           if ( strcmp( $2, "EMPTY" ) == 0 ) parser_config->logic = EMPTY;
                      else if ( strcmp( $2, "QF_UF" ) == 0 ) parser_config->logic = QF_UF;
+                     else if ( strcmp( $2, "QF_O" ) == 0 ) parser_config->logic = QF_O;
                      else if ( strcmp( $2, "QF_BV" ) == 0 ) parser_config->logic = QF_BV;
                      else if ( strcmp( $2, "QF_RDL" ) == 0 ) parser_config->logic = QF_RDL;
                      else if ( strcmp( $2, "QF_IDL" ) == 0 ) parser_config->logic = QF_IDL;
@@ -150,6 +153,7 @@ logic_declaration: TK_LOGIC TK_STR
                      else if ( strcmp( $2, "QF_UFLRA" ) == 0 ) parser_config->logic = QF_UFLRA;
                      else if ( strcmp( $2, "QF_UFLIA" ) == 0 ) parser_config->logic = QF_UFLIA;
                      else if ( strcmp( $2, "QF_UFBV" ) == 0 ) parser_config->logic = QF_UFBV;
+		     else if ( strcmp( $2, "QF_AX" ) == 0 ) parser_config->logic = QF_AX;	
 		     free( $2 ); 
                    }
 		 ;
@@ -160,6 +164,7 @@ variables_declaration: variables_declaration bool_variable_declaration
 		     | variables_declaration bitvec_variable_declaration
 		     | variables_declaration u_function_declaration
 		     | variables_declaration u_predicate_declaration
+		     | variables_declaration arrayrelated_variable_declaration 	
                      | sort_declaration
 		     | bool_variable_declaration
 		     | real_variable_declaration
@@ -167,6 +172,7 @@ variables_declaration: variables_declaration bool_variable_declaration
 		     | bitvec_variable_declaration
 		     | u_function_declaration
 		     | u_predicate_declaration
+		     | arrayrelated_variable_declaration
                      ;
 
 sort_declaration: TK_EXTRASORTS '(' TK_STR ')'
@@ -241,6 +247,59 @@ bitvec_variable_list: bitvec_variable_list '(' TK_STR TK_BITVEC '[' TK_NUM ']' '
 		      }
                     ;
 
+arrayrelated_variable_declaration: array_variable_declaration
+		 	     | array_index_variable_declaration		
+		             | array_element_variable_declaration
+			     ; 
+
+array_variable_declaration: TK_EXTRAFUNS '(' array_variable_list ')'
+			  ;
+
+array_index_variable_declaration: TK_EXTRAFUNS '(' array_index_variable_list ')'
+			  ;
+
+array_element_variable_declaration: TK_EXTRAFUNS '(' array_element_variable_list ')'
+			  ;
+
+array_variable_list: array_variable_list '(' TK_STR TK_ARRAY ')'
+		     {
+		      vector< unsigned > tmp;
+		      tmp.push_back( DTYPE_ARRAY );
+		      parser_egraph->newSymbol( $3, tmp ); free( $3 );
+		     }
+		   | '(' TK_STR TK_ARRAY ')'
+		     {
+		      vector< unsigned > tmp;
+		      tmp.push_back( DTYPE_ARRAY );
+		      parser_egraph->newSymbol( $2, tmp ); free( $2 ); 
+		     }	
+
+array_index_variable_list: array_index_variable_list '(' TK_STR TK_ARRAY_INDEX ')'
+                           {
+		            vector< unsigned > tmp;
+		            tmp.push_back( DTYPE_ARRAY_INDEX );
+		            parser_egraph->newSymbol( $3, tmp ); free( $3 );
+			   }
+			 | '(' TK_STR TK_ARRAY_INDEX ')'
+                           {
+		            vector< unsigned > tmp;
+		            tmp.push_back( DTYPE_ARRAY_INDEX );
+		            parser_egraph->newSymbol( $2, tmp ); free( $2 );
+			   }
+
+array_element_variable_list: array_element_variable_list '(' TK_STR TK_ARRAY_ELEMENT ')'
+			     {
+			      vector< unsigned > tmp;
+		              tmp.push_back( DTYPE_ARRAY_ELEMENT );
+		              parser_egraph->newSymbol( $3, tmp ); free( $3 );
+			     }
+			   | '(' TK_STR TK_ARRAY_ELEMENT ')'
+			     {
+			      vector< unsigned > tmp;
+		              tmp.push_back( DTYPE_ARRAY_ELEMENT );
+		              parser_egraph->newSymbol( $2, tmp ); free( $2 );
+		 	     }
+
 u_predicate_declaration: TK_EXTRAPREDS '(' u_predicate_list ')'
 		      ;
 
@@ -267,6 +326,12 @@ type_list: type_list TK_U
 	  { $$ = pushTypeList( $1, DTYPE_REAL ); }
 	| type_list TK_BITVEC '[' TK_NUM ']'
 	  { $$ = pushTypeList( $1, DTYPE_BITVEC, $4 ); free( $4 ); }
+	| type_list TK_ARRAY
+	  { $$ = pushTypeList( $1, DTYPE_ARRAY ); }
+	| type_list TK_ARRAY_INDEX
+	  { $$ = pushTypeList( $1, DTYPE_ARRAY_INDEX ); }
+	| type_list TK_ARRAY_ELEMENT
+	  { $$ = pushTypeList( $1, DTYPE_ARRAY_ELEMENT ); }
 	| type_list TK_STR
 	  { $$ = pushTypeList( $1, parser_egraph->getSort( $2 ) ); free( $2 ); }
 	| TK_U
@@ -277,6 +342,12 @@ type_list: type_list TK_U
           { $$ = createTypeList( DTYPE_REAL ); }
 	| TK_BITVEC '[' TK_NUM ']'
           { $$ = createTypeList( DTYPE_BITVEC, $3 ); free( $3 ); }
+	| TK_ARRAY
+	  { $$ = createTypeList( DTYPE_ARRAY ); }
+	| TK_ARRAY_INDEX
+	  { $$ = createTypeList( DTYPE_ARRAY_INDEX ); }
+	| TK_ARRAY_ELEMENT
+	  { $$ = createTypeList( DTYPE_ARRAY_ELEMENT ); }
 	| TK_STR
           { $$ = createTypeList( parser_egraph->getSort( $1 ) ); free( $1 ); }
 	;
@@ -356,7 +427,7 @@ atom: '(' TK_GEQ arithmetic_expression_list ')'
     | '(' TK_DISTINCT expression_list ')'
       { $$ = parser_egraph->mkDistinct( $3 ); }
     | TK_STR
-      { $$ = parser_egraph->mkVar( $1 ); free( $1 ); }
+      { $$ = parser_egraph->mkVar( $1, true ); free( $1 ); }
     | TK_TRUE
       { $$ = parser_egraph->mkTrue( ); }
     | TK_FALSE
@@ -369,6 +440,12 @@ expression: arithmetic_expression
 	    { $$ = $1; }
 	  | bitvec_expression 
             { $$ = $1; }
+	  | array_expression
+	    { $$ = $1; }
+	  | array_element_expression
+	    { $$ = $1; }
+	  | array_index_expression
+	    { $$ = $1; }
 	  | '(' TK_STR expression_list ')'
 	    { $$ = parser_egraph->mkUf( $2, $3 ); free( $2 ); }
 	  ;
@@ -394,10 +471,10 @@ arithmetic_expression: '(' TK_PLUS arithmetic_expression_list ')'
                      | TK_NUM
                        { $$ = parser_egraph->mkNum( $1 ); free( $1 ); }
                      | TK_STR
-                       { $$ = parser_egraph->mkVar( $1 ); free( $1 ); }
+                       { $$ = parser_egraph->mkVar( $1, true ); free( $1 ); }
 	             | TK_LET_STR
 	               { $$ = parser_egraph->getDefine( $1 ); free( $1 ); }
-	             | '(' TK_ITE formula expression expression ')'
+	             | '(' TK_ITE formula arithmetic_expression arithmetic_expression ')'
 	               { $$ = parser_egraph->mkIte( $3, $4, $5 ); }
 	             | '(' TK_STR expression_list ')'
 	               { $$ = parser_egraph->mkUf( $2, $3 ); free( $2 ); }
@@ -465,10 +542,10 @@ bitvec_expression: '(' TK_CONCAT bitvec_expression_list ')'
 		 | TK_BIT1
 		   { $$ = parser_egraph->mkBvnum( const_cast< char * >( "1" ) ); }
                  | TK_STR
-		   { $$ = parser_egraph->mkVar( $1 ); free( $1 ); }
+		   { $$ = parser_egraph->mkVar( $1, true ); free( $1 ); }
 	         | TK_LET_STR
 	           { $$ = parser_egraph->getDefine( $1 ); free( $1 ); }
-	         | '(' TK_ITE formula expression expression ')'
+	         | '(' TK_ITE formula bitvec_expression bitvec_expression ')'
 	           { $$ = parser_egraph->mkIte( $3, $4, $5 ); }
 	         | '(' TK_STR expression_list ')'
 	           { $$ = parser_egraph->mkUf( $2, $3 ); free( $2 ); }
@@ -480,6 +557,33 @@ bitvec_expression_list: bitvec_expression bitvec_expression_list
 			{ $$ = parser_egraph->cons( $1 ); }   
                       ;
 
+array_expression: '(' TK_ARRAY_STORE array_expression array_index_expression array_element_expression')'
+   		  { $$ = parser_egraph->mkStore( $3, $4, $5 ); }
+	        | '(' TK_ITE formula array_expression array_expression ')'
+	           { $$ = parser_egraph->mkIte( $3, $4, $5 ); }
+	        | '(' TK_STR expression_list ')'
+	          { $$ = parser_egraph->mkUf( $2, $3 ); free( $2 ); }
+		| TK_STR
+		  { $$ = parser_egraph->mkVar( $1, true ); free( $1 );}
+                ;
+
+array_element_expression: '(' TK_ARRAY_SELECT array_expression array_index_expression ')'
+			  { $$ = parser_egraph->mkSelect( $3, $4 ); }
+	        	| '(' TK_ITE formula array_element_expression array_element_expression ')'
+	           	  { $$ = parser_egraph->mkIte( $3, $4, $5 ); }
+	        	| '(' TK_STR expression_list ')'
+	          	  { $$ = parser_egraph->mkUf( $2, $3 ); free( $2 ); }	
+			| TK_STR
+			  { $$ = parser_egraph->mkVar( $1, true ); free( $1 );}
+			;
+
+array_index_expression: '(' TK_ITE formula array_index_expression array_index_expression ')'
+	           	  { $$ = parser_egraph->mkIte( $3, $4, $5 ); }
+	        	| '(' TK_STR expression_list ')'
+	          	  { $$ = parser_egraph->mkUf( $2, $3 ); free( $2 ); }	
+			| TK_STR
+			  { $$ = parser_egraph->mkVar( $1, true ); free( $1 ); }
+		        ;
 %%
 
 //=======================================================================================

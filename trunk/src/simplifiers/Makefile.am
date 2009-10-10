@@ -6,4 +6,5 @@ libsimplifiers_la_SOURCES = TopLevelProp.h TopLevelProp.C \
 			    ExpandITEs.h ExpandITEs.C \
 			    BVBooleanize.h BVBooleanize.C \
 			    DLRescale.h DLRescale.C \
-			    BVNormalize.h BVNormalize.C
+			    BVNormalize.h BVNormalize.C \
+			    Ackermanize.h Ackermanize.C

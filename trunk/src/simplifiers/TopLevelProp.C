@@ -37,9 +37,12 @@ TopLevelProp::doit( Enode * formula )
   //
   // Canonize Arithmetic
   //
-  if ( config.logic == QF_IDL
+  if ( config.logic == QF_O
+    || config.logic == QF_IDL
     || config.logic == QF_RDL
-    || config.logic == QF_LRA )
+    || config.logic == QF_LRA 
+    || config.logic == QF_UFIDL 
+    || config.logic == QF_UFLRA )
     formula = canonize( formula );
   //
   // Canonize BVs
@@ -87,9 +90,12 @@ TopLevelProp::doit( Enode * formula )
 
 #if NEW_SPLIT
 #else
-  if ( config.logic == QF_IDL
+  if ( config.logic == QF_O
+    || config.logic == QF_IDL
     || config.logic == QF_RDL
-    || config.logic == QF_LRA )
+    || config.logic == QF_LRA
+    || config.logic == QF_UFIDL
+    || config.logic == QF_UFLRA )
     formula = splitEqs( formula );
 #endif
 
@@ -228,11 +234,18 @@ TopLevelProp::retrieveSubstitutions( Enode * formula
 	// Substitute variable with term that does not contain it
 	substitutions[ var->getId( ) ] = term;
       }
-      else if ( config.logic == QF_IDL
+      else if ( config.logic == QF_O
+             || config.logic == QF_IDL
 	     || config.logic == QF_RDL
-	     || config.logic == QF_LRA )
+	     || config.logic == QF_LRA 
+             || config.logic == QF_UFIDL
+             || config.logic == QF_UFLRA )
       {
 	top_level_arith.push_back( enode );
+      }
+      else if ( config.logic == QF_BV )
+      {
+	// TODO: do something for BV
       }
       else
       {
@@ -246,9 +259,12 @@ TopLevelProp::retrieveSubstitutions( Enode * formula
   //
   // Gaussian elimination for top-level arith
   //
-  if ( config.logic == QF_IDL 
+  if ( config.logic == QF_O
+    || config.logic == QF_IDL 
     || config.logic == QF_RDL
-    || config.logic == QF_LRA )
+    || config.logic == QF_LRA 
+    || config.logic == QF_UFIDL 
+    || config.logic == QF_UFLRA )
   {
     vector< LAExpression * > equalities;
     // Initialize
@@ -497,9 +513,12 @@ TopLevelProp::substitute( Enode * formula
     //
     if ( result->isTAtom( ) )
     {
-      if ( config.logic == QF_IDL
+      if ( config.logic == QF_O
+	|| config.logic == QF_IDL
 	|| config.logic == QF_RDL
-	|| config.logic == QF_LRA )
+	|| config.logic == QF_LRA 
+	|| config.logic == QF_UFIDL 
+	|| config.logic == QF_UFLRA )
       {
 	LAExpression a( result );
 	result = a.toEnode( egraph );
@@ -1108,9 +1127,12 @@ TopLevelProp::canonize( Enode * formula )
 Enode *
 TopLevelProp::splitEqs( Enode * formula )
 {
-  assert( config.logic == QF_IDL
+  assert( config.logic == QF_O
+       || config.logic == QF_IDL
        || config.logic == QF_RDL
-       || config.logic == QF_LRA );
+       || config.logic == QF_LRA 
+       || config.logic == QF_UFIDL 
+       || config.logic == QF_UFLRA );
 
   vector< Enode * > unprocessed_enodes;
   egraph.initDupMap( );

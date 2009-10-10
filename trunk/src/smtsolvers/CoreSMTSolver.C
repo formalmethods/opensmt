@@ -51,7 +51,7 @@ OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWA
 #include <sys/wait.h>
 #endif
 
-extern bool stop;
+bool stop;
 
 // Added code
 //=================================================================================================
@@ -111,21 +111,6 @@ CoreSMTSolver::CoreSMTSolver( Egraph & e, SMTConfig & c )
 //=================================================================================================
 // Added code
 
-  /*
-   * Moved to SimpSMTSolver
-   *
-  // Add clauses for true/false
-  // Useful for expressing TAtoms that are constantly true/false
-  const Var var_True = newVar( );
-  const Var var_False = newVar( );
-  vec< Lit > clauseTrue, clauseFalse;
-  clauseTrue.push( Lit( var_True ) );
-  addClause( clauseTrue );
-  clauseFalse.push( Lit( var_False, true ) );
-  addClause( clauseFalse );
-  theory_handler = new THandler( egraph, config, *this, trail, level, assigns, var_True, var_False );
-  */
-
   vec< Lit > fc;
   fc.push( lit_Undef );
   fake_clause = Clause_new( fc );
@@ -143,8 +128,8 @@ CoreSMTSolver::CoreSMTSolver( Egraph & e, SMTConfig & c )
   //
   // Set custom polarities
   //
-  assert( config.logic != UNDEF );
   if ( config.logic == QF_UF 
+    || config.logic == QF_O
     || config.logic == QF_IDL 
     || config.logic == QF_RDL 
     || config.logic == QF_LRA )  
@@ -161,7 +146,8 @@ CoreSMTSolver::~CoreSMTSolver()
     for (int i = 0; i < clauses.size(); i++) free(clauses[i]);
 
 #ifdef STATISTICS
-    printStatistics ( config.getOstream( ) );
+    if ( config.gconfig.print_stats )
+      printStatistics ( config.getStatsStream( ) );
 #endif
 
 //=================================================================================================
@@ -200,6 +186,11 @@ Var CoreSMTSolver::newVar(bool sign, bool dvar)
 #endif
 
     insertVarOrder(v);
+
+    // Added Lines
+    undo_stack_oper.push_back( NEWVAR );
+    undo_stack_elem.push_back( reinterpret_cast< void * >( v ) );
+
     return v;
 }
 
@@ -232,6 +223,10 @@ bool CoreSMTSolver::addClause(vec<Lit>& ps)
         Clause* c = Clause_new(ps, false);
         clauses.push(c);
         attachClause(*c);
+
+	// Added Lines
+	undo_stack_oper.push_back( NEWCLAUSE );
+	undo_stack_elem.push_back( (void *)c );
     }
 
     return true;
@@ -1016,6 +1011,198 @@ bool CoreSMTSolver::simplify()
     return true;
 }
 
+//=================================================================================================
+// Added Code
+
+void
+CoreSMTSolver::pushBacktrackPoint( ) 
+{ 
+  //
+  // Save undo stack size
+  //
+  assert( undo_stack_oper.size( ) == undo_stack_elem.size( ) );
+  undo_stack_size.push_back( undo_stack_oper.size( ) );
+  undo_trail_size.push_back( trail.size( ) );
+}
+
+void
+CoreSMTSolver::popBacktrackPoint ( ) 
+{ 
+  //
+  // Force restart, but retain assumptions
+  //
+  cancelUntil(0);
+  //
+  // Shrink back trail
+  //
+  int new_trail_size = undo_trail_size.back( );
+  undo_trail_size.pop_back( );
+  for ( int i = trail.size( ) - 1 ; i >= new_trail_size ; i -- )
+  {
+    Var     x  = var(trail[i]);
+    assigns[x] = toInt(l_Undef);
+    reason [x] = NULL;
+    insertVarOrder(x);
+  }  
+  trail.shrink(trail.size( ) - new_trail_size);
+  assert( trail_lim.size( ) == 0 );
+  qhead = trail.size( );
+  //
+  // Undo operations
+  //
+  size_t new_stack_size = undo_stack_size.back( );
+  undo_stack_size.pop_back( );
+  while ( undo_stack_oper.size( ) > new_stack_size )
+  {
+    const oper_t op = undo_stack_oper.back( );
+
+    if ( op == NEWVAR )
+    {
+#ifdef BUILD_64
+      long xl = reinterpret_cast< long >( undo_stack_elem.back( ) );
+      const Var x = static_cast< Var >( xl );
+#else
+      const Var x = reinterpret_cast< int >( undo_stack_elem.back( ) );
+#endif
+
+      // Undoes insertVarOrder( )
+      assert( order_heap.inHeap(x) );
+      order_heap  .remove(x);
+      // Undoes decision_var ... watches
+      decision_var.pop();
+      polarity    .pop();
+      seen        .pop();
+      activity    .pop();
+      level       .pop();
+      assigns     .pop();
+      reason      .pop();
+      watches     .pop();
+      watches     .pop();
+
+      // Remove variable from translation tables
+      theory_handler->clearVar( x );
+    }
+    else if ( op == NEWUNIT )
+    {
+    }
+    else if ( op == NEWCLAUSE )
+    {
+      Clause * c = (Clause *)undo_stack_elem.back( );
+      assert( clauses.last( ) == c );
+      clauses.pop( );
+      removeClause( *c );
+    }
+    else
+    {
+      error( "unknown undo operation in CoreSMTSolver", op );
+    }
+
+    undo_stack_oper.pop_back( );
+    undo_stack_elem.pop_back( );
+  }
+
+  while( learnts.size( ) > 0 )
+  {
+    Clause * c = learnts.last( );
+    learnts.pop( );
+    removeClause( *c );
+  }
+
+  assert( undo_stack_elem.size( ) == undo_stack_oper.size( ) );
+  assert( learnts.size( ) == 0 );
+  // Backtrack theory solvers
+  theory_handler->backtrack( );
+  // Restore OK
+  restoreOK( );
+  assert( isOK( ) );
+}
+
+void
+CoreSMTSolver::reset( ) 
+{ 
+  //
+  // Force restart, but retain assumptions
+  //
+  cancelUntil(0);
+  //
+  // Shrink back trail
+  //
+  undo_trail_size.clear( );
+  int new_trail_size = 0;
+  for ( int i = trail.size( ) - 1 ; i >= new_trail_size ; i -- )
+  {
+    Var     x  = var(trail[i]);
+    assigns[x] = toInt(l_Undef);
+    reason [x] = NULL;
+    insertVarOrder(x);
+  }  
+  trail.shrink(trail.size( ) - new_trail_size);
+  assert( trail_lim.size( ) == 0 );
+  qhead = trail.size( );
+  //
+  // Undo operations
+  //
+  while ( undo_stack_oper.size( ) > 0 )
+  {
+    const oper_t op = undo_stack_oper.back( );
+
+    if ( op == NEWVAR )
+    {
+#ifdef BUILD_64
+      long xl = reinterpret_cast< long >( undo_stack_elem.back( ) );
+      const Var x = static_cast< Var >( xl );
+#else
+      const Var x = reinterpret_cast< int >( undo_stack_elem.back( ) );
+#endif
+
+      // Undoes insertVarOrder( )
+      assert( order_heap.inHeap(x) );
+      order_heap  .remove(x);
+      // Undoes decision_var ... watches
+      decision_var.pop();
+      polarity    .pop();
+      seen        .pop();
+      activity    .pop();
+      level       .pop();
+      assigns     .pop();
+      reason      .pop();
+      watches     .pop();
+      watches     .pop();
+    }
+    else if ( op == NEWUNIT )
+    {
+    }
+    else if ( op == NEWCLAUSE )
+    {
+      Clause * c = (Clause *)undo_stack_elem.back( );
+      assert( clauses.last( ) == c );
+      clauses.pop( );
+      removeClause( *c );
+    }
+    else
+    {
+      error( "unknown undo operation in CoreSMTSolver", op );
+    }
+
+    undo_stack_oper.pop_back( );
+    undo_stack_elem.pop_back( );
+  }
+  // 
+  // Clear learnt
+  //
+  while( learnts.size( ) > 0 )
+  {
+    Clause * c = learnts.last( );
+    learnts.pop( );
+    removeClause( *c );
+  }
+
+  assert( undo_stack_elem.size( ) == undo_stack_oper.size( ) );
+  assert( learnts.size( ) == 0 );
+}
+
+// Added Code
+//=================================================================================================
 
 /*_________________________________________________________________________________________________
 |
@@ -1227,6 +1414,11 @@ double CoreSMTSolver::progressEstimate() const
 
 bool CoreSMTSolver::solve(const vec<Lit>& assumps)
 {
+  assert( config.logic != UNDEF );
+
+#if DELAY_TATOMS_COMM
+  theory_handler->inform( );
+#endif
 
 #if LAZY_COMMUNICATION
 #else
@@ -1430,31 +1622,40 @@ bool CoreSMTSolver::solve(const vec<Lit>& assumps)
 // Added code
 //=================================================================================================
 
-    // Added line
+// Added line
     if ( !stop )
     {
-    if (status == l_True){
-        // Extend & copy model:
-        model.growTo(nVars());
-        for (int i = 0; i < nVars(); i++) model[i] = value(i);
-// Previous line
-// #ifndef NDEBUG
+      if (status == l_True){
+	// Extend & copy model:
+	model.growTo(nVars());
+	for (int i = 0; i < nVars(); i++) model[i] = value(i);
+	// Previous line
+	// #ifndef NDEBUG
 #ifndef SMTCOMP
-        verifyModel();
-	//printModel( cerr );
+	verifyModel();
+	if ( config.gconfig.print_model )
+	{
+	  // Print Boolean model
+	  printModel( config.getModelStream( ) );
+	  // Print Theory model
+	  egraph.printModel( config.getModelStream( ) );
+	}
 #endif
-    }else{
-        assert(status == l_False);
-        if (conflict.size() == 0)
-            ok = false;
-    }
+      }else{
+	assert(status == l_False);
+	if (conflict.size() == 0)
+	  ok = false;
+      }
     }
 
     // Modified line
     // cancelUntil(0);
-    cancelUntil(-1);
-    if ( first_model_found )
-      theory_handler->backtrack( );
+    if ( !config.incremental )
+    {
+      cancelUntil(-1);
+      if ( first_model_found )
+	theory_handler->backtrack( );
+    }
 
     return status == l_True;
 }
@@ -1528,11 +1729,11 @@ int CoreSMTSolver::checkTheory( bool complete )
   // Top-level conflict, problem is T-Unsatisfiable
   if ( decisionLevel() == 0 )
   {
-#if EXTERNAL_TOOL
+    // Get conflict, even though not necessary
+    // (unless config.incremental is ON)
     vec< Lit > conflicting;
     int        max_decision_level;
     theory_handler->getConflict( conflicting, max_decision_level );
-#endif
     return -1;
   }
 
@@ -1722,18 +1923,18 @@ void CoreSMTSolver::printTrail( )
 #ifndef SMTCOMP
 void CoreSMTSolver::printModel( ostream & out )
 {
-  out << "(and" << endl;
   for (Var v = 2; v < model.size(); v++)
   {
     Enode * e = theory_handler->varToEnode( v );
+    if ( e->isTAtom( ) )
+      continue;
     assert( model[ v ] != l_Undef );
     int tmp;
     if( sscanf( e->getCar( )->getName( ), CNF_STR, &tmp ) != 1 )
     {
-      out << ( model[ v ] == l_True ? "     " : "(not " ) << e << ( model[ v ] == l_True ? "" : ")" ) << endl;
+      out << ( model[ v ] == l_True ? "" : "(not " ) << e << ( model[ v ] == l_True ? "" : ")" ) << endl;
     }
   }
-  out << ")" << endl;
 }
 #endif
 

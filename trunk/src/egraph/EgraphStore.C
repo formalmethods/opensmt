@@ -18,6 +18,7 @@ along with OpenSMT. If not, see <http://www.gnu.org/licenses/>.
 *********************************************************************/
 
 #include "Egraph.h"
+#include "LA.h"
 
 void Egraph::initializeStore( )
 {
@@ -33,17 +34,17 @@ void Egraph::initializeStore( )
   //
   // Arithmetic predefined operators and predicates
   //
-  newSymbol( "+" , DTYPE_REAL ); assert( ENODE_ID_PLUS   == id_to_enode.size( ) - 1 );
-  newSymbol( "-" , DTYPE_REAL ); assert( ENODE_ID_MINUS  == id_to_enode.size( ) - 1 );
-  newSymbol( "~" , DTYPE_REAL ); assert( ENODE_ID_UMINUS == id_to_enode.size( ) - 1 );
-  newSymbol( "*" , DTYPE_REAL ); assert( ENODE_ID_TIMES  == id_to_enode.size( ) - 1 );
-  newSymbol( "/" , DTYPE_REAL ); assert( ENODE_ID_DIV    == id_to_enode.size( ) - 1 );
-  newSymbol( "=" , DTYPE_BOOL ); assert( ENODE_ID_EQ     == id_to_enode.size( ) - 1 );
-  newSymbol( "!=", DTYPE_BOOL ); assert( ENODE_ID_NEQ    == id_to_enode.size( ) - 1 );
-  newSymbol( "<=", DTYPE_BOOL ); assert( ENODE_ID_LEQ    == id_to_enode.size( ) - 1 );
-  newSymbol( ">=", DTYPE_BOOL ); assert( ENODE_ID_GEQ    == id_to_enode.size( ) - 1 );
-  newSymbol( "<" , DTYPE_BOOL ); assert( ENODE_ID_LT     == id_to_enode.size( ) - 1 );
-  newSymbol( ">" , DTYPE_BOOL ); assert( ENODE_ID_GT     == id_to_enode.size( ) - 1 );
+  newSymbol( "+" , DTYPE_ARITH ); assert( ENODE_ID_PLUS   == id_to_enode.size( ) - 1 );
+  newSymbol( "-" , DTYPE_ARITH ); assert( ENODE_ID_MINUS  == id_to_enode.size( ) - 1 );
+  newSymbol( "~" , DTYPE_ARITH ); assert( ENODE_ID_UMINUS == id_to_enode.size( ) - 1 );
+  newSymbol( "*" , DTYPE_ARITH ); assert( ENODE_ID_TIMES  == id_to_enode.size( ) - 1 );
+  newSymbol( "/" , DTYPE_ARITH ); assert( ENODE_ID_DIV    == id_to_enode.size( ) - 1 );
+  newSymbol( "=" , DTYPE_BOOL  ); assert( ENODE_ID_EQ     == id_to_enode.size( ) - 1 );
+  newSymbol( "!=", DTYPE_BOOL  ); assert( ENODE_ID_NEQ    == id_to_enode.size( ) - 1 );
+  newSymbol( "<=", DTYPE_BOOL  ); assert( ENODE_ID_LEQ    == id_to_enode.size( ) - 1 );
+  newSymbol( ">=", DTYPE_BOOL  ); assert( ENODE_ID_GEQ    == id_to_enode.size( ) - 1 );
+  newSymbol( "<" , DTYPE_BOOL  ); assert( ENODE_ID_LT     == id_to_enode.size( ) - 1 );
+  newSymbol( ">" , DTYPE_BOOL  ); assert( ENODE_ID_GT     == id_to_enode.size( ) - 1 );
   //
   // Bit-vector predefined operators and predicates
   //
@@ -93,6 +94,11 @@ void Egraph::initializeStore( )
   //
   newSymbol( "word1Cast"   , DTYPE_BITVEC ); assert( ENODE_ID_WORD1CAST == id_to_enode.size( ) - 1 );
   newSymbol( "boolCast"    , DTYPE_BOOL   ); assert( ENODE_ID_BOOLCAST  == id_to_enode.size( ) - 1 );
+  //
+  // Array operators
+  //
+  newSymbol( "store"       , DTYPE_ARRAY ); 	    assert( ENODE_ID_STORE  == id_to_enode.size( ) - 1 );
+  newSymbol( "select"      , DTYPE_ARRAY_ELEMENT ); assert( ENODE_ID_SELECT == id_to_enode.size( ) - 1 );
   //
   // Set top node to empty
   //
@@ -238,7 +244,7 @@ void Egraph::removeSymbol( Enode * s )
   }
   int i;
   // Special removal for sign_extend
-  if ( s->isSignExtend( &i ) )
+  if ( sscanf( s->getName( ), "sign_extend[%d]", &i ) == 1 )
   {
     assert( se_store[ i ] == s );
     se_store[ i ] = NULL;
@@ -384,7 +390,8 @@ void Egraph::removeSigTab ( Enode * e )
 
 Enode * Egraph::copyEnodeEtypeListWithCache( Enode * l, bool map2 )
 {
-  assert( active_dup_map );
+  assert(  map2 || active_dup_map );
+  assert( !map2 || active_dup_map2 );
 
   list< Enode * > new_args;
   for ( Enode * arg = l ; !arg->isEnil( ) ; arg = arg->getCdr( ) )
@@ -556,11 +563,14 @@ void Egraph::undoCons( Enode * e )
 //
 // Create a variable
 //
-Enode * Egraph::mkVar( const char * name )
+Enode * Egraph::mkVar( const char * name, bool model_var )
 {
   Enode * e = lookupSymbol( name );
   if ( e == NULL ) error( "undeclared function symbol ", name );
-  return cons( e );
+  Enode * res = cons( e );
+  if ( model_var )
+    variables.insert( res );
+  return res;
 }
 
 Enode * Egraph::mkNum( const char * value )
@@ -1676,6 +1686,15 @@ Enode * Egraph::mkBvsle( Enode * args )
   return cons( id_to_enode[ ENODE_ID_BVSLE ], args );
 }
 
+Enode * Egraph::mkSelect( Enode * a, Enode * i )
+{
+  return NULL;
+}	
+Enode * Egraph::mkStore( Enode * a, Enode * i, Enode * e )
+{
+  return NULL;
+}
+
 Enode * Egraph::mkEq( Enode * args )
 {
   assert( args );
@@ -2034,7 +2053,7 @@ Enode * Egraph::mkIte( Enode * i, Enode * t, Enode * e )
   assert( t );
   assert( e );
   assert( i->isDTypeBool( ) );
-  assert( t->getDType( ) == e->getDType( ) );
+  assert( (t->getDType( ) & e->getDType( )) != 0 );
 
   if ( i->isTrue( )  ) return t;
   if ( i->isFalse( ) ) return e;
@@ -2045,7 +2064,6 @@ Enode * Egraph::mkIte( Enode * i, Enode * t, Enode * e )
   return cons( id_to_enode[ ENODE_ID_ITE ], cons( i, cons( t, cons( e ) ) ) );
 }
 
-// TODO: add simplifications
 Enode * Egraph::mkXor( Enode * args )
 {
   assert( args );
@@ -2140,14 +2158,9 @@ Enode * Egraph::getFormula( )
 
   Enode * args = cons( assumptions );
 
-  /*
-  Enode * cdr = const_cast<Enode *>( enil );
+  // Clear assumptions for incremental solving
+  assumptions.clear( );
 
-  for ( unsigned i = 0 ; i < assumptions.size( ) ; i ++ )
-    cdr = cons( assumptions[ i ], cdr );
-
-  return mkAnd( cdr );
-  */
   return mkAnd( args );
 }
 
@@ -2256,7 +2269,8 @@ void Egraph::computePolarities( Enode * formula )
     // in the form a_1 * x_1 + ... + a_n * x_n <= c 
     // including difference logic constraints
     //
-    else if ( config.logic == QF_IDL
+    else if ( config.logic == QF_O
+	   || config.logic == QF_IDL
 	   || config.logic == QF_RDL
            || config.logic == QF_LRA )
     {
@@ -2303,6 +2317,104 @@ Egraph::makeNumberFromGmp( mpz_class & n, const int width )
     new_bin_value.insert( 0, width - s.size( ), '0' );
   new_bin_value += s;
   return mkBvnum( const_cast< char * >(new_bin_value.c_str( )) );
+}
+
+void Egraph::addAssumption( Enode * e )
+{
+  assert( e );
+
+  // Canonize atom for arithmetic logics
+  if ( config.incremental )
+  {
+    if ( config.logic == QF_IDL 
+      || config.logic == QF_RDL
+      || config.logic == QF_LRA
+      || config.logic == QF_UFIDL
+      || config.logic == QF_UFLRA )
+    {
+      LAExpression la( e );
+
+      if ( e->isEq( ) )
+      {
+	Enode * e_can = la.toEnode( *this );
+	Enode * lhs = e_can->get1st( );
+	Enode * rhs = e_can->get2nd( );
+	Enode * leq = mkLeq( cons( lhs, cons( rhs ) ) );
+	LAExpression b( leq );
+	leq = b.toEnode( *this );
+	Enode * geq = mkGeq( cons( lhs, cons( rhs ) ) );
+	LAExpression c( geq );
+	geq = c.toEnode( *this );
+	assumptions.push_back( leq );
+	assumptions.push_back( geq );
+      }
+      else
+      {
+	e = la.toEnode( *this );
+	assumptions.push_back( e );
+      }
+    }
+  }
+  else
+  {
+    assumptions.push_back( e );
+  }
+
+  assert( !assumptions.empty( ) );
+}
+
+void Egraph::printModel( ostream & os )
+{
+  assert( config.gconfig.print_model );
+  //
+  // Compute models in tsolvers
+  //
+  for( unsigned i = 1 ; i < tsolvers.size( ) ; i ++ )
+    tsolvers[ i ]->computeModel( );
+  //
+  // Print values
+  //
+  for( set< Enode * >::iterator it = variables.begin( )
+     ; it != variables.end( )
+     ; it ++ )
+  {
+    // Retrieve enode
+    Enode * v = *it;
+    // Print depending on type
+    if ( v->getDType( ) == DTYPE_BOOL )
+      continue;
+    else if ( v->getDType( ) == DTYPE_INT 
+	   || v->getDType( ) == DTYPE_REAL )
+    {
+      os << "(= " << v << " ";
+      if ( v->hasValue( ) ) 
+	os << v->getValue( );
+      else
+	os << "?";
+      os << ")";
+    }
+    else if ( v->getDType( ) & DTYPE_BITVEC )
+    {
+      os << "(= " << v << " ";
+      if ( v->hasValue( ) ) 
+      {
+	os << "bv" << v->getValue( ) << "[" << v->getWidth( ) << "]";
+      }
+      else
+	os << "?";
+      os << ")";
+    }
+    else if ( config.logic == QF_UF )
+    {
+      os << "(= " << v << v->getRoot( ) << ")";
+    }
+    else
+    {
+      error( "model printing unsupported for this variable: ", v );
+    }
+
+    os << endl;
+  }
 }
 
 //=================================================================================================

@@ -24,6 +24,25 @@ along with OpenSMT. If not, see <http://www.gnu.org/licenses/>.
 
 #include "EmptySolver.h"
 
+EmptySolver::EmptySolver( const int           i
+                        , const char *        n
+	                , SMTConfig &         c
+	                , Egraph &            e
+	                , vector< Enode * > & x
+	                , vector< Enode * > & d
+                        , vector< Enode * > & s )
+  : OrdinaryTSolver ( i, n, c, e, x, d, s )
+{ 
+  // Here Allocate External Solver
+
+}
+
+EmptySolver::~EmptySolver( )
+{
+  // Here Deallocate External Solver
+
+}
+
 //
 // The solver is informed of the existence of
 // atom e. It might be useful for initializing
@@ -62,7 +81,6 @@ bool EmptySolver::assertLit ( Enode * e, bool reason )
 //
 void EmptySolver::pushBacktrackPoint ( )
 {
-  // backtrack_points( undo_stack_term.size( );
 }
 
 //
@@ -77,12 +95,6 @@ void EmptySolver::pushBacktrackPoint ( )
 //
 void EmptySolver::popBacktrackPoint ( )
 {
-  // assert( backtrack_points.size( ) > 0 );
-  // size_t undo_stack_new_size = backtrack_points.back( );
-  //
-  // Do Something to restore the solver state
-  //
-  // backtrack_points.pop_back( );
 }
 
 //
@@ -107,4 +119,12 @@ bool EmptySolver::belongsToT( Enode * e )
   (void)e;
   assert( e );
   return true;
+}
+
+//
+// Copy the model into enode's data
+//
+void EmptySolver::computeModel( )
+{
+
 }
