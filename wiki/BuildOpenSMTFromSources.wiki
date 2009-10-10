@@ -7,7 +7,7 @@ The current districution has been successfully compiled and tested under
 Linux and Mac. In order to compile OpenSMT you need: 
   * gcc/g++ >= 4.3.2
   * autotools
-  * The [http://gmplib.org/ GNU Multiple Precision Library] installed (IMPORTANT: in order to work properly gmp has to be configured with the --enable-cxx flag)
+  * The [http://gmplib.org/ GNU Multiple Precision Library] installed. IMPORTANT: in order to work properly gmp has to be configured with the --enable-cxx flag
   * libtool
 
 = Compile =
