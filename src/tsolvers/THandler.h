@@ -24,6 +24,8 @@ along with OpenSMT. If not, see <http://www.gnu.org/licenses/>.
 #include "Egraph.h"
 #include "TSolver.h"
 
+#define DELAY_TATOMS_COMM 1
+
 class SMTSolver; // Forward declaration
 
 class THandler
@@ -66,6 +68,7 @@ public:
   Lit     enodeToLit           ( Enode * );             // Converts enode into boolean literal. Create a new variable if needed
   Lit     enodeToLit           ( Enode *, Var & );      // Converts enode into boolean literal. Create a new variable if needed
   Enode * varToEnode           ( Var );                 // Return the enode corresponding to a variable
+  void    clearVar             ( Var );                 // Clear a Var in translation table (used in incremental solving)
                                
   bool    assertLits           ( );                     // Give to the TSolvers the newly added literals on the trail
   bool    check                ( bool );                // Check trail in the theories
@@ -73,11 +76,13 @@ public:
 
   double  getAtomsRatio        ( ) { return (double)batoms/((double)tatoms + 1.0); }
 
-private:                                 
+#if DELAY_TATOMS_COMM
+  void    inform               ( );
 
-  Enode * negateDLAtom( Enode * );
-  Enode * negateLAAtom( Enode * );
-  Enode * negateBVAtom( Enode * );
+  vector< bool > atoms_seen;
+#endif
+
+private:                                 
 
 #ifdef EXTERNAL_TOOL
   void verifyCallWithExternalTool        ( bool, size_t );
@@ -105,6 +110,11 @@ private:
 
   int                 tatoms;                   // Tracks theory atoms
   int                 batoms;                   // Tracks boolean atoms
+
+#if DELAY_TATOMS_COMM
+  vector< Enode * >   tatoms_list;              // List of tatoms to communicate later 
+  vector< bool >      tatoms_give;              // We might want not to give some atoms
+#endif
 };
 
 #endif

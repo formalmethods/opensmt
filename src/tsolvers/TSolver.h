@@ -140,7 +140,8 @@ public:
   virtual ~OrdinaryTSolver ( )
   { }
 
-  virtual bool belongsToT ( Enode * ) = 0; // Atom belongs to this theory
+  virtual bool belongsToT   ( Enode * ) = 0; // Atom belongs to this theory
+  virtual void computeModel ( )         = 0; // Compute model for variables
 
 protected:
 

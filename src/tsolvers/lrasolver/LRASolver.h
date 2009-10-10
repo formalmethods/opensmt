@@ -23,6 +23,7 @@
 
 #include "TSolver.h"
 #include "LAVar.h"
+#include "LARow.h"
 
 //
 // Class to solve Linear Arithmetic theories
@@ -40,7 +41,7 @@ class LRASolver: public OrdinaryTSolver
 
   typedef enum
   {
-    INIT, SAT, UNSAT, ERROR
+    INIT, INCREMENT, SAT, UNSAT, ERROR
   } LRAsolverStatus;
 
   typedef map<int, LAVar *> MapEnodeIDToLAVar;
@@ -76,13 +77,13 @@ public:
     }
   }
 
-  bool belongsToT( Enode * ); // Checks if Atom belongs to this theory
-
-  lbool inform( Enode * ); // Inform LRA about the existence of this constraint
-  bool check( bool ); // Checks the satisfiability of current constraints
-  bool assertLit( Enode *, bool = false ); // Push the constraint into Solver
-  void pushBacktrackPoint( ); // Push a backtrack point
-  void popBacktrackPoint( ); // Backtrack to last saved point
+  lbool inform            ( Enode * );               // Inform LRA about the existence of this constraint
+  bool  check             ( bool );                  // Checks the satisfiability of current constraints
+  bool  assertLit         ( Enode *, bool = false ); // Push the constraint into Solver
+  void  pushBacktrackPoint( );                       // Push a backtrack point
+  void  popBacktrackPoint ( );                       // Backtrack to last saved point
+  bool  belongsToT        ( Enode * );               // Checks if Atom belongs to this theory
+  void  computeModel      ( );                       // Computes the model into enodes
 
   void print( ostream & out ); // Prints terms, current bounds and the tableau
 

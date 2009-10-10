@@ -78,7 +78,7 @@ template <class T> bool DLSolver<T>::assertLit ( Enode * e, bool reason )
   if ( true == reason && 0 == LAZY_GENERATION  )
   {
     // Find the shortest path p for the deduced edge
-    DLPath shortest_path = G->getShortestPath( deduced_edge );
+    DLPath & shortest_path = G->getShortestPath( deduced_edge );
     assert( ! shortest_path.empty( ) );
     explanation.push_back( e );
     for ( typename DLPath::iterator it = shortest_path.begin( ); it != shortest_path.end( ); ++ it )
@@ -112,7 +112,7 @@ template <class T> bool DLSolver<T>::assertLit ( Enode * e, bool reason )
   // 
   DLVertex<T> * s = G->getNegCycleVertex( );
   DLVertex<T> * u = s;
-  DLPath conflictEdges = G->getConflictEdges( );
+  DLPath & conflictEdges = G->getConflictEdges( );
   DLPath lazy_spath;
   do
   {
@@ -179,7 +179,7 @@ template < class T> bool DLSolver<T>::check( bool complete )
 // (<= (* (~ 1) x) c)
 // (<= (* 1 x) c)
 //
-template< class T>bool DLSolver<T>::belongsToT( Enode * e )
+template< class T > bool DLSolver<T>::belongsToT( Enode * e )
 {
   assert( e );
   Enode * lhs = e->get1st( );
@@ -217,13 +217,13 @@ template< class T>bool DLSolver<T>::belongsToT( Enode * e )
     if ( !const_1->isConstant( ) || !const_2->isConstant( ) ) return false;
     if ( const_1 == one && const_2 == mone ) return true;
     if ( const_2 == one && const_1 == mone ) return true;
+    return false;
   }
   //
   // One variable
   //
-  Enode * mon = lhs->get1st( );
-  Enode * con = mon->get1st( );
-  Enode * var = mon->get2nd( );
+  Enode * con = lhs->get1st( );
+  Enode * var = lhs->get2nd( );
   if ( con != one && con != mone ) return false;
   if ( !var->isVar( ) ) return false;
 
@@ -281,4 +281,9 @@ template< class T >void DLSolver<T>::sendDeductions ( )
     edge->c->setDeduced( ( edge->id % 2 ) ? l_False : l_True, id );
     deductions.push_back( edge->c );
   }
+}
+
+template< class T >void DLSolver<T>::computeModel( )
+{
+  
 }

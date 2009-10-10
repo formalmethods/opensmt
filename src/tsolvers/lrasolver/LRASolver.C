@@ -32,8 +32,10 @@ lbool LRASolver::inform( Enode * e )
 {
   if( status != INIT )
   {
-    error( "Inform was already closed", "" );
-    return l_Undef;
+
+    // Treat the Enode as it is pushed on-the-fly
+    //    status = INCREMENT;
+    assert( status == SAT );
   }
   assert( e->isAtom( ) );
 
@@ -72,7 +74,7 @@ lbool LRASolver::inform( Enode * e )
     if( arg1->isConstant( ) )
       v = arg1->getCar( )->getValue( );
     else
-      cerr << "Unexpected Number: " << arg1 << endl;
+      error( "Unexpected number a in  a <= c*x: ", arg1 );
 
     // divide a by the value from c
     Real c = coef->getCar( )->getValue( );
@@ -80,7 +82,7 @@ lbool LRASolver::inform( Enode * e )
     if( coef->isConstant( ) )
       v /= c;
     else
-      cerr << "Unexpected Coef: " << coef << endl;
+      error( "Unexpected coef c in  a <= c*x : ", coef );
 
     if( c < 0 )
       revert = !revert;
@@ -95,7 +97,7 @@ lbool LRASolver::inform( Enode * e )
       slack_vars.push_back( x );
       enode_lavar[var->getId( )] = x;
 
-      if( x->ID( ) >= static_cast< int >( columns.size( ) ) )
+      if( x->ID( ) >= static_cast<int> ( columns.size( ) ) )
         columns.resize( x->ID( ) + 1, NULL );
       columns[x->ID( )] = x;
 
@@ -136,16 +138,25 @@ lbool LRASolver::inform( Enode * e )
 
       assert( s->basicID( ) != -1 );
 
-      if( s->ID( ) >= static_cast< int >( columns.size( ) ) )
+      if( s->ID( ) >= static_cast<int> ( columns.size( ) ) )
         columns.resize( s->ID( ) + 1, NULL );
       columns[s->ID( )] = s;
 
-      if( s->basicID( ) >= static_cast< int >( rows.size( ) ) )
+      if( s->basicID( ) >= static_cast<int> ( rows.size( ) ) )
         rows.resize( s->basicID( ) + 1, NULL );
       rows[s->basicID( )] = s;
 
-      assert( numbers_pool.empty( ) );
-      Real * p_r = new Real( -1 );
+      Real * p_r;
+      if( !numbers_pool.empty( ) )
+      {
+        p_r = numbers_pool.back( );
+        numbers_pool.pop_back( );
+        *p_r = Real( -1 );
+      }
+      else
+      {
+        p_r = new Real( -1 );
+      }
 
       //      s->polynomial[s->ID( )] = p_r;
       s->polynomial.assign( s->ID( ), p_r );
@@ -192,15 +203,24 @@ lbool LRASolver::inform( Enode * e )
             slack_vars.push_back( x );
             enode_lavar[var->getId( )] = x;
 
-            if( x->ID( ) >= static_cast< int >( columns.size( ) ) )
+            if( x->ID( ) >= static_cast<int> ( columns.size( ) ) )
               columns.resize( x->ID( ) + 1, NULL );
             columns[x->ID( )] = x;
           }
 
           assert( x );
           assert( s->basicID( ) != -1 );
-          assert( numbers_pool.empty( ) );
-          Real * p_r = new Real( num->getCar( )->getValue( ) );
+
+          if( !numbers_pool.empty( ) )
+          {
+            p_r = numbers_pool.back( );
+            numbers_pool.pop_back( );
+            *p_r = Real( num->getCar( )->getValue( ) );
+          }
+          else
+          {
+            p_r = new Real( num->getCar( )->getValue( ) );
+          }
           //          s->polynomial[x->ID( )] = p_r;
           s->polynomial.assign( x->ID( ), p_r );
 
@@ -216,6 +236,7 @@ lbool LRASolver::inform( Enode * e )
   }
 #if VERBOSE
   cout << "Informed of constraint " << e << endl;
+  //  cout << this << endl;
 #endif
   return l_Undef;
 }
@@ -225,7 +246,7 @@ lbool LRASolver::inform( Enode * e )
 //
 bool LRASolver::check( bool complete )
 {
-  (void)complete;
+  ( void )complete;
   // check if we stop reading constraints
   if( status == INIT )
     initSolver( );
@@ -267,9 +288,6 @@ bool LRASolver::check( bool complete )
       LARow::const_iterator it = x->polynomial.begin( );
       for( ; it != x->polynomial.end( ); it++ )
       {
-        if( it->first == -1 )
-          continue;
-
         y = columns[it->first];
         if( x == y )
           continue;
@@ -298,9 +316,6 @@ bool LRASolver::check( bool complete )
       LARow::const_iterator it = x->polynomial.begin( );
       for( ; it != x->polynomial.end( ); it++ )
       {
-        if( it->first == -1 )
-          continue;
-
         y = columns[it->first];
         if( x == y )
           continue;
@@ -333,12 +348,17 @@ bool LRASolver::check( bool complete )
 //
 bool LRASolver::assertLit( Enode * e, bool reason )
 {
-  (void)reason;
+  //  cout << "### assertLit ###" <<endl;
+  ( void )reason;
   // check if we stop reading constraints
   if( status == INIT )
     initSolver( );
 
   assert( e->hasPolarity( ) );
+
+  //  cout << "Pushing (" << ( e->getPolarity( ) == l_True ) << ") (" << ( e->getDeduced( ) == l_True ) << ")  [" << e->getDedIndex( ) << "/" << id << "] " << e
+  //      << " - " << enode_lavar[e->getId( )] << endl;
+
 
   bool is_reason = false;
 
@@ -405,7 +425,7 @@ bool LRASolver::assertLit( Enode * e, bool reason )
       }
     }
 
-    bool res = check(true);
+    bool res = check( true );
 
     // Check simple deductions;
     if( res && config.lraconfig.theory_propagation == 1 && !is_reason )
@@ -414,9 +434,9 @@ bool LRASolver::assertLit( Enode * e, bool reason )
       //      assert( !e->isDeduced( ) );
       it->getSimpleDeductions( deductions, id, itBound.boundType );
     }
-//    assert(status == SAT);
-//    LAVar::saveModelGlobal( );
-//    return getStatus( );
+    //    assert(status == SAT);
+    //    LAVar::saveModelGlobal( );
+    //    return getStatus( );
     return res;
   }
   // Constraint to push was not find in local storage. Most likely it was not read properly before
@@ -432,6 +452,7 @@ bool LRASolver::assertLit( Enode * e, bool reason )
 //
 void LRASolver::pushBacktrackPoint( )
 {
+  //  cout << "push" <<endl;
   // Create and push new history step
   LAVarHistory hist;
   hist.e = NULL;
@@ -443,6 +464,8 @@ void LRASolver::pushBacktrackPoint( )
 //
 void LRASolver::popBacktrackPoint( )
 {
+  //  cout << "pop" <<endl;
+
   // undo with history
   LAVarHistory &hist = pushed_constraints.back( );
 
@@ -472,9 +495,6 @@ void LRASolver::doGaussianElimination( )
       LAVar * x = columns[i];
 
       LARow::const_iterator it = x->bindedRows.begin( );
-      for( ; it != x->bindedRows.end( ); it++ )
-        if( it->first != -1 )
-          break;
 
       assert( it != x->bindedRows.end( ) );
 
@@ -486,19 +506,13 @@ void LRASolver::doGaussianElimination( )
 
       it++;
 
-//      assert( it != x->bindedRows.end( ) );
+      //      assert( it != x->bindedRows.end( ) );
 
       for( ; it != x->bindedRows.end( ); it++ )
       {
-        if( it->first == -1 )
-          continue;
-
         ratio = Real( ( *( it->second ) ) / a );
         for( LARow::const_iterator it2 = basis->polynomial.begin( ); it2 != basis->polynomial.end( ); it2++ )
         {
-          if( it2->first == -1 )
-            continue;
-
           LARow::iterator a_it = rows[it->first]->polynomial.find( it2->first );
           if( a_it == rows[it->first]->polynomial.end( ) )
           {
@@ -538,9 +552,6 @@ void LRASolver::doGaussianElimination( )
       // Clear removed row
       for( LARow::iterator it2 = basis->polynomial.begin( ); it2 != basis->polynomial.end( ); it2++ )
       {
-        if( it2->first == -1 )
-          continue;
-
         if( it2->first != basis->ID( ) )
         {
           columns[it2->first]->unbindRow( basisRow );
@@ -550,25 +561,22 @@ void LRASolver::doGaussianElimination( )
         // pool of available numbers, to be used later
         // instead of creating a new one
         numbers_pool.push_back( it2->second );
-        it2->first = -1;
       }
-//TODO:: check this!
-//      assert( !basis->bindedRows.empty( ) );
-//      basis->bindedRows.clear();
+      basis->polynomial.clear( );
+
+      //TODO:: check this!
+      // assert( !basis->bindedRows.empty( ) );
+      // basis->bindedRows.clear();
+
+
       // Replace basisRow slot with the last row in rows vector
       m = rows.size( ) - 1;
       if( m > basisRow )
       {
         for( LARow::iterator it2 = rows[m]->polynomial.begin( ); it2 != rows[m]->polynomial.end( ); it2++ )
         {
-          if( it2->first == -1 )
-            continue;
-
           if( it2->first != rows[m]->ID( ) )
           {
-            //            columns[it2->first]->unbindRow( m );
-            //            LARow::const_iterator it3 = columns[it2->first]->bindedRows.find( m );
-            //            if( it3 != columns[it2->first]->bindedRows.end( ) )
             columns[it2->first]->bindRow( basisRow, it2->second );
             columns[it2->first]->unbindRow( m );
           }
@@ -596,12 +604,9 @@ void LRASolver::update( LAVar * x, const Delta & v )
   Delta v_minusM = v - x->M( );
   for( LARow::const_iterator it = x->bindedRows.begin( ); it != x->bindedRows.end( ); it++ )
   {
-    if( it->first == -1 )
-      continue;
+    rows[it->first]->incM( *( it->second ) * v_minusM );
 
-    rows[ it->first ]->incM( *( it->second ) * v_minusM );
-
-    if( static_cast< int >( rows[it->first]->polynomial.size( ) ) <= config.lraconfig.poly_deduct_size )
+    if( static_cast<int> ( rows[it->first]->polynomial.size( ) ) <= config.lraconfig.poly_deduct_size )
       touched_rows.insert( rows[it->first] );
 
     //TODO: make a separate config value for suggestions
@@ -635,20 +640,14 @@ void LRASolver::pivotAndUpdate( LAVar * x, LAVar * y, const Delta & v )
   // update model of Basic variables
   for( LARow::const_iterator it = y->bindedRows.begin( ); it != y->bindedRows.end( ); it++ )
   {
-    if( it->first == -1 )
-      continue;
-
     if( rows[it->first] != x )
     {
-      //      cout << rows[it->first]->polynomial.find( y->ID( ) )->second << " - " << it->second << (rows[it->first]->polynomial.find( y->ID( ) )->second != it->second?" -> diff":"") << endl;
       rows[it->first]->incM( *( it->second ) * tetha );
-      if( static_cast< int >( rows[it->first]->polynomial.size( ) ) <= config.lraconfig.poly_deduct_size )
+      if( static_cast<int> ( rows[it->first]->polynomial.size( ) ) <= config.lraconfig.poly_deduct_size )
         touched_rows.insert( rows[it->first] );
     }
   }
   // pivoting x and y
-
-  //const Real & inverse = -1 / a;
 
 #if FAST_RATIONALS
   const Real & inverse = -Real_inverse( a );
@@ -658,10 +657,7 @@ void LRASolver::pivotAndUpdate( LAVar * x, LAVar * y, const Delta & v )
 
   // first change the attribute values for x  polynomial
   for( LARow::iterator it = x->polynomial.begin( ); it != x->polynomial.end( ); it++ )
-    if( it->first == -1 )
-      continue;
-    else
-      *( it->second ) *= inverse;
+    *( it->second ) *= inverse;
 
   // value of a_y should become -1
   assert( !( *( x->polynomial.find( y->ID( ) )->second ) != -1 ) );
@@ -669,9 +665,6 @@ void LRASolver::pivotAndUpdate( LAVar * x, LAVar * y, const Delta & v )
   // now change the attribute values for all rows where y was presented
   for( LARow::const_iterator it = y->bindedRows.begin( ); it != y->bindedRows.end( ); it++ )
   {
-    if( it->first == -1 )
-      continue;
-
     // check that the modified row is not x (it was changed already)
     if( rows[it->first] != x )
     {
@@ -695,9 +688,6 @@ void LRASolver::pivotAndUpdate( LAVar * x, LAVar * y, const Delta & v )
       // P_i = P_i + a_y * P_x (iterate over all elements of P_x)
       for( LARow::const_iterator it2 = x->polynomial.begin( ); it2 != x->polynomial.end( ); it2++ )
       {
-        if( it2->first == -1 )
-          continue;
-
         const Real &b = *( it2->second );
 
         LARow::iterator a_it = rows[it->first]->polynomial.find( it2->first );
@@ -747,7 +737,7 @@ void LRASolver::pivotAndUpdate( LAVar * x, LAVar * y, const Delta & v )
       assert( ( rows[it->first]->polynomial.find( y->ID( ) ) == rows[it->first]->polynomial.end( ) ) );
 
       // mark the affected row (for deductions)
-      if( static_cast< int >( rows[it->first]->polynomial.size( ) ) <= config.lraconfig.poly_deduct_size )
+      if( static_cast<int> ( rows[it->first]->polynomial.size( ) ) <= config.lraconfig.poly_deduct_size )
         touched_rows.insert( rows[it->first] );
     }
   }
@@ -757,16 +747,17 @@ void LRASolver::pivotAndUpdate( LAVar * x, LAVar * y, const Delta & v )
   x->setNonbasic( );
   rows[y->basicID( )] = y;
 
-  y->polynomial.swap( x->polynomial );
-  y->polynomial.is_there.swap( x->polynomial.is_there );
-  //TODO: can I move size exchange into swap?
-  y->polynomial.setsize( x->polynomial.size( ) );
-  x->polynomial.setsize( 0 );
+  swap( y->polynomial, x->polynomial );
+  //  y->polynomial.swap( x->polynomial );
+  //  y->polynomial.is_there.swap( x->polynomial.is_there );
+  //  //TODO: can I move size exchange into swap?
+  //  y->polynomial.setsize( x->polynomial.size( ) );
+  //  x->polynomial.setsize( 0 );
 
   x->bindRow( y->basicID( ), y->polynomial.find( x->ID( ) )->second );
   y->bindedRows.clear( );
 
-  if( static_cast< int >( y->polynomial.size( ) ) <= config.lraconfig.poly_deduct_size )
+  if( static_cast<int> ( y->polynomial.size( ) ) <= config.lraconfig.poly_deduct_size )
     touched_rows.insert( y );
   touched_rows.erase( x );
 
@@ -782,12 +773,14 @@ void LRASolver::initSolver( )
 {
   if( status == INIT )
   {
-    doGaussianElimination( );
+    // Gaussian Elimination should not be performed in the Incremental mode!
+    if( config.lraconfig.gaussian_elim == 1 )
+      doGaussianElimination( );
 
     // sort the bounds inserted during inform stage
-    for( unsigned it = 0; it < columns.size( ); it++ )
-      if( !( columns[it]->skip ) )
-        columns[it]->sortBounds( );
+    //    for( unsigned it = 0; it < columns.size( ); it++ )
+    //      if( !( columns[it]->skip ) )
+    //        columns[it]->printBounds( );
 
     status = SAT;
   }
@@ -842,10 +835,6 @@ void LRASolver::getConflictingBounds( LAVar * x, vector<Enode *> & dst )
     LARow::const_iterator it = x->polynomial.begin( );
     for( ; it != x->polynomial.end( ); it++ )
     {
-      //skip empty cells in the polynomial vector
-      if( it->first == -1 )
-        continue;
-
       a = it->second;
       y = columns[it->first];
       assert( a );
@@ -872,9 +861,6 @@ void LRASolver::getConflictingBounds( LAVar * x, vector<Enode *> & dst )
     LARow::const_iterator it = x->polynomial.begin( );
     for( ; it != x->polynomial.end( ); it++ )
     {
-      if( it->first == -1 )
-        continue;
-
       a = it->second;
       y = columns[it->first];
       assert( a );
@@ -926,9 +912,6 @@ void LRASolver::refineBounds( )
     // summarize all bounds for the polynomial
     for( LARow::const_iterator it = row->polynomial.begin( ); it != row->polynomial.end( ); it++ )
     {
-      if( it->first == -1 )
-        continue;
-
       Real & a = ( *( it->second ) );
       LAVar * col = columns[it->first];
 
@@ -1006,9 +989,6 @@ void LRASolver::refineBounds( )
       {
         for( LARow::const_iterator it = row->polynomial.begin( ); it != row->polynomial.end( ); it++ )
         {
-          if( it->first == -1 )
-            continue;
-
           const Real & a = ( *( it->second ) );
           assert( a != 0 );
           LAVar * col = columns[it->first];
@@ -1045,9 +1025,6 @@ void LRASolver::refineBounds( )
       {
         for( LARow::const_iterator it = row->polynomial.begin( ); it != row->polynomial.end( ); it++ )
         {
-          if( it->first == -1 )
-            continue;
-
           const Real & a = ( *( it->second ) );
           assert( a != 0 );
           LAVar * col = columns[it->first];
@@ -1071,6 +1048,11 @@ void LRASolver::refineBounds( )
 void LRASolver::print( ostream & out )
 {
   out << "Bounds:" << endl;
+
+  // print bounds array size
+  for( VectorLAVar::iterator it = columns.begin( ); it != columns.end( ); ++it )
+    out << ( *it )->allBounds.size( ) << "\t";
+  out << endl;
 
   // print the upper bounds
   for( VectorLAVar::iterator it = columns.begin( ); it != columns.end( ); ++it )
@@ -1128,4 +1110,9 @@ void LRASolver::print( ostream & out )
 bool LRASolver::belongsToT( Enode * )
 {
   return true;
+}
+
+void LRASolver::computeModel( )
+{
+  
 }

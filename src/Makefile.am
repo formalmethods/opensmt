@@ -1,4 +1,4 @@
-SUBDIRS = otl parsers egraph smtsolvers cnfizers tsolvers simplifiers
+SUBDIRS = otl parsers egraph smtsolvers cnfizers tsolvers simplifiers api
 
 noinst_LTLIBRARIES = libopensmt.la
 
@@ -9,4 +9,5 @@ libopensmt_la_LIBADD = egraph/libegraph.la \
 		       cnfizers/libcnfizers.la \
 		       tsolvers/libtsolvers.la \
 		       simplifiers/libsimplifiers.la \
-		       otl/libotl.la
+		       otl/libotl.la \
+		       api/libapi.la

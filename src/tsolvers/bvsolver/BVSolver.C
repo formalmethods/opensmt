@@ -153,3 +153,8 @@ bool BVSolver::belongsToT( Enode * e )
   //
   return false;
 }
+
+void BVSolver::computeModel( )
+{
+  B->computeModel( );
+}

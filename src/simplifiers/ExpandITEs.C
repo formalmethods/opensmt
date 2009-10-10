@@ -86,8 +86,7 @@ ExpandITEs::doit( Enode * formula )
       //
       // Generate variable symbol
       //
-      sprintf( def_name, "ITE_DEF_%d", enode->getId( ) );
-
+      sprintf( def_name, ITE_STR, enode->getId( ) );
       const unsigned type = enode->getDType( );
       const unsigned width = enode->getWidth( );
       egraph.newSymbol( def_name, type | width );  

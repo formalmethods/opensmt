@@ -24,194 +24,7 @@
 #include "global.h"
 #include "Enode.h"
 #include "Delta.h"
-
-//#define setRows set<int>
-
-//#define LARow map<unsigned, Real *>
-
-class LARow: public vector<pair<int, Real *> >
-{
-  unsigned _size;
-
-public:
-
-  vector<bool> is_there;
-
-  LARow( )
-  {
-    _size = 0;
-  }
-  inline unsigned size( )
-  {
-    return _size;
-  }
-
-  void setsize( unsigned s )
-  {
-    _size = s;
-  }
-
-  LARow::iterator find( int key )
-  {
-    if( key >= ( int )is_there.size( ) || !is_there[key] )
-      return this->end( );
-
-    for( LARow::iterator it = this->begin( ); it != this->end( ); it++ )
-    {
-      if( key == it->first )
-        return it;
-    }
-
-    return this->end( );
-  }
-
-  void erase( int key )
-  {
-    if( key >= ( int )is_there.size( ) || !is_there[key] )
-      return;
-
-    for( LARow::iterator it = this->begin( ); it != this->end( ); it++ )
-    {
-      if( key == it->first )
-      {
-        it->first = -1;
-        _size--;
-        is_there[key] = false;
-        return;
-      }
-    }
-
-    assert( false );
-  }
-
-  void erase( LARow::iterator it )
-  {
-    const int key = it->first;
-    assert( key < ( int )is_there.size( ) );
-    assert( is_there[key] );
-
-    is_there[key] = false;
-    it->first = -1;
-    _size--;
-  }
-
-  bool empty( )
-  {
-    return _size == 0;
-  }
-
-  void clear( )
-  {
-    for( LARow::iterator it = this->begin( ); it != this->end( ); it++ )
-    {
-      if( it->first != -1 )
-      {
-        is_there[it->first] = false;
-        it->first = -1;
-        _size--;
-      }
-    }
-    assert( _size == 0 );
-  }
-
-  //  Real* operator[]( const int & key )
-  //  {
-  //    bool found_empty = false;
-  //    LARow::iterator empty_it;
-  //
-  //    LARow::iterator it = this->begin( );
-  //    while( it != this->end( ) )
-  //    {
-  //      if( key == it->first )
-  //      {
-  //        return it->second;
-  //        break;
-  //      }
-  //      else if( !found_empty && it->first == -1 )
-  //      {
-  //        empty_it = it;
-  //        found_empty = true;
-  //      }
-  //      it++;
-  //    }
-  //    if( it == this->end( ) )
-  //    {
-  //      if( found_empty )
-  //      {
-  //        empty_it->first = key;
-  //        return empty_it->second;
-  //      }
-  //      else
-  //      {
-  //        Real * tmp;
-  //        this->push_back( make_pair( key, tmp ) );
-  //        return this->back( ).second;
-  //      }
-  //    }
-  //  }
-
-  inline void assign( const int & key, Real * a )
-  {
-    bool found_empty = false;
-    LARow::iterator empty_it;
-
-    LARow::iterator it = this->begin( );
-    while( it != this->end( ) )
-    {
-      if( key == it->first )
-      {
-        if( key >= ( int )is_there.size( ) )
-          is_there.resize( key + 1, false );
-        assert( !is_there[key] );
-        is_there[key] = true;
-        it->second = a;
-        break;
-      }
-      else if( !found_empty && it->first == -1 )
-      {
-        empty_it = it;
-        found_empty = true;
-      }
-      it++;
-    }
-    if( it == this->end( ) )
-    {
-      if( found_empty )
-      {
-        if( key >= ( int )is_there.size( ) )
-          is_there.resize( key + 1, false );
-        assert( !is_there[key] );
-        is_there[key] = true;
-        empty_it->first = key;
-        empty_it->second = a;
-        _size++;
-      }
-      else
-      {
-        if( key >= ( int )is_there.size( ) )
-          is_there.resize( key + 1, false );
-        assert( !is_there[key] );
-        is_there[key] = true;
-        this->push_back( make_pair( key, a ) );
-        _size++;
-      }
-    }
-  }
-
-  inline void assign( LARow::iterator it, Real * a )
-  {
-    const int key = it->first;
-    if( key >= ( int )is_there.size( ) )
-      is_there.resize( key + 1, false );
-    assert( !is_there[key] );
-    is_there[key] = true;
-    it->second = a;
-  }
-
-};
-
-//TODO: Move the definitions to the class
-
+#include "LARow.h"
 //
 // Class to store the term of constraints as a column of Simplex method tableau
 //
@@ -224,6 +37,7 @@ public:
     Delta * delta;
     bool boundType;
     bool reverse;
+    bool active;
 
     StructBound( Delta * _delta, Enode * _e, bool _boundType, bool _reverse )
     {
@@ -231,18 +45,16 @@ public:
       e = _e;
       boundType = _boundType;
       reverse = _reverse;
+      active = false;
     }
-    
+
     inline friend bool operator==( const StructBound &a, const StructBound &b )
-	{
-  		if( (a.e == b.e) 
-   		&& (a.delta == b.delta) 
-   		&& (a.boundType == b.boundType) 
-   		&& (a.reverse == b.reverse))
-   			return true;
-   		else
-   			return false;
-	}
+    {
+      if( ( a.e == b.e ) && ( a.delta == b.delta ) && ( a.boundType == b.boundType ) && ( a.reverse == b.reverse ) )
+        return true;
+      else
+        return false;
+    }
   };
 
 protected:
@@ -252,21 +64,20 @@ protected:
     {
       assert( lhs.delta );
       assert( rhs.delta );
-      if (lhs == rhs)
-      	return true;
+      if( lhs == rhs )
+        return true;
       else if( *( lhs.delta ) != *( rhs.delta ) )
         return *( lhs.delta ) < *( rhs.delta );
       else
-      { 
-      	if( lhs.boundType != rhs.boundType )
-        	return rhs.boundType;
-      	else
-      	{
-        	// if this assertion fails then you have duplicates in the bounds list. Check the canonizer.
-        	assert( rhs.reverse != lhs.reverse );
-//        	cout << *(lhs.delta) << (lhs.boundType?"[U]":"[L]") << (lhs.reverse?"rev":"") <<" == "<< *(rhs.delta) << (lhs.boundType?"[U]":"[L]") << (lhs.reverse?"rev":"")<< endl;
-        	return rhs.reverse;
-      	}
+      {
+        if( lhs.boundType != rhs.boundType )
+          return rhs.boundType;
+        else
+        {
+          // if this assertion fails then you have duplicates in the bounds list. Check the canonizer.
+          assert( rhs.reverse != lhs.reverse );
+          return rhs.reverse;
+        }
       }
     }
   };
@@ -316,6 +127,7 @@ public:
   virtual ~LAVar( );
 
   void sortBounds( );
+  void printBounds( );
 
   inline bool isBasic( ); // Checks if current LAVar is Basic in current solver state
   inline bool isNonbasic( ); // Checks if current LAVar is NonBasic in current solver state
@@ -357,7 +169,6 @@ public:
   inline void incM( const Delta &v );
   inline void setM( const Delta &v );
 
-  //TODO: move out the class
   inline friend ostream & operator <<( ostream & out, LAVar * v )
   {
     if( v->e->isVar( ) )

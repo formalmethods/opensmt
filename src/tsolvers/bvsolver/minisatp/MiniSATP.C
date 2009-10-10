@@ -134,7 +134,8 @@ Var MiniSATP::newVar(bool sign, bool dvar)
 
     // Added Lines
     undo_stack_oper.push_back( NEWVAR );
-    undo_stack_elem.push_back( (void *)&v );
+    // undo_stack_elem.push_back( (void *)&v );
+    undo_stack_elem.push_back( reinterpret_cast< void * >( v ) );
 
     return v;
 }
@@ -232,7 +233,6 @@ bool MiniSATP::addClause(vec<Lit>& psin, Enode * e)
       attachClause(*c);
 
       // Added Lines
-      // clause_id_to_enode.push_back( e );
       undo_stack_oper.push_back( NEWCLAUSE );
       undo_stack_elem.push_back( (void *)c );
     }

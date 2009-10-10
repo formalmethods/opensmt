@@ -44,9 +44,22 @@ Var THandler::enodeToVar( Enode * atm )
   if ( v == var_Undef )
   {
     lbool state = l_Undef;
-    // Inform core solver about the existence of this atom
-#if NEW_SIMPLIFICATIONS
+
+#if DELAY_TATOMS_COMM
+    // Store TAtom and give later
+    if ( atm->isTAtom( ) )
+    {
+      if ( static_cast< int >( atoms_seen.size( ) ) <= atm->getId( ) )
+	atoms_seen.resize( atm->getId( ) + 1, false );
+      if ( atoms_seen[ atm->getId( ) ] == false )
+      {
+	atoms_seen[ atm->getId( ) ] = true;
+	tatoms_list.push_back( atm );
+	tatoms_give.push_back( true );
+      }
+    }
 #else
+    // Inform core solver about the existence of this atom
     if ( atm->isTAtom( ) )
       state = core_solver.inform( atm );
 #endif
@@ -114,6 +127,12 @@ Enode * THandler::varToEnode( Var v )
   assert( v < (int)var_to_enode.size( ) );
   assert( var_to_enode[ v ] != NULL );
   return var_to_enode[ v ];
+}
+
+void THandler::clearVar( Var v )
+{
+  assert( var_to_enode[ v ] != NULL );
+  var_to_enode[ v ] = NULL;
 }
 
 bool THandler::assertLits( )
@@ -350,6 +369,28 @@ void THandler::getReason( Lit l, vec< Lit > & reason )
   // Resetting polarity
   e->resetPolarity( );
 }
+
+#if DELAY_TATOMS_COMM
+//
+// Inform Theory-Solvers of Theory-Atoms
+//
+void THandler::inform( )
+{
+  //
+  // FIXME: Optimize for incremental solving
+  // by giving only new atoms - maybe by emptying
+  // the tatoms_list vector
+  //
+  for ( size_t i = 0 ; i < tatoms_list.size( ) ; i ++ )
+  {
+    if ( !tatoms_give[ i ] ) continue;
+    Enode * atm = tatoms_list[ i ];
+    assert( atm );
+    assert( atm->isTAtom( ) );
+    core_solver.inform( atm );
+  }
+}
+#endif
 
 #ifdef PEDANTIC_DEBUG
 bool THandler::isOnTrail( Lit l )

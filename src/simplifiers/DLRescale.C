@@ -23,6 +23,9 @@
 
 Enode * DLRescale::doit( Enode * formula )
 {
+  if ( formula->isTrue( ) || formula->isFalse( ) )
+    return formula;
+
 #if USE_GMP
   assert( formula );
 

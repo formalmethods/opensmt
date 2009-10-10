@@ -142,8 +142,8 @@ public:
   inline bool isDistinct        ( ) const { return hasSymbolId( ENODE_ID_DISTINCT    ); }
   inline bool isBoolcast        ( ) const { return hasSymbolId( ENODE_ID_BOOLCAST    ); }
   inline bool isWord1cast       ( ) const { return hasSymbolId( ENODE_ID_WORD1CAST   ); }
-  inline bool isUp              ( )       { return car->id > ENODE_ID_LAST && isAtom( ); }
-  inline bool isUf              ( )       { return car->id > ENODE_ID_LAST && !isAtom( ); }
+  inline bool isUp              ( )       { return car->id > ENODE_ID_LAST && isAtom( ) && getArity( ) > 0; }
+  inline bool isUf              ( )       { return car->id > ENODE_ID_LAST && !isAtom( ) && getArity( ) > 0; }
 
   bool        isExtract         ( int * msb, int * lsb );
   inline bool isExtract         ( ) { assert( isTerm( ) ); assert( car->symb_data ); return car->symb_data->lsb != -1; }
@@ -195,6 +195,7 @@ public:
   enodeid_t      getCid                 ( ) const;
   Enode *        getConstant            ( ) const;
                                         
+  inline bool    hasValue               ( ) const { assert( isTerm( ) ); return cong_data != NULL && cong_data->term_data != NULL && cong_data->term_data->value != NULL; }
   inline Enode * getExpParent           ( ) const { assert( isTerm( ) && cong_data && cong_data->term_data ); return cong_data->term_data->exp_parent; }
   inline Enode * getExpRoot             ( ) const { assert( isTerm( ) && cong_data && cong_data->term_data ); return cong_data->term_data->exp_root; }
   inline int     getExpClassSize        ( ) const { assert( isTerm( ) && cong_data && cong_data->term_data ); return cong_data->term_data->exp_class_size; }
@@ -223,7 +224,7 @@ public:
     properties |= w; 
     assert( getWidth( ) == static_cast<int>( w ) ); 
   }
-  inline void    setValue               ( const Real & v )   { assert( cong_data->term_data->value ); *(cong_data->term_data->value) = v; }            
+  inline void    setValue               ( const Real & v )   { if ( cong_data->term_data->value == NULL ) cong_data->term_data->value = new Real; *(cong_data->term_data->value) = v; }            
   inline void    setRoot                ( Enode * e )        { assert( isTerm( ) || isList( ) ); assert( cong_data ); cong_data->root = e; }
   inline void    setCid                 ( const enodeid_t c ){ assert( isTerm( ) || isList( ) ); assert( cong_data ); cong_data->cid = c; }               
   inline void    setDef                 ( Enode * e )        { assert( e ); assert( isDef( ) ); car = e; }            

@@ -48,6 +48,7 @@ public:
   void                popBacktrackPoint   ( );
   bool                check               ( bool );
   bool                belongsToT          ( Enode * );
+  void                computeModel        ( );
 
 private:
 

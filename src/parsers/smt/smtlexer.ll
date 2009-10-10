@@ -57,7 +57,10 @@ char * pbuffer;
 "U"                      { return TK_U; }    
 "Real"			 { return TK_REAL; }
 "Int"                    { return TK_INT; }
-"BitVec"                 { return TK_BITVEC; }    
+"BitVec"                 { return TK_BITVEC; }   
+"Array"		 	 { return TK_ARRAY; } 
+"Index"		 	 { return TK_ARRAY_INDEX; }
+"Element"		 { return TK_ARRAY_ELEMENT; }
 "+"                      { return TK_PLUS; }
 "-"                      { return TK_MINUS; }
 "~"                      { return TK_UMINUS; }
@@ -93,6 +96,8 @@ char * pbuffer;
 "bvurem"                 { return TK_BVUREM; }
 "bvsdiv"                 { return TK_BVSDIV; }
 "bvudiv"                 { return TK_BVUDIV; }
+"select"		 { return TK_ARRAY_SELECT; }
+"store"			 { return TK_ARRAY_STORE; }
 "sign_extend"            { return TK_SIGN_EXTEND; }
 "zero_extend"            { return TK_ZERO_EXTEND; }
 "rotate_left"            { return TK_ROTATE_LEFT; }

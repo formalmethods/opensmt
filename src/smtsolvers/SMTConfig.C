@@ -53,7 +53,10 @@ void SMTConfig::parseConfig ( const char * f )
 
       // GENERIC CONFIGURATION
            if ( sscanf( buf, "stats_file %s\n"             , gconfig.stats_file )              == 1 );
-      // SAT SOLVER CONFIGURATION                                                              
+      else if ( sscanf( buf, "model_file %s\n"             , gconfig.model_file )              == 1 );
+      else if ( sscanf( buf, "print_stats %d\n"            , &(gconfig.print_stats) )          == 1 );
+      else if ( sscanf( buf, "print_model %d\n"            , &(gconfig.print_model) )          == 1 );
+      // SAT SOLVER CONFIGURATION
       else if ( sscanf( buf, "sat_theory_propagation %d\n" , &(satconfig.theory_propagation))  == 1 );
       else if ( sscanf( buf, "sat_verbose %d\n"            , &(satconfig.verbose))             == 1 );
       else if ( sscanf( buf, "sat_initial_skip_step %lf\n" , &(satconfig.initial_skip_step))   == 1 );
@@ -70,25 +73,30 @@ void SMTConfig::parseConfig ( const char * f )
       else if ( sscanf( buf, "sat_minimize_conflicts %d\n" , &(satconfig.minimize_conflicts))  == 1 );
       else if ( sscanf( buf, "sat_dump_cnf %d\n"           , &(satconfig.dump_cnf))            == 1 );
       else if ( sscanf( buf, "sat_verbose %d\n"            , &(satconfig.verbose))             == 1 );
-      // EUF SOLVER CONFIGURATION                                                              
+      // EUF SOLVER CONFIGURATION
       else if ( sscanf( buf, "uf_disable %d\n"             , &(ufconfig.disable))              == 1 );
       else if ( sscanf( buf, "uf_theory_propagation %d\n"  , &(ufconfig.theory_propagation))   == 1 );
       else if ( sscanf( buf, "uf_int_extract_concat %d\n"  , &(ufconfig.int_extract_concat))   == 1 );
       else if ( sscanf( buf, "uf_verbose %d\n"             , &(ufconfig.verbose))              == 1 );
-      // BV SOLVER CONFIGURATION                                                               
+      // DL SOLVER CONFIGURATION
+      else if ( sscanf( buf, "o_disable %d\n"              , &(oconfig.disable))              == 1 );
+      else if ( sscanf( buf, "o_theory_propagation %d\n"   , &(oconfig.theory_propagation))   == 1 );
+      else if ( sscanf( buf, "o_verbose %d\n"              , &(oconfig.verbose))              == 1 );
+      // BV SOLVER CONFIGURATION
       else if ( sscanf( buf, "bv_disable %d\n"             , &(bvconfig.disable))              == 1 );
       else if ( sscanf( buf, "bv_theory_propagation %d\n"  , &(bvconfig.theory_propagation))   == 1 );
       else if ( sscanf( buf, "bv_verbose %d\n"             , &(bvconfig.verbose))              == 1 );
-      // DL SOLVER CONFIGURATION                                                               
+      // DL SOLVER CONFIGURATION
       else if ( sscanf( buf, "dl_disable %d\n"             , &(dlconfig.disable))              == 1 );
       else if ( sscanf( buf, "dl_theory_propagation %d\n"  , &(dlconfig.theory_propagation))   == 1 );
       else if ( sscanf( buf, "dl_verbose %d\n"             , &(dlconfig.verbose))              == 1 );
-      // LRA SOLVER CONFIGURATION                                                              
+      // LRA SOLVER CONFIGURATION
       else if ( sscanf( buf, "lra_disable %d\n"            , &(lraconfig.disable))             == 1 );
       else if ( sscanf( buf, "lra_theory_propagation %d\n" , &(lraconfig.theory_propagation))  == 1 );
       else if ( sscanf( buf, "lra_verbose %d\n"            , &(lraconfig.verbose))             == 1 );
       else if ( sscanf( buf, "lra_poly_deduct_size %d\n"   , &(lraconfig.poly_deduct_size))    == 1 );
-      else 
+      else if ( sscanf( buf, "lra_gaussian_elim %d\n"      , &(lraconfig.gaussian_elim))    == 1 );
+      else
       {
 	cerr << "# ERROR: unrecognized option " << buf << endl;
 	exit( 1 );
@@ -107,29 +115,63 @@ void SMTConfig::parseConfig ( const char * f )
   if ( sfile == "$stderr"
     || ( filename != NULL && sfile == string("$filename") ) )
   {
-    out_flag = false;
+    stats_out_flag = false;
   }
-  else 
+  else
   {
     string fname( sfile );
     string::size_type loc = sfile.find( "$filename", 0 );
 
     if ( filename != NULL )
     {
-      if ( loc != string::npos ) 
+      if ( loc != string::npos )
 	fname.replace( loc, 9, filename );
 
-      out_file.open( fname.c_str( ) );
-      out_flag = true;
+      stats_out_file.open( fname.c_str( ) );
+      stats_out_flag = true;
     }
     else if ( loc == string::npos )
     {
-      out_file.open( fname.c_str( ) );
-      out_flag = true;
+      stats_out_file.open( fname.c_str( ) );
+      stats_out_flag = true;
     }
     else
     {
-      out_flag = false;
+      stats_out_flag = false;
+    }
+  }
+
+  string mfile( gconfig.model_file );
+
+  //
+  // Open statistics file if necessary
+  //
+  if ( mfile == "$stderr"
+    || ( filename != NULL && mfile == string("$filename") ) )
+  {
+    model_out_flag = false;
+  }
+  else
+  {
+    string fname( mfile );
+    string::size_type loc = mfile.find( "$filename", 0 );
+
+    if ( filename != NULL )
+    {
+      if ( loc != string::npos )
+	fname.replace( loc, 9, filename );
+
+      model_out_file.open( fname.c_str( ) );
+      model_out_flag = true;
+    }
+    else if ( loc == string::npos )
+    {
+      model_out_file.open( fname.c_str( ) );
+      model_out_flag = true;
+    }
+    else
+    {
+      model_out_flag = false;
     }
   }
 }
@@ -145,10 +187,13 @@ void SMTConfig::printConfig ( ostream & out )
   out << "#" << endl;
   out << "# GENERIC CONFIGURATION" << endl;
   out << "#" << endl;
-  out << "# Dump statistics to a file. Special values:" << endl
+  out << "# Dump statistics and model to a file. Special values:" << endl
       << "# $stderr       prints statistics on standard error" << endl
       << "# $filename     variable expanded to the input filename" << endl;
   out << "stats_file "             << gconfig.stats_file << endl;
+  out << "model_file "             << gconfig.model_file << endl;
+  out << "print_stats "            << gconfig.print_stats << endl;
+  out << "print_model "            << gconfig.print_model << endl;
   out << "#" << endl;
   out << "# SAT SOLVER CONFIGURATION" << endl;
   out << "#" << endl;
@@ -180,6 +225,12 @@ void SMTConfig::printConfig ( ostream & out )
   out << "uf_int_extract_concat " << ufconfig.int_extract_concat << endl;
   out << "uf_verbose "            << ufconfig.verbose << endl;
   out << "#" << endl;
+  out << "# WEAK-STRONG PARTIAL ORDER LOGIC SOLVER CONFIGURATION" << endl;
+  out << "#" << endl;
+  out << "o_disable "            << oconfig.disable << endl;
+  out << "o_theory_propagation " << oconfig.theory_propagation << endl;
+  out << "o_verbose "            << oconfig.verbose << endl;
+  out << "#" << endl;
   out << "# BITVECTOR SOLVER CONFIGURATION" << endl;
   out << "#" << endl;
   out << "bv_disable "            << bvconfig.disable << endl;
@@ -198,4 +249,6 @@ void SMTConfig::printConfig ( ostream & out )
   out << "lra_theory_propagation " << lraconfig.theory_propagation << endl;
   out << "lra_verbose "            << lraconfig.verbose << endl;
   out << "lra_poly_deduct_size "   << lraconfig.poly_deduct_size << endl;
+  out << "lra_gaussian_elim "      << lraconfig.gaussian_elim << endl;
+
 }

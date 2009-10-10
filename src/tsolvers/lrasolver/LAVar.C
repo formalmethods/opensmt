@@ -50,7 +50,6 @@ LAVar::LAVar( Enode * e_orig = NULL )
   StructBound pb2( &plusInfBound, e_null, true, false );
   allBounds.push_back( pb1 );
   allBounds.push_back( pb2 );
-
   uBound = 1;
   lBound = 0;
 
@@ -81,7 +80,6 @@ LAVar::LAVar( Enode * e_orig, Enode * e_bound, Enode * e_var, bool basic = false
   StructBound pb2( &plusInfBound, e_null, true, false );
   allBounds.push_back( pb1 );
   allBounds.push_back( pb2 );
-
   uBound = 1;
   lBound = 0;
 
@@ -107,13 +105,14 @@ LAVar::LAVar( Enode * e_orig, Enode * e_var, Real & v, bool revert )
   StructBound pb2( &plusInfBound, e_null, true, false );
   allBounds.push_back( pb1 );
   allBounds.push_back( pb2 );
-
-  uBound = allBounds.size( ) - 1;
+  uBound = 1;
   lBound = 0;
 
   e = e_var;
+
   // set original bounds from Enode
   setBounds( e_orig, v, revert );
+
 }
 
 LAVar::~LAVar( )
@@ -192,11 +191,56 @@ void LAVar::setBounds( Enode * e, Real & v, bool revert )
   assert( boundRev );
   assert( bound != boundRev );
 
+  // save currently active bounds
+  assert( allBounds.size()>1 && uBound < allBounds.size() && lBound < allBounds.size());
+  allBounds[uBound].active = true;
+  allBounds[lBound].active = true;
+
   StructBound pb1( bound, e, ( bound_type == Delta::UPPER ), false );
   StructBound pb2( boundRev, e, ( bound_type != Delta::UPPER ), true );
 
   allBounds.push_back( pb1 );
   allBounds.push_back( pb2 );
+
+  //TODO: Instead of sorting all bounds after insertion,
+  //      I should check if it fits on left(right) of current pointers and sort only there
+  sortBounds();
+
+  // restore lower bound
+  if( allBounds[lBound].active )
+  {
+    allBounds[lBound].active = false;
+  }
+  else
+  {
+    for( unsigned i = 0; i < allBounds.size( ); i++ )
+    {
+      if( !allBounds[i].boundType && allBounds[i].active )
+      {
+        lBound = i;
+        allBounds[i].active = false;
+        break;
+      }
+    }
+  }
+
+  // restore upper bound
+  if( allBounds[uBound].active )
+  {
+    allBounds[uBound].active = false;
+  }
+  else
+  {
+    for( int i = allBounds.size( ) - 1; i >= 0; i-- )
+    {
+      if( allBounds[i].boundType && allBounds[i].active )
+      {
+        uBound = i;
+        allBounds[uBound].active = false;
+        break;
+      }
+    }
+  }
 }
 
 void LAVar::getDeducedBounds( const Delta& c, bool upper, vector<Enode *>& dst, int solver_id )
@@ -240,6 +284,7 @@ void LAVar::getSimpleDeductions( vector<Enode *>& dst, bool upper, int solver_id
       {
         allBounds[it].e->setDeduced( ( allBounds[it].reverse ? l_False : l_True ), solver_id );
         dst.push_back( allBounds[it].e );
+//        cout  << "Deduced from lower " << allBounds[it].e << endl;
       }
     }
   }
@@ -252,6 +297,7 @@ void LAVar::getSimpleDeductions( vector<Enode *>& dst, bool upper, int solver_id
       {
         allBounds[it].e->setDeduced( ( allBounds[it].reverse ? l_False : l_True ), solver_id );
         dst.push_back( allBounds[it].e );
+//        cout  << "Deduced from upper as " << (allBounds[it].reverse ? "FALSE " : "TRUE ") << allBounds[it].e << endl;
       }
     }
   }
@@ -292,13 +338,11 @@ void LAVar::sortBounds( )
   uBound = allBounds.size( ) - 1;
   lBound = 0;
 
-  /*
-   cout << endl << this <<" | ";
-   unsigned it=0;
-   while(it<allBounds.size())
-   {
-   cout << *(allBounds[it].delta)<< (allBounds[it].boundType?"[U]":"[L]") << (allBounds[it].reverse?"rev":"") <<" ";
-   it++;
-   }
-  */
+}
+
+void LAVar::printBounds( )
+{
+  cerr << endl << this << " | ";
+  for( unsigned i = 0; i < allBounds.size( ); i++ )
+    cerr << *( allBounds[i].delta ) << ( allBounds[i].boundType ? "[U]" : "[L]" ) << ( allBounds[i].reverse ? "rev" : "" ) << " ";
 }

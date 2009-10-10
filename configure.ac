@@ -1,5 +1,5 @@
 AC_PREREQ(2.59)
-AC_INIT([OpenSMT], [0.2], [roberto.bruttomesso@gmail.com])
+AC_INIT([OpenSMT], [20091010], [roberto.bruttomesso@gmail.com])
 AC_CONFIG_AUX_DIR(autotools)
 AM_INIT_AUTOMAKE
 
@@ -173,7 +173,8 @@ config_includedirs="-I\${top_srcdir}/src \\\
 -I\${top_srcdir}/src/tsolvers/bvsolver \\\
 -I\${top_srcdir}/src/tsolvers/bvsolver/minisatp \\\
 -I\${top_srcdir}/src/tsolvers/lrasolver \\\
--I\${top_srcdir}/src/tsolvers/dlsolver"
+-I\${top_srcdir}/src/tsolvers/dlsolver \\\
+-I\${top_srcdir}/src/tsolvers/osolver"
 
 AC_SUBST(config_includedirs)
 
@@ -190,9 +191,11 @@ AC_CONFIG_FILES([ \
 		  src/tsolvers/Makefile \
 		  src/tsolvers/emptysolver/Makefile \
 		  src/tsolvers/bvsolver/Makefile \
-		  src/tsolvers/lrasolver/Makefile \
 		  src/tsolvers/bvsolver/minisatp/Makefile \
+		  src/tsolvers/lrasolver/Makefile \
 		  src/tsolvers/dlsolver/Makefile \
+		  src/tsolvers/osolver/Makefile \
 		  src/otl/Makefile \
+		  src/api/Makefile \
 		  ])
 AC_OUTPUT

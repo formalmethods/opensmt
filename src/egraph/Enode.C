@@ -117,7 +117,10 @@ Enode::Enode( const enodeid_t id_
     // Set Dtype
     //
     if ( isIte( ) )
-      setDtype( get2nd( )->getDType( ) );
+    {
+      assert( (get2nd( )->getDType( ) & get3rd( )->getDType( )) != 0 );
+      setDtype( get2nd( )->getDType( ) | get3rd( )->getDType( ) );
+    }
     else
       setDtype( car->getDType( ) );
     //

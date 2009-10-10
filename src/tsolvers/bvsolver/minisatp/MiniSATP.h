@@ -97,13 +97,13 @@ public:
 //=================================================================================================
 // Added Code
 
-    // bool bcp                ( );
-
     void pushBacktrackPoint ( );
     void popBacktrackPoint  ( );
 
     inline void restoreOK   ( )       { ok = true; }
     inline bool isOK        ( ) const { return ok; }
+
+    inline lbool getValue   ( Var v ) const { return model[ v ]; }
 
 // Added Code
 //=================================================================================================

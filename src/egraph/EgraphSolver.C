@@ -18,9 +18,11 @@ along with OpenSMT. If not, see <http://www.gnu.org/licenses/>.
 *********************************************************************/
 
 #include "Egraph.h"
+#include "LA.h"
 #include "EmptySolver.h"
 #include "BVSolver.h"
 #include "LRASolver.h"
+#include "OSolver.h"
 #include "DLSolver.h"
 // TODO: check this - added to support compiling templates
 #include "DLSolver.C"
@@ -266,7 +268,7 @@ bool Egraph::assertLit_ ( Enode * e )
   return res;
 }
 
-bool Egraph::assertLit ( Enode * e, bool reason )
+bool Egraph::assertLit( Enode * e, bool reason )
 {
   suggestions.clear( );
 
@@ -519,6 +521,11 @@ vector< Enode * > & Egraph::getConflict( bool deduction )
 
 void Egraph::initializeTheorySolvers( )
 {
+  // Enable undoable cons - New terms are
+  // always created w.r.t. the current 
+  // status of the congruence closure
+  enable_undo = config.incremental;
+
   assert( !theoryInitialized );
   theoryInitialized = true;
 
@@ -550,43 +557,44 @@ void Egraph::initializeTheorySolvers( )
 #endif
     }
   }
-  else if ( config.logic == QF_RDL || config.logic == QF_IDL )
+  else if ( config.logic == QF_O )
   {
-    if ( !config.dlconfig.disable )
+    if ( !config.oconfig.disable )
     {
-      if ( getUseGmp( ) )
-      {
-        tsolvers    .push_back( new DLSolver<Real>( tsolvers.size( ), "DL Solver", config, *this, explanation, deductions, suggestions ) );
-      }
-      else
-      {
-        tsolvers    .push_back( new DLSolver<long>( tsolvers.size( ), "DL Solver", config, *this, explanation, deductions, suggestions ) );
-      }
+      tsolvers.push_back( new OSolver( tsolvers.size( ), "O Solver", config, *this, explanation, deductions, suggestions ) );
 #ifdef STATISTICS
       tsolvers_stats.push_back( new TSolverStats( ) );
 #endif
     }
   }
-  else if ( config.logic == QF_LRA )
+  else if ( config.logic == QF_RDL 
+         || config.logic == QF_IDL 
+	 || config.logic == QF_UFIDL )
   {
-    /*
-    if ( !config.dlconfig.disable )
+#if 0
+    if ( !config.oconfig.disable )
     {
-      if ( true == getUseGmp( ) )
-      {
-        tsolvers      .push_back( new DLSolver<Real>( tsolvers.size( ), "DL Solver", config, *this, explanation, deductions, suggestions ) );
-      }
-      else
-      {
-        tsolvers      .push_back( new DLSolver<long>( tsolvers.size( ), "DL Solver", config, *this, explanation, deductions, suggestions ) ); 
-      }
-
+      tsolvers.push_back( new OSolver( tsolvers.size( ), "O Solver", config, *this, explanation, deductions, suggestions ) );
 #ifdef STATISTICS
       tsolvers_stats.push_back( new TSolverStats( ) );
 #endif
     }
-    */
-
+#else
+    if ( !config.dlconfig.disable )
+    {
+      if ( getUseGmp( ) )
+        tsolvers    .push_back( new DLSolver<Real>( tsolvers.size( ), "DL Solver", config, *this, explanation, deductions, suggestions ) );
+      else
+        tsolvers    .push_back( new DLSolver<long>( tsolvers.size( ), "DL Solver", config, *this, explanation, deductions, suggestions ) );
+#ifdef STATISTICS
+      tsolvers_stats.push_back( new TSolverStats( ) );
+#endif
+    }
+#endif
+  }
+  else if ( config.logic == QF_LRA
+         || config.logic == QF_UFLRA )
+  {
     if ( !config.lraconfig.disable )
     {
       tsolvers      .push_back( new LRASolver( tsolvers.size( ), "LRA Solver", config, *this, explanation, deductions, suggestions ) );

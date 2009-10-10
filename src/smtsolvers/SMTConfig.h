@@ -33,7 +33,9 @@ class TSolver;
 struct GConfig
 {
   char   stats_file[80];
-  int    verbose;
+  char   model_file[80];
+  int    print_stats;
+  int    print_model;
 };
 //
 // SAT Solver configurations
@@ -67,6 +69,7 @@ struct TConfig
   int int_extract_concat;  // Enable interpretation for extraction/concatenation
   int poly_deduct_size;    // Used to define the size of polynomial to be used for deduction; 0 - no deduction for polynomials
   int trade_off;           // Trade-off value for DL preprocessing
+  int gaussian_elim;       // Used to switch on/off Gaussian elimination in LRA
 };
 //
 // Holds informations about the configuration of the solver
@@ -74,14 +77,18 @@ struct TConfig
 struct SMTConfig
 {
   SMTConfig  ( const char * filename_ )
-    : filename   ( filename_ )
-    , logic      ( UNDEF )
-    , status     ( l_Undef )
-    , out_flag   ( false )
+    : filename       ( filename_ )
+    , logic          ( UNDEF )
+    , status         ( l_Undef )
+    , incremental    ( false )
+    , stats_out_flag ( false )
+    , model_out_flag ( false )
   {
     // Set Default configuration
-    strcpy( gconfig.stats_file, "$filename.stats" );
-    gconfig.verbose               = 1;
+    strcpy( gconfig.stats_file, "stats.out" );
+    strcpy( gconfig.model_file, "model.out" );
+    gconfig.print_stats           = 0;
+    gconfig.print_model           = 0;
     satconfig.theory_propagation  = 1;
     satconfig.verbose             = 1;
     satconfig.initial_skip_step   = 1;
@@ -107,10 +114,14 @@ struct SMTConfig
     dlconfig.disable              = 0;
     dlconfig.theory_propagation   = 1;
     dlconfig.verbose              = 0;
+    oconfig.disable               = 0;
+    oconfig.theory_propagation    = 1;
+    oconfig.verbose               = 0;
     lraconfig.disable             = 0;
     lraconfig.theory_propagation  = 1;
     lraconfig.verbose             = 0;
     lraconfig.poly_deduct_size    = 0;
+    lraconfig.gaussian_elim       = 0;
 #ifndef SMTCOMP
     parseConfig( ".opensmtrc" );
 #endif
@@ -121,22 +132,27 @@ struct SMTConfig
   const char *  filename;
   logic_t       logic;
   lbool	        status;
+  bool          incremental;
   GConfig       gconfig;
   SConfig       satconfig;
   TConfig       ufconfig;
+  TConfig       oconfig;
   TConfig       bvconfig;
   TConfig       dlconfig;
   TConfig       lraconfig;
 
-  inline ostream & getOstream( ) { return out_flag ? out_file : cerr; }
+  inline ostream & getStatsStream( ) { return stats_out_flag ? stats_out_file : cerr; }
+  inline ostream & getModelStream( ) { return model_out_flag ? model_out_file : cerr; }
 
 private:
 
   void parseConfig ( const char * );
   void printConfig ( ostream & out );
 
-  bool           out_flag;
-  ofstream       out_file;
+  bool           stats_out_flag;
+  ofstream       stats_out_file;
+  bool           model_out_flag;
+  ofstream       model_out_file;
 };
 
 #endif

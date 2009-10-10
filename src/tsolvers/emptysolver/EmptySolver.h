@@ -26,18 +26,15 @@ class EmptySolver : public OrdinaryTSolver
 {
 public:
 
-  EmptySolver( const int           i
-             , const char *        n
-	     , SMTConfig &         c
-	     , Egraph &            e
-	     , vector< Enode * > & x
-	     , vector< Enode * > & d
-             , vector< Enode * > & s )
-    : OrdinaryTSolver ( i, n, c, e, x, d, s )
-  { }
+  EmptySolver( const int           
+             , const char *        
+	     , SMTConfig &         
+	     , Egraph &            
+	     , vector< Enode * > & 
+	     , vector< Enode * > & 
+             , vector< Enode * > & );
 
-  ~EmptySolver ( ) 
-  { }
+  ~EmptySolver ( );
 
   lbool               inform              ( Enode * );
   bool                assertLit           ( Enode *, bool = false );
@@ -45,6 +42,7 @@ public:
   void                popBacktrackPoint   ( );
   bool                check               ( bool );
   bool                belongsToT          ( Enode * );
+  void                computeModel        ( );
 };
 
 #endif
