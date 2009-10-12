@@ -173,7 +173,7 @@ public:
   //
   inline enodeid_t            getId     ( ) const { return id; }
   inline unsigned             getArity  ( ) const { return ((properties & ARITY_MASK) >> ARITY_SHIFT); }
-  inline unsigned             getDType  ( ) const { return (properties & DTYPE_MASK) | (properties & WIDTH_MASK); }
+  inline unsigned             getDType  ( ) const { return (properties & DTYPE_MASK) /*| (properties & WIDTH_MASK)*/; }
   inline vector< unsigned > & getSort   ( )       { assert( isSymb( ) ); assert( symb_data ); return symb_data->args_sorts; }
   inline char *  getName                ( ) const { assert( isSymb( ) || isNumb( ) ); assert( symb_data ); return symb_data->name; }
   inline Enode * getCar                 ( ) const { return car; }

@@ -2393,7 +2393,7 @@ void Egraph::printModel( ostream & os )
 	os << "?";
       os << ")";
     }
-    else if ( v->getDType( ) & DTYPE_BITVEC )
+    else if ( v->getDType( ) == DTYPE_BITVEC )
     {
       os << "(= " << v << " ";
       if ( v->hasValue( ) ) 
@@ -2406,7 +2406,7 @@ void Egraph::printModel( ostream & os )
     }
     else if ( config.logic == QF_UF )
     {
-      os << "(= " << v << v->getRoot( ) << ")";
+      os << "(= " << v << " " << v->getRoot( ) << ")";
     }
     else
     {
