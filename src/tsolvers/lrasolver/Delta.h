@@ -28,58 +28,37 @@
 //
 class Delta
 {
-
 private:
-  Real * r; // main value
-  Real * d; // delta to keep track of < / <= difference
-  bool infinite; // infinite bit
-  bool positive; // +/- infinity bit
+  Real * r;     // main value
+  Real * d;     // delta to keep track of < / <= difference
+  bool infinite;// infinite bit
+  bool positive;// +/- infinity bit
 
-  bool shared; // true if r and d are shared
-
-  bool isLess( const Real &c ) const; //basic function to use in comparison with Real operator
-  bool isGreater( const Real &c ) const; //basic function to use in comparison with Real operator
-
-  inline Real& R( ) const; // main value
-  inline Real& D( ) const; // delta to keep track of < / <= difference
+  inline bool isLess( const Real &c ) const;    //basic function to use in comparison with Real operator
+  inline bool isGreater( const Real &c ) const; //basic function to use in comparison with Real operator
 
 public:
 
+  // possible types of initial Delta values;
   typedef enum
   {
     UPPER, LOWER, ZERO
   } deltaType;
 
-  Delta( deltaType p ); // Default constructor (true for +inf; false for -inf)
-  Delta( const Real &v ); // Constructor for Real delta
-  Delta( const Real &v, const Real &d ); // Constructor for Real delta with strict part
-  Delta( const Delta &a );
+  inline Delta( deltaType p );                  // Default constructor (true for +inf; false for -inf)
+  inline Delta( const Real &v );                // Constructor for Real delta
+  inline Delta( const Real &v, const Real &d ); // Constructor for Real delta with strict part
+  inline Delta( const Delta &a );               // Copy constructor
+  inline ~Delta( );                             // Destructor
 
-  ~Delta( );
+  inline Real& R( ) const;                      // main value
+  inline Real& D( ) const;                      // delta to keep track of < / <= difference
+  inline bool hasDelta( ) const;                // TRUE is delta != 0
+  inline bool isMinusInf( ) const;              // True if -inf
+  inline bool isPlusInf( ) const;               // True if +inf
+  inline bool isInf( ) const;                   // True if inf (any)
 
-  inline bool hasDelta( ) const; //
-  inline bool isMinusInf( ) const; // True if -inf
-  inline bool isPlusInf( ) const; // True if +inf
-  inline bool isInf( ) const; // True if inf (any)
-
-  void print( ostream & out ) const; // prints the Delta
-
-  inline friend ostream & operator<<( ostream & out, const Delta & b )
-  {
-    b.print( out );
-    return out;
-  }
-
-  inline friend Delta Not( const Delta & a, bool lower )
-  {
-    if( a.isPlusInf( ) || a.isMinusInf( ) )
-      return Delta( !lower );
-    else
-      return Delta( a.R( ), ( a.D( ) != 0 ) ? 0 : ( lower ? 1 : -1 ) );
-  }
-
-  //Assign operator
-  Delta& operator=( const Delta &a );
+  inline Delta& operator=( const Delta &a );    //Assign operator
 
   // Comparisons overloading
   inline friend bool operator<( const Delta &a, const Delta &b );
@@ -107,22 +86,28 @@ public:
   inline friend Delta operator*( const Real &c, const Delta &a );
   inline friend Delta operator*( const Delta &a, const Real &c );
   inline friend Delta operator/( const Delta &a, const Real &c );
-};
 
-//
-// gcc want to keep this definitions in *.h file
-//
+  void print( ostream & out ) const;            // print the Delta
+  inline friend ostream & operator<<( ostream & out, const Delta & b )
+  {
+    b.print( out );
+    return out;
+  }
+
+};
 
 // main value
 inline Real& Delta::R( ) const
 {
+  assert(!infinite);
   assert( r );
   return *r;
 }
 
-// delta to keep track of < / <= difference
+// delta value (to keep track of < / <= difference)
 inline Real& Delta::D( ) const
 {
+  assert(!infinite);
   assert( d );
   return *d;
 }
@@ -150,38 +135,24 @@ bool Delta::isInf( ) const
 // Arithmetic operators definitions.
 Delta operator+=( Delta &a, const Delta &b )
 {
+  assert( !a.isInf( ) );
+  assert( !b.isInf( ) );
   if( !( a.isInf( ) || b.isInf( ) ) )
   {
-    if( a.shared )
-    {
-      a.r = new Real( a.R( ) + b.R( ) );
-      a.d = new Real( a.D( ) + b.D( ) );
-      a.shared = false;
-    }
-    else
-    {
-      a.R( ) += b.R( );
-      a.D( ) += b.D( );
-    }
+    *( a.r ) += b.R( );
+    *( a.d ) += b.D( );
   }
   return a;
 }
 
 Delta operator-=( Delta &a, const Delta &b )
 {
+  assert( !a.isInf( ) );
+  assert( !b.isInf( ) );
   if( !( a.isInf( ) || b.isInf( ) ) )
   {
-    if( a.shared )
-    {
-      a.r = new Real( a.R( ) - b.R( ) );
-      a.d = new Real( a.D( ) - b.D( ) );
-      a.shared = false;
-    }
-    else
-    {
-      a.R( ) -= b.R( );
-      a.D( ) -= b.D( );
-    }
+    *( a.r ) -= b.R( );
+    *( a.d ) -= b.D( );
   }
   return a;
 }
@@ -261,8 +232,8 @@ bool operator>=( const Delta &a, const Delta &b )
 
 bool operator==( const Delta &a, const Delta &b )
 {
-  if( (a.isInf( ) ^ b.isInf( )) 
-   || (a.isPlusInf( ) && b.isMinusInf( )) 
+  if( (a.isInf( ) ^ b.isInf( ))
+   || (a.isPlusInf( ) && b.isMinusInf( ))
    || (b.isPlusInf( ) && a.isMinusInf( )) )
     return false;
   else if( a.isPlusInf( ) && b.isPlusInf( ) )
@@ -318,6 +289,136 @@ bool operator>( const Real &c, const Delta &a )
 bool operator>=( const Real &c, const Delta &a )
 {
   return a <= c;
+}
+
+//
+// basic function to use in comparison with Real
+//
+bool Delta::isLess( const Real &c ) const
+{
+  if( isPlusInf( ) )
+    return false;
+  else if( isMinusInf( ) )
+    return true;
+  else if( R( ) < c )
+    return true;
+  else if( R( ) == c && D( ) < 0 )
+    return true;
+  else
+    return false;
+}
+
+//
+// basic function to use in comparison with Real
+//
+bool Delta::isGreater( const Real &c ) const
+{
+  if( isMinusInf( ) )
+    return false;
+  else if( isPlusInf( ) )
+    return true;
+  else if( R( ) > c )
+    return true;
+  else if( R( ) == c && D( ) > 0 )
+    return true;
+  else
+    return false;
+}
+
+//
+// Default constructor (true for +inf; false for -inf)
+//
+Delta::Delta( deltaType p = UPPER )
+{
+  infinite = ( p != ZERO );
+  positive = ( p == UPPER );
+  if( !infinite )
+  {
+    r = new Real( 0 );
+    d = new Real( 0 );
+  }
+  else
+  {
+    r = NULL;
+    d = NULL;
+  }
+}
+
+//
+// Constructor for Real delta
+//
+Delta::Delta( const Real &v )
+{
+  infinite = false;
+  positive = false;
+  r = new Real( v );
+  d = new Real( 0 );
+}
+
+//
+// Constructor for Real delta with strict bit
+//
+Delta::Delta( const Real &v_r, const Real &v_d )
+{
+  infinite = false;
+  positive = false;
+  r = new Real( v_r );
+  d = new Real( v_d );
+}
+
+//
+// Copy constructor
+//
+Delta::Delta( const Delta &a )
+{
+  infinite = a.infinite;
+  positive = a.positive;
+  if( !infinite )
+  {
+    r = new Real( a.R( ) );
+    d = new Real( a.D( ) );
+  }
+  else
+  {
+    r = NULL;
+    d = NULL;
+  }
+}
+
+// Assign operator
+Delta& Delta::operator=( const Delta &a )
+{
+  if( this != &a )
+  {
+    if( !( infinite ) )
+    {
+      delete ( r );
+      delete ( d );
+    }
+    infinite = a.infinite;
+    positive = a.positive;
+    if( !infinite )
+    {
+      r = new Real( a.R( ) );
+      d = new Real( a.D( ) );
+    }
+    else
+    {
+      r = NULL;
+      d = NULL;
+    }
+  }
+  return *this;
+}
+
+// Destructor
+Delta::~Delta( )
+{
+  if( !( infinite ) )
+  {
+    delete ( r );
+    delete ( d );
+  }
 }
 
 #endif /*DELTA_H_*/

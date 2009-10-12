@@ -232,7 +232,7 @@ lbool LRASolver::inform( Enode * e )
   }
   else
   {
-    cerr << "Unexpected atom: " << e << endl;
+    error("Unexpected atom: ", e);
   }
 #if VERBOSE
   cout << "Informed of constraint " << e << endl;
@@ -348,7 +348,6 @@ bool LRASolver::check( bool complete )
 //
 bool LRASolver::assertLit( Enode * e, bool reason )
 {
-  //  cout << "### assertLit ###" <<endl;
   ( void )reason;
   // check if we stop reading constraints
   if( status == INIT )
@@ -359,9 +358,9 @@ bool LRASolver::assertLit( Enode * e, bool reason )
   //  cout << "Pushing (" << ( e->getPolarity( ) == l_True ) << ") (" << ( e->getDeduced( ) == l_True ) << ")  [" << e->getDedIndex( ) << "/" << id << "] " << e
   //      << " - " << enode_lavar[e->getId( )] << endl;
 
-
   bool is_reason = false;
 
+  // skip if it was deduced by the solver itself with the same polarity
   if( e->isDeduced( ) && e->getDeduced( ) == e->getPolarity( ) && e->getDedIndex( ) == id )
     return getStatus( );
   else if( e->isDeduced( ) && e->getDedIndex( ) == id )
@@ -377,20 +376,20 @@ bool LRASolver::assertLit( Enode * e, bool reason )
 
     assert( !it->isUnbounded( ) );
     unsigned it_I = it->getIteratorByEnode( e, e->getPolarity( ) == l_False );
-    LAVar::StructBound &itBound = it->allBounds[it_I];
+    LAVar::LAVarBound &itBound = it->all_bounds[it_I];
 
     // Check is simple SAT can be given
-    if( ( itBound.boundType && it_I >= it->uBound ) || ( !itBound.boundType && it_I <= it->lBound ) )
+    if( ( itBound.bound_type && it_I >= it->u_bound ) || ( !itBound.bound_type && it_I <= it->l_bound ) )
       return getStatus( );
 
     // Check if simple UNSAT can be given
-    if( ( !itBound.boundType && ( it_I > it->uBound ) ) || ( itBound.boundType && ( it_I < it->lBound ) ) )
+    if( ( !itBound.bound_type && ( it_I > it->u_bound ) ) || ( itBound.bound_type && ( it_I < it->l_bound ) ) )
     {
       explanation.clear( );
-      if( itBound.boundType )
-        explanation.push_back( it->allBounds[it->lBound].e );
+      if( itBound.bound_type )
+        explanation.push_back( it->all_bounds[it->l_bound].e );
       else
-        explanation.push_back( it->allBounds[it->uBound].e );
+        explanation.push_back( it->all_bounds[it->u_bound].e );
 
       explanation.push_back( e );
       return setStatus( UNSAT );
@@ -402,11 +401,11 @@ bool LRASolver::assertLit( Enode * e, bool reason )
     hist.v = it;
 
     // Update the Tableau data if needed
-    if( itBound.boundType )
+    if( itBound.bound_type )
     {
-      hist.bound = it->uBound;
-      hist.boundType = true;
-      it->uBound = it_I;
+      hist.bound = it->u_bound;
+      hist.bound_type = true;
+      it->u_bound = it_I;
 
       if( it->isNonbasic( ) && *( itBound.delta ) < it->M( ) )
       {
@@ -415,9 +414,9 @@ bool LRASolver::assertLit( Enode * e, bool reason )
     }
     else
     {
-      hist.bound = it->lBound;
-      hist.boundType = false;
-      it->lBound = it_I;
+      hist.bound = it->l_bound;
+      hist.bound_type = false;
+      it->l_bound = it_I;
 
       if( it->isNonbasic( ) && *( itBound.delta ) > it->M( ) )
       {
@@ -425,6 +424,8 @@ bool LRASolver::assertLit( Enode * e, bool reason )
       }
     }
 
+    // TODO: Clear out the problem with backtracking and model
+    // force solver to do check on every assert to guarantee the consistency of the internal values
     bool res = check( true );
 
     // Check simple deductions;
@@ -432,7 +433,7 @@ bool LRASolver::assertLit( Enode * e, bool reason )
     {
       //TODO: Clear out the situation with deductions from the other solvers
       //      assert( !e->isDeduced( ) );
-      it->getSimpleDeductions( deductions, id, itBound.boundType );
+      it->getSimpleDeductions( deductions, id, itBound.bound_type );
     }
     //    assert(status == SAT);
     //    LAVar::saveModelGlobal( );
@@ -452,7 +453,6 @@ bool LRASolver::assertLit( Enode * e, bool reason )
 //
 void LRASolver::pushBacktrackPoint( )
 {
-  //  cout << "push" <<endl;
   // Create and push new history step
   LAVarHistory hist;
   hist.e = NULL;
@@ -464,17 +464,15 @@ void LRASolver::pushBacktrackPoint( )
 //
 void LRASolver::popBacktrackPoint( )
 {
-  //  cout << "pop" <<endl;
-
   // undo with history
   LAVarHistory &hist = pushed_constraints.back( );
 
   if( hist.e != NULL )
   {
-    if( hist.boundType )
-      hist.v->uBound = hist.bound;
+    if( hist.bound_type )
+      hist.v->u_bound = hist.bound;
     else
-      hist.v->lBound = hist.bound;
+      hist.v->l_bound = hist.bound;
   }
 
   pushed_constraints.pop_back( );
@@ -490,13 +488,13 @@ void LRASolver::doGaussianElimination( )
   int m;
 
   for( unsigned i = 0; i < columns.size( ); i++ )
-    if( !columns[i]->skip && columns[i]->isNonbasic( ) && columns[i]->isUnbounded( ) && columns[i]->bindedRows.size( ) > 0 )
+    if( !columns[i]->skip && columns[i]->isNonbasic( ) && columns[i]->isUnbounded( ) && columns[i]->binded_rows.size( ) > 0 )
     {
       LAVar * x = columns[i];
 
-      LARow::const_iterator it = x->bindedRows.begin( );
+      LARow::const_iterator it = x->binded_rows.begin( );
 
-      assert( it != x->bindedRows.end( ) );
+      assert( it != x->binded_rows.end( ) );
 
       int basisRow = it->first;
       LAVar * basis = rows[basisRow];
@@ -506,9 +504,9 @@ void LRASolver::doGaussianElimination( )
 
       it++;
 
-      //      assert( it != x->bindedRows.end( ) );
+      //      assert( it != x->binded_rows.end( ) );
 
-      for( ; it != x->bindedRows.end( ); it++ )
+      for( ; it != x->binded_rows.end( ); it++ )
       {
         ratio = Real( ( *( it->second ) ) / a );
         for( LARow::const_iterator it2 = basis->polynomial.begin( ); it2 != basis->polynomial.end( ); it2++ )
@@ -565,9 +563,8 @@ void LRASolver::doGaussianElimination( )
       basis->polynomial.clear( );
 
       //TODO:: check this!
-      // assert( !basis->bindedRows.empty( ) );
-      // basis->bindedRows.clear();
-
+      // assert( !basis->binded_rows.empty( ) );
+      // basis->binded_rows.clear();
 
       // Replace basisRow slot with the last row in rows vector
       m = rows.size( ) - 1;
@@ -590,7 +587,7 @@ void LRASolver::doGaussianElimination( )
 
       //TODO: delete empty columns as well
       // Clear removed column
-      x->bindedRows.clear( );
+      x->binded_rows.clear( );
       x->skip = true;
     }
 }
@@ -602,7 +599,7 @@ void LRASolver::update( LAVar * x, const Delta & v )
 {
   // update model value for all basic terms
   Delta v_minusM = v - x->M( );
-  for( LARow::const_iterator it = x->bindedRows.begin( ); it != x->bindedRows.end( ); it++ )
+  for( LARow::const_iterator it = x->binded_rows.begin( ); it != x->binded_rows.end( ); it++ )
   {
     rows[it->first]->incM( *( it->second ) * v_minusM );
 
@@ -638,7 +635,7 @@ void LRASolver::pivotAndUpdate( LAVar * x, LAVar * y, const Delta & v )
   y->incM( tetha );
 
   // update model of Basic variables
-  for( LARow::const_iterator it = y->bindedRows.begin( ); it != y->bindedRows.end( ); it++ )
+  for( LARow::const_iterator it = y->binded_rows.begin( ); it != y->binded_rows.end( ); it++ )
   {
     if( rows[it->first] != x )
     {
@@ -663,7 +660,7 @@ void LRASolver::pivotAndUpdate( LAVar * x, LAVar * y, const Delta & v )
   assert( !( *( x->polynomial.find( y->ID( ) )->second ) != -1 ) );
 
   // now change the attribute values for all rows where y was presented
-  for( LARow::const_iterator it = y->bindedRows.begin( ); it != y->bindedRows.end( ); it++ )
+  for( LARow::const_iterator it = y->binded_rows.begin( ); it != y->binded_rows.end( ); it++ )
   {
     // check that the modified row is not x (it was changed already)
     if( rows[it->first] != x )
@@ -727,7 +724,7 @@ void LRASolver::pivotAndUpdate( LAVar * x, LAVar * y, const Delta & v )
             numbers_pool.push_back( a_it->second );
 
             if( a_it->first != y->ID( ) )
-              columns[a_it->first]->bindedRows.erase( it->first );
+              columns[a_it->first]->binded_rows.erase( it->first );
             rows[it->first]->polynomial.erase( a_it );
           }
         }
@@ -746,16 +743,9 @@ void LRASolver::pivotAndUpdate( LAVar * x, LAVar * y, const Delta & v )
   y->setBasic( x->basicID( ) );
   x->setNonbasic( );
   rows[y->basicID( )] = y;
-
   swap( y->polynomial, x->polynomial );
-  //  y->polynomial.swap( x->polynomial );
-  //  y->polynomial.is_there.swap( x->polynomial.is_there );
-  //  //TODO: can I move size exchange into swap?
-  //  y->polynomial.setsize( x->polynomial.size( ) );
-  //  x->polynomial.setsize( 0 );
-
   x->bindRow( y->basicID( ), y->polynomial.find( x->ID( ) )->second );
-  y->bindedRows.clear( );
+  y->binded_rows.clear( );
 
   if( static_cast<int> ( y->polynomial.size( ) ) <= config.lraconfig.poly_deduct_size )
     touched_rows.insert( y );
@@ -763,7 +753,7 @@ void LRASolver::pivotAndUpdate( LAVar * x, LAVar * y, const Delta & v )
 
   assert( x->polynomial.size( ) == 0 );
   assert( y->polynomial.size( ) > 0 );
-  assert( x->bindedRows.size( ) > 0 );
+  assert( x->binded_rows.size( ) > 0 );
 }
 
 //
@@ -777,10 +767,10 @@ void LRASolver::initSolver( )
     if( config.lraconfig.gaussian_elim == 1 )
       doGaussianElimination( );
 
-    // sort the bounds inserted during inform stage
-    //    for( unsigned it = 0; it < columns.size( ); it++ )
-    //      if( !( columns[it]->skip ) )
-    //        columns[it]->printBounds( );
+//     sort the bounds inserted during inform stage
+//        for( unsigned it = 0; it < columns.size( ); it++ )
+//          if( !( columns[it]->skip ) )
+//            columns[it]->printBounds( );
 
     status = SAT;
   }
@@ -816,7 +806,7 @@ inline bool LRASolver::getStatus( )
 //
 // Sets the new solver status and returns the correspondent lbool value
 //
-inline bool LRASolver::setStatus( LRAsolverStatus s )
+inline bool LRASolver::setStatus( LRASolverStatus s )
 {
   status = s;
   return getStatus( );
@@ -841,17 +831,17 @@ void LRASolver::getConflictingBounds( LAVar * x, vector<Enode *> & dst )
       assert( ( *a ) != 0 );
       if( x == y )
       {
-        dst.push_back( y->allBounds[y->lBound].e );
+        dst.push_back( y->all_bounds[y->l_bound].e );
       }
       else if( ( *a ) < 0 )
       {
         assert( !y->L( ).isInf( ) );
-        dst.push_back( y->allBounds[y->lBound].e );
+        dst.push_back( y->all_bounds[y->l_bound].e );
       }
       else
       {
         assert( !y->U( ).isInf( ) );
-        dst.push_back( y->allBounds[y->uBound].e );
+        dst.push_back( y->all_bounds[y->u_bound].e );
       }
     }
   }
@@ -867,17 +857,17 @@ void LRASolver::getConflictingBounds( LAVar * x, vector<Enode *> & dst )
       assert( ( *a ) != 0 );
       if( x == y )
       {
-        dst.push_back( y->allBounds[y->uBound].e );
+        dst.push_back( y->all_bounds[y->u_bound].e );
       }
       else if( ( *a ) > 0 )
       {
         assert( !y->L( ).isInf( ) );
-        dst.push_back( y->allBounds[y->lBound].e );
+        dst.push_back( y->all_bounds[y->l_bound].e );
       }
       else
       {
         assert( !y->U( ).isInf( ) );
-        dst.push_back( y->allBounds[y->uBound].e );
+        dst.push_back( y->all_bounds[y->u_bound].e );
       }
     }
   }
@@ -1051,7 +1041,7 @@ void LRASolver::print( ostream & out )
 
   // print bounds array size
   for( VectorLAVar::iterator it = columns.begin( ); it != columns.end( ); ++it )
-    out << ( *it )->allBounds.size( ) << "\t";
+    out << ( *it )->all_bounds.size( ) << "\t";
   out << endl;
 
   // print the upper bounds
@@ -1112,7 +1102,104 @@ bool LRASolver::belongsToT( Enode * )
   return true;
 }
 
+//
+// Detect the appropriate value for symbolic delta and dumps the model into Egraph
+//
 void LRASolver::computeModel( )
 {
-  
+  assert( status == SAT );
+
+  Real minDelta( 0 );
+  Real maxDelta( 0 );
+  Real curDelta( 0 );
+  Delta curBound( Delta::ZERO );
+  LAVar * col;
+
+  //
+  // For all columns check the min/max value for delta
+  // Note, it should be always that min > 0 and max < 0
+  //
+  for( unsigned i = 0; i < columns.size( ); i++ )
+  {
+    if( columns[i]->skip )
+      continue;
+
+    col = columns[i];
+    curDelta = 0;
+    curBound = Delta( Delta::ZERO );
+
+    // Check if the lower bound can be used and at least one of delta and real parts are not 0
+    if( !col->L( ).isInf( ) && ( col->L( ).D( ) != 0 || col->M( ).D( ) != 0 ) && ( col->L( ).R( ) != 0 || col->M( ).R( ) != 0 ) )
+    {
+      curBound = col->L( ) - col->M( );
+
+      // if denominator is >0 than use delta for min
+      if( curBound.D( ) > 0 )
+      {
+        curDelta = -( curBound.R( ) / curBound.D( ) );
+        if( curDelta != 0 && ( minDelta == 0 || minDelta > curDelta ) )
+          minDelta = curDelta;
+      }
+      // if denominator is <0 than use delta for max
+      else if( curBound.D( ) < 0 )
+      {
+        curDelta = -( curBound.R( ) / curBound.D( ) );
+        if( curDelta != 0 && ( maxDelta == 0 || maxDelta < curDelta ) )
+          maxDelta = curDelta;
+      }
+    }
+    // Check if the upper bound can be used and at least one of delta and real parts are not 0
+    if( !col->U( ).isInf( ) && ( col->U( ).D( ) != 0 || col->M( ).D( ) != 0 ) && ( col->U( ).R( ) != 0 || col->M( ).R( ) != 0 ) )
+    {
+      curBound = col->M( ) - col->U( );
+
+      // if denominator is >0 than use delta for min
+      if( curBound.D( ) > 0 )
+      {
+        curDelta = -( curBound.R( ) / curBound.D( ) );
+        if( curDelta != 0 && ( minDelta == 0 || minDelta > curDelta ) )
+          minDelta = curDelta;
+      }
+      // if denominator is <0 than use delta for max
+      else if( curBound.D( ) < 0 )
+      {
+        curDelta = -( curBound.R( ) / curBound.D( ) );
+        if( curDelta != 0 && ( maxDelta == 0 || maxDelta < curDelta ) )
+          maxDelta = curDelta;
+      }
+    }
+  }
+
+  // TODO: check if it is it really true :)
+  assert( minDelta >= 0 );
+  assert( maxDelta <= 0 );
+  curDelta = ( minDelta ) / 2;
+  //  cout << "Delta: " << max << " < " << cur << " < " << min <<endl;
+
+  // Compute the value for each variable including deleted by Gaussian elimination
+  // Computed delta is taken into account
+  for( unsigned i = 0; i < columns.size( ); i++ )
+    columns[i]->computeModel( curDelta );
+}
+
+//
+// Destructor
+//
+LRASolver::~LRASolver( )
+{
+  // Remove slack variables
+  while( !slack_vars.empty( ) )
+  {
+    LAVar * s = slack_vars.back( );
+    slack_vars.pop_back( );
+    assert( s );
+    delete s;
+  }
+  // Remove numbers
+  while( !numbers_pool.empty( ) )
+  {
+    assert( numbers_pool.back( ) );
+    delete numbers_pool.back( );
+    numbers_pool.pop_back( );
+  }
 }
