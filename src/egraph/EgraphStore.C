@@ -1800,7 +1800,7 @@ Enode * Egraph::mkPlus( Enode * args )
   //
   // Simplify constants
   //
-  if ( x->isConstant( ) && y->isConstant( ) ) 
+  if ( x->isConstant( ) && y->isConstant( ) && args->getArity( ) == 2 ) 
   {
     const Real & xval = x->getCar( )->getValue( );
     const Real & yval = y->getCar( )->getValue( );
