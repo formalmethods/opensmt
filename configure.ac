@@ -1,5 +1,5 @@
 AC_PREREQ(2.59)
-AC_INIT([OpenSMT], [20091010], [roberto.bruttomesso@gmail.com])
+AC_INIT([OpenSMT], [20091012], [roberto.bruttomesso@gmail.com])
 AC_CONFIG_AUX_DIR(autotools)
 AM_INIT_AUTOMAKE
 
