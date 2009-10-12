@@ -30,52 +30,33 @@
 //
 class LRASolver: public OrdinaryTSolver
 {
+private:
 
+  // Structure to keep backtracking history elements
   struct LAVarHistory
   {
     Enode * e;
     LAVar * v;
     unsigned bound;
-    bool boundType;
+    bool bound_type;
   };
 
+  // Possible internal states of the solver
   typedef enum
   {
     INIT, INCREMENT, SAT, UNSAT, ERROR
-  } LRAsolverStatus;
+  } LRASolverStatus;
 
-  typedef map<int, LAVar *> MapEnodeIDToLAVar;
   typedef vector<LAVar *> VectorLAVar;
 
 public:
 
-  // constructor as you may guess
-
   LRASolver( const int i, const char * n, SMTConfig & c, Egraph & e, vector<Enode *> & x, vector<Enode *> & d, vector<Enode *> & s ) :
-    OrdinaryTSolver( i, n, c, e, x, d, s )
+    OrdinaryTSolver( i, n, c, e, x, d, s )           // constructor
   {
     status = INIT;
   }
-
-  ~LRASolver( )
-  {
-
-    // Remove slack variables
-    while( !slack_vars.empty( ) )
-    {
-      LAVar * s = slack_vars.back( );
-      slack_vars.pop_back( );
-      assert( s );
-      delete s;
-    }
-    // Remove numbers
-    while( !numbers_pool.empty( ) )
-    {
-      assert( numbers_pool.back( ) );
-      delete numbers_pool.back( );
-      numbers_pool.pop_back( );
-    }
-  }
+  ~LRASolver( );                                     // destructor
 
   lbool inform            ( Enode * );               // Inform LRA about the existence of this constraint
   bool  check             ( bool );                  // Checks the satisfiability of current constraints
@@ -85,8 +66,27 @@ public:
   bool  belongsToT        ( Enode * );               // Checks if Atom belongs to this theory
   void  computeModel      ( );                       // Computes the model into enodes
 
-  void print( ostream & out ); // Prints terms, current bounds and the tableau
+private:
+  void doGaussianElimination( );                          // Performs Gaussian elimination of all redundant terms in the Tableau
+  void update( LAVar *, const Delta & );                  // Updates the bounds after constraint pushing
+  void pivotAndUpdate( LAVar *, LAVar *, const Delta &);  // Updates the tableau after constraint pushing
+  void getConflictingBounds( LAVar *, vector<Enode *> & );// Returns the bounds conflicting with the actual model
+  void refineBounds( );                                   // Compute the bounds for touched polynomials and deduces new bounds from it
+  inline bool getStatus( );                               // Read the status of the solver in lbool
+  inline bool setStatus( LRASolverStatus );               // Sets and return status of the solver
+  void initSolver( );                                     // Initializes the solver
+  void print( ostream & out );                            // Prints terms, current bounds and the tableau
 
+  LRASolverStatus status;                  // Internal status of the solver (different from bool)
+  vector<LAVar *> enode_lavar;             // Maps original constraints to solver's terms and bounds
+  vector<LAVar *> columns;                 // Maps terms' ID to LAVar pointers
+  vector<LAVar *> rows;                    // Maps terms' ID to LAVar pointers, used to store basic columns
+  vector<LAVar *> slack_vars;              // Collect slack variables (useful for removal)
+  vector<Real *> numbers_pool;             // Collect numbers (useful for removal)
+  vector<LAVarHistory> pushed_constraints; // Keeps history of constraints
+  set<LAVar *> touched_rows;               // Keeps the list of modified rows
+
+  // Two reloaded output operators
   inline friend ostream & operator <<( ostream & out, LRASolver & solver )
   {
     solver.print( out );
@@ -98,27 +98,6 @@ public:
     solver->print( out );
     return out;
   }
-
-private:
-
-  void doGaussianElimination( ); // Performs Gaussian elimination of all redundant terms in the Tableau
-  void update( LAVar *, const Delta & ); // Updates the bounds after constraint pushing
-  void pivotAndUpdate( LAVar *, LAVar *, const Delta & v ); // Updates the tableau after constraint pushing
-  void getConflictingBounds( LAVar *, vector<Enode *> & dst ); // Returns the bounds conflicting with the actual model
-  void refineBounds( ); // Compute the bounds for touched polynomials and deduces new bounds from it
-  inline bool getStatus( ); // Read the status of the solver in lbool
-  inline bool setStatus( LRAsolverStatus ); // Sets and return status of the solver
-
-  void initSolver( ); // Initializes the solver
-
-  LRAsolverStatus status; // Internal status of the solver (different from bool)
-  vector<LAVar *> enode_lavar; // Maps original constraints to solver's terms and bounds
-  vector<LAVar *> columns; // Maps terms' ID to LAVar pointers
-  vector<LAVar *> rows; // Maps terms' ID to LAVar pointers, used to store basic columns
-  vector<LAVar *> slack_vars; // Collect slack variables (useful for removal)
-  vector<Real *> numbers_pool; // Collect numbers (useful for removal)
-  vector<LAVarHistory> pushed_constraints; // Keeps history of constraints
-  set<LAVar *> touched_rows; // Keeps history of constraints
 
 };
 

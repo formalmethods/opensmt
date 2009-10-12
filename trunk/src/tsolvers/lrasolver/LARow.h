@@ -30,20 +30,16 @@
 //
 class LARow: public list<pair<int, Real *> >
 {
-  vector<bool> is_there;
+private:
+  vector<bool> is_there; // used to perform the fast check if the value is in the row
 
 public:
-
-  LARow( )
-  {
-  }
-
-  LARow::iterator find( int key );
-  void erase( int key );
-  void erase( LARow::iterator it );
-  void clear( );
-  void assign( const int & key, Real * a );
-  void assign( LARow::iterator it, Real * a );
+  LARow::iterator find( int key );              // find the iterator by the key
+  void erase( int key );                        // delete the element form the row by key
+  void erase( LARow::iterator it );             // delete the element form the row by iterator
+  void clear( );                                // clear the row;
+  void assign( const int & key, Real * a );     // assign the value by key
+  void assign( LARow::iterator it, Real * a );  // assign the value by iterator
 };
 
 #endif /* LAROW_H_ */

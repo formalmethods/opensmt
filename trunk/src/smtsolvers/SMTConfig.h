@@ -121,7 +121,7 @@ struct SMTConfig
     lraconfig.theory_propagation  = 1;
     lraconfig.verbose             = 0;
     lraconfig.poly_deduct_size    = 0;
-    lraconfig.gaussian_elim       = 0;
+    lraconfig.gaussian_elim       = 1;
 #ifndef SMTCOMP
     parseConfig( ".opensmtrc" );
 #endif

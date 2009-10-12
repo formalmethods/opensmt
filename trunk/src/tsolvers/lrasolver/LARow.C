@@ -19,9 +19,12 @@
  *********************************************************************/
 
 #include "LARow.h"
-
+//
+// Find the elements iterator by its key
+//
 LARow::iterator LARow::find( int key )
 {
+  // Check if element is in the row
   if( key >= ( int )is_there.size( ) || !is_there[key] )
     return this->end( );
 
@@ -34,6 +37,9 @@ LARow::iterator LARow::find( int key )
   return this->end( );
 }
 
+//
+// Erase the element by its key
+//
 void LARow::erase( int key )
 {
   LARow::iterator it = find( key );
@@ -50,32 +56,43 @@ void LARow::erase( int key )
   assert( false );
 }
 
+//
+// Erase the element by its iterator
+//
 void LARow::erase( LARow::iterator it )
 {
+  // Check if element is in the row
   const int key = it->first;
   assert( key < ( int )is_there.size( ) );
   assert( is_there[key] );
 
   is_there[key] = false;
-  list<pair<int, Real *> >::erase(it);
+  list<pair<int, Real *> >::erase( it );
 }
 
+//
+// Delete all elements from the row
+//
 void LARow::clear( )
 {
-  list<pair<int, Real *> >::clear();
-  is_there.clear();
+  list<pair<int, Real *> >::clear( );
+  is_there.clear( );
 }
 
+//
+// Assign value a to an element identified by key
+//
 void LARow::assign( const int & key, Real * a )
 {
-  LARow::iterator it = find ( key );
-  if ( it != this->end() )
+  LARow::iterator it = find( key );
+  if( it != this->end( ) )
   {
-    assert(is_there[key]);
+    assert( is_there[key] );
     it->second = a;
   }
   else
   {
+    // perform is_there resize if necessary
     if( key >= ( int )is_there.size( ) )
       is_there.resize( key + 1, false );
     assert( !is_there[key] );
@@ -84,9 +101,13 @@ void LARow::assign( const int & key, Real * a )
   }
 }
 
+//
+// Assign value a to an element identified by iterator
+//
 void LARow::assign( LARow::iterator it, Real * a )
 {
   const int key = it->first;
+  // perform is_there resize if necessary
   if( key >= ( int )is_there.size( ) )
     is_there.resize( key + 1, false );
   assert( !is_there[key] );
