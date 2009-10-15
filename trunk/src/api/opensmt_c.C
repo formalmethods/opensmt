@@ -74,7 +74,6 @@ void opensmt_set_verbosity( opensmt_context c, int n )
   assert( c );
   OpenSMTContext * c_ = static_cast< OpenSMTContext * >( c );
   OpenSMTContext & context = *c_;
-  context.config.gconfig.print_stats = n;
 }
 
 char * opensmt_version( )
@@ -100,7 +99,7 @@ opensmt_context opensmt_mk_context( opensmt_logic l )
   // Tell that we need incremental solver
   context.config.incremental = true;
   // Initialize theory solvers
-  context.egraph.initializeTheorySolvers( );
+  context.egraph.initializeTheorySolvers( &context.solver );
   // Return context
   return static_cast< void * >( c );
 }
@@ -241,6 +240,19 @@ opensmt_expr opensmt_mk_real_var( opensmt_context c, char * s )
   OpenSMTContext & context = *c_;
   vector< unsigned > tmp;
   tmp.push_back( DTYPE_REAL );
+  context.egraph.newSymbol( s, tmp );
+  Enode * res = context.egraph.mkVar( s, true );
+  return static_cast< void * >( res );
+}
+
+opensmt_expr opensmt_mk_bv_var( opensmt_context c, char * s, unsigned w )
+{
+  assert( c );
+  assert( s );
+  OpenSMTContext * c_ = static_cast< OpenSMTContext * >( c );
+  OpenSMTContext & context = *c_;
+  vector< unsigned > tmp;
+  tmp.push_back( DTYPE_BITVEC | w );
   context.egraph.newSymbol( s, tmp );
   Enode * res = context.egraph.mkVar( s, true );
   return static_cast< void * >( res );

@@ -6,7 +6,7 @@ PATH_OPT=../opt
 PATH_DEBUG=../debug
 PATH_SRC=../src
 
-all: example1_debug example2_debug
+all: example1_debug example2_debug example3_debug
 
 example1_debug: example1_debug.o $(PATH_DEBUG)/src/.libs/libopensmt.a
 	${CC} -g  -o example1_debug example1_debug.o -L$(PATH_DEBUG)/src/.libs -lopensmt -L/opt/local/lib -lgmp -lgmpxx
@@ -31,6 +31,18 @@ example2_opt: example2_opt.o $(PATH_OPT)/src/.libs/libopensmt.a
 
 example2_opt.o: example2.c
 	${CC} -c -I$(PATH_SRC)/api example2.c -o example2_opt.o
+
+example3_debug: example3_debug.o $(PATH_DEBUG)/src/.libs/libopensmt.a
+	${CC} -g  -o example3_debug example3_debug.o -L$(PATH_DEBUG)/src/.libs -lopensmt -L/opt/local/lib -lgmp -lgmpxx
+
+example3_debug.o: example3.c
+	${CC} -c -I$(PATH_SRC)/api example3.c -o example3_debug.o
+
+example3_opt: example3_opt.o $(PATH_OPT)/src/.libs/libopensmt.a
+	${CC} -O3 -o example3_opt example3_opt.o -L$(PATH_OPT)/src/.libs -lopensmt -L/opt/local/lib -lgmp -lgmpxx
+
+example3_opt.o: example3.c
+	${CC} -c -I$(PATH_SRC)/api example3.c -o example3_opt.o
 
 
 clean:
