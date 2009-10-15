@@ -1694,16 +1694,16 @@ Enode * Egraph::mkSelect( Enode * a, Enode * i )
   //
   assert( a );
   assert( i );
-  assert( a->isDTypeArray( ) || a->isDTypeUndef( ) );
-  assert( i->isDTypeArrayIndex( ) || i->isDTypeUndef( ) );
+  assert( a->isDTypeArray( ) );
+  assert( i->isDTypeArrayIndex( ) );
   //
   // Substitution by direct application axiom 1
   //
-  if (a->isStore())
+  if ( a->isStore( ) )
   {
     Enode * indexStore = a->getCdr( )->getCdr( )->getCar( );
-    Enode * elementStore=a->getCdr()->getCdr()->getCdr()->getCar();
-    if (i == indexStore )
+    Enode * elementStore = a->getCdr()->getCdr()->getCdr()->getCar();
+    if ( i == indexStore )
     {
       return cons( elementStore );
     }
@@ -1722,9 +1722,9 @@ Enode * Egraph::mkStore( Enode * a, Enode * i, Enode * e )
   assert( a );
   assert( i );
   assert( e );
-  assert( a->isDTypeArray( ) || a->isDTypeUndef( ) );
-  assert( i->isDTypeArrayIndex( ) || i->isDTypeUndef( ) );
-  assert( e->isDTypeArrayElement( ) || e->isDTypeUndef( ) );  
+  assert( a->isDTypeArray( ) );
+  assert( i->isDTypeArrayIndex( ) );
+  assert( e->isDTypeArrayElement( ) );  
   return cons( id_to_enode[ ENODE_ID_STORE ], cons( a, cons( i, cons( e ) ) ) );
 }
 
