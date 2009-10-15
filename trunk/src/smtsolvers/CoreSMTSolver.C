@@ -524,7 +524,7 @@ void CoreSMTSolver::analyze(Clause* confl, vec<Lit>& out_learnt, int& out_btleve
 
 #if VISUALIZE
 	cerr << "  CURRENT   : ";
-	printClause( c );
+	printSMTClause( cerr, c );
 	cerr << endl;
 #endif
 
@@ -556,8 +556,8 @@ void CoreSMTSolver::analyze(Clause* confl, vec<Lit>& out_learnt, int& out_btleve
         p     = trail[index+1];
 
 #if VISUALIZE
-	cerr << "  NEXT LIT  : "; printLit( p ); cerr << endl; 
-	cerr << "  OUT LEARNT:"; for ( int i = 0 ; i < out_learnt.size( ) ; i ++ ) { cerr << " "; printLit( out_learnt[ i ] ); } cerr << endl;
+	cerr << "  NEXT LIT  : "; printSMTLit( cerr, p ); cerr << endl; 
+	//cerr << "  OUT LEARNT:"; for ( int i = 0 ; i < out_learnt.size( ) ; i ++ ) { cerr << " "; printSMTLit( cerr, out_learnt[ i ] ); } cerr << endl;
 	cerr << "  PATHc     : " << pathC << endl;
 	cerr << "  -----------" << endl;
 #endif
@@ -626,7 +626,7 @@ void CoreSMTSolver::analyze(Clause* confl, vec<Lit>& out_learnt, int& out_btleve
     for ( int i = 0 ; i < out_learnt.size( ) ; i ++ )
     {
       cerr << " ";
-      printLit( out_learnt[i] );
+      printSMTLit( cerr, out_learnt[i] );
     }
     cerr << endl;
 #endif
@@ -684,7 +684,7 @@ void CoreSMTSolver::analyze(Clause* confl, vec<Lit>& out_learnt, int& out_btleve
     cleanup.clear();
 
 #if VISUALIZE
-    cerr << "LEARNT CLAUSE:"; for (int i = 0; i < out_learnt.size(); i++) { cerr << " "; printLit( out_learnt[i] ); } cerr << endl;
+    cerr << "LEARNT CLAUSE:"; for (int i = 0; i < out_learnt.size(); i++) { cerr << " "; printSMTLit( cerr, out_learnt[i] ); } cerr << endl;
     cerr << "CONFLICT ANALYSIS ENDS" << endl;
 #endif
     
@@ -749,7 +749,7 @@ bool CoreSMTSolver::litRedundant(Lit p, uint32_t abstract_levels)
         Clause& c = *reason[var(analyze_stack.last())];
 
 #if VISUALIZE
-	cerr << "  MIN REASON: "; printClause( c ); cerr << endl;
+	cerr << "  MIN REASON: "; printSMTClause( cerr, c ); cerr << endl;
 #endif
 
 	analyze_stack.pop();
@@ -819,8 +819,8 @@ void CoreSMTSolver::analyzeFinal(Lit p, vec<Lit>& out_conflict)
 void CoreSMTSolver::uncheckedEnqueue(Lit p, Clause* from)
 {
 #if VISUALIZE
-    fprintf( stderr, "%-4d: ", decisionLevel( ) );
-    printLit( p );
+    fprintf( stderr, "[%-4d] ", decisionLevel( ) );
+    printSMTLit( cerr, p );
     cerr << " <-";
     if ( from == NULL )
       ; // Do nothing
@@ -833,7 +833,7 @@ void CoreSMTSolver::uncheckedEnqueue(Lit p, Clause* from)
       {
 	if ( c[ i ] == p ) continue;
 	cerr << " ";
-	printLit( c[ i ] );
+	printSMTLit( cerr, c[ i ] );
       } 
     }
     cerr << endl;
@@ -1633,7 +1633,8 @@ bool CoreSMTSolver::solve(const vec<Lit>& assumps)
 	// #ifndef NDEBUG
 #ifndef SMTCOMP
 	verifyModel();
-	if ( config.gconfig.print_model )
+	if ( config.gconfig.print_model 
+	  && !config.incremental )
 	{
 	  // Print Boolean model
 	  printModel( config.getModelStream( ) );
@@ -1663,39 +1664,12 @@ bool CoreSMTSolver::solve(const vec<Lit>& assumps)
 //=================================================================================================
 // Added code
 
-bool CoreSMTSolver::addSMTClause( vector< Enode * > & smt_clause )
-{
-  error( "OLD FUNCTION NOT TO BE USED ANYMORE", "");
-
-  vec< Lit > sat_clause;
-
-  for ( vector< Enode * >::iterator it = smt_clause.begin( ) ;
-        it != smt_clause.end( ) ;
-	it ++ )
-  {
-    Enode * e = *it;
-    // Do not add false literals
-    if ( e->isFalse( ) ) continue;
-    // If a literal is true, the clause is true
-    if ( e->isTrue( ) )
-      return true;
-    //
-    // Just add the literal
-    //
-    else
-    {
-      Lit l = theory_handler->enodeToLit( e );
-      sat_clause.push( l );
-    }
-  }
-
-  return addClause( sat_clause );
-}
-
 lbool CoreSMTSolver::smtSolve( ) { return solve(); }
 
 int CoreSMTSolver::checkTheory( bool complete )
 {
+  // Skip calls to theory solvers
+  // (does not seem to be helpful ...)
   if ( !complete
     && skipped_calls + config.satconfig.initial_skip_step < skip_step )
   {

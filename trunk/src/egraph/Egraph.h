@@ -111,20 +111,20 @@ public:
   //===========================================================================
   // Public APIs for enode construction/destruction
 
-  void     newSort              ( const char * );                                                 // Inserts a new uninterpreted sort
-  unsigned getSort              ( const char * );                                                 // From name to sort id
-  Enode *  newSymbol            ( const char *, vector< unsigned > & );                           // Creates a new symbol
-  Enode *  newSymbol            ( const char *, const unsigned );                                 // Creates a new symbol
-  Enode *  cons                 ( list< Enode * > & );                                            // Shortcut, but not efficient
-  Enode *  cons                 ( Enode *, Enode * );                                             // Create Lists/Terms
-  Enode *  cons                 ( Enode * e ) { return cons( e, const_cast< Enode * >(enil) ); }  // Shortcut for singleton
-  void     undoCons             ( Enode * );							  // Undoes a cons
+  void     newSort             ( const char * );                                                 // Inserts a new uninterpreted sort
+  unsigned getSort             ( const char * );                                                 // From name to sort id
+  Enode *  newSymbol           ( const char *, vector< unsigned > & );                           // Creates a new symbol
+  Enode *  newSymbol           ( const char *, const unsigned );                                 // Creates a new symbol
+  Enode *  cons                ( list< Enode * > & );                                            // Shortcut, but not efficient
+  Enode *  cons                ( Enode *, Enode * );                                             // Create Lists/Terms
+  Enode *  cons                ( Enode * e ) { return cons( e, const_cast< Enode * >(enil) ); }  // Shortcut for singleton
+  void     undoCons            ( Enode * );							 // Undoes a cons
   //
   // Specialized functions 
   // 
-  inline Enode * mkLt          ( Enode * args ) { return mkNot( cons( mkLeq( swapList( args ) ) ) ); }
-  inline Enode * mkGeq         ( Enode * args ) { return              mkLeq( swapList( args ) ); }
-  inline Enode * mkGt          ( Enode * args ) { return mkNot( cons( mkLeq(           args ) ) ); }
+  inline Enode * mkLt          ( Enode * args ) { return mkNot( cons( mkLeq( swapList( args ) ) ) ); }  
+  inline Enode * mkGeq         ( Enode * args ) { return              mkLeq( swapList( args ) ); }  
+  inline Enode * mkGt          ( Enode * args ) { return mkNot( cons( mkLeq(           args ) ) ); } 
 
   inline Enode * mkTrue        ( )              { return etrue; }  
   inline Enode * mkFalse       ( )              { return efalse; } 
@@ -277,7 +277,7 @@ public:
   //===========================================================================
   // Public APIs for Egraph Core Solver
 
-  void		      initializeTheorySolvers ( );                       // Attaches ordinary theory solvers
+  void		      initializeTheorySolvers ( SimpSMTSolver * );       // Attaches ordinary theory solvers
   lbool               inform                  ( Enode * );               // Inform the solver about the existence of a theory atom
   bool                assertLit               ( Enode *, bool = false ); // Assert a theory literal
   void                pushBacktrackPoint      ( );                       // Push a backtrack point
@@ -290,6 +290,7 @@ public:
   void                printModel              ( ostream & );             // Computes and print the model
   inline void         setUseGmp               ( ) { use_gmp = true; }
   inline bool         getUseGmp               ( ) { return use_gmp; }
+  void                splitOnDemand           ( vector< Enode * > &, int );
 
 private:
   
@@ -311,7 +312,7 @@ private:
     return cons( args->getCdr( )->getCar( ), cons( args->getCar( ) ) );
   }
 
-  void        initializeStore      ( );                         // Initializes store
+  void    initializeStore ( );                                  // Initializes store
   //                                                            
   // Related to term creation                                   
   //                                                            
@@ -421,6 +422,7 @@ private:
     else if ( l == QF_UFLRA ) return "QF_UFLRA";
     else if ( l == QF_UFLIA ) return "QF_UFLIA";
     else if ( l == QF_UFBV )  return "QF_UFBV";
+    else if ( l == QF_AX )    return "QF_AX";
     return "";
   }
 

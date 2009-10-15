@@ -1688,11 +1688,44 @@ Enode * Egraph::mkBvsle( Enode * args )
 
 Enode * Egraph::mkSelect( Enode * a, Enode * i )
 {
-  return NULL;
-}	
+  //
+  // check arguments: select is applied to an array expression and an index expression
+  // remember the possibility of having ite expressions as arguments
+  //
+  assert( a );
+  assert( i );
+  assert( a->isDTypeArray( ) || a->isDTypeUndef( ) );
+  assert( i->isDTypeArrayIndex( ) || i->isDTypeUndef( ) );
+  //
+  // Substitution by direct application axiom 1
+  //
+  if (a->isStore())
+  {
+    Enode * indexStore = a->getCdr( )->getCdr( )->getCar( );
+    Enode * elementStore=a->getCdr()->getCdr()->getCdr()->getCar();
+    if (i == indexStore )
+    {
+      return cons( elementStore );
+    }
+  }
+
+  return cons( id_to_enode[ ENODE_ID_SELECT ], cons( a, cons( i ) ) );
+}
+
 Enode * Egraph::mkStore( Enode * a, Enode * i, Enode * e )
 {
-  return NULL;
+  //
+  // check arguments: select is applied to an array expression, 
+  // an index expression, and an element expression
+  // remember the possibility of having ite expressions as arguments
+  //
+  assert( a );
+  assert( i );
+  assert( e );
+  assert( a->isDTypeArray( ) || a->isDTypeUndef( ) );
+  assert( i->isDTypeArrayIndex( ) || i->isDTypeUndef( ) );
+  assert( e->isDTypeArrayElement( ) || e->isDTypeUndef( ) );  
+  return cons( id_to_enode[ ENODE_ID_STORE ], cons( a, cons( i, cons( e ) ) ) );
 }
 
 Enode * Egraph::mkEq( Enode * args )
@@ -1929,6 +1962,10 @@ Enode * Egraph::mkNot( Enode * args )
   Enode * arg = args->getCar( );
   assert( arg->isDTypeBool( ) );
   assert( arg->isTerm( ) );
+
+  if ( config.incremental )
+    if ( arg->getConstant( ) ) arg = arg->getConstant( );
+
   // not not p --> p
   if ( arg->isNot( ) )
     return arg->get1st( );
@@ -1956,6 +1993,9 @@ Enode * Egraph::mkAnd( Enode * args )
   {
     Enode * e = alist->getCar( );
     assert( e->isDTypeBool( ) );
+
+    if ( config.incremental )
+      if ( e->getConstant( ) ) e = e->getConstant( );
 
     if ( isDup1( e ) ) continue;
     if ( e->isTrue( ) ) continue;
@@ -1992,6 +2032,9 @@ Enode * Egraph::mkOr( Enode * args )
   {
     Enode * e = list->getCar( );
 
+    if ( config.incremental )
+      if ( e->getConstant( ) ) e = e->getConstant( );
+
     assert( e->isDTypeBool( ) );
 
     if ( isDup1( e ) ) continue;
@@ -2020,6 +2063,12 @@ Enode * Egraph::mkIff( Enode * args )
   Enode * first  = args->getCar( );
   Enode * second = args->getCdr( )->getCar( );
 
+  if ( config.incremental )
+  {
+    if ( first->getConstant( ) ) first = first->getConstant( );
+    if ( second->getConstant( ) ) second = second->getConstant( );
+  }
+
   if ( first ->isTrue ( ) )               return second;
   if ( first ->isFalse( ) )               return mkNot( cons( second ) );
   if ( second->isTrue ( ) )               return first;
@@ -2035,6 +2084,13 @@ Enode * Egraph::mkIfthenelse( Enode * i, Enode * t, Enode * e )
   assert( i );
   assert( t );
   assert( e );
+
+  if ( config.incremental )
+  {
+    if ( i->getConstant( ) ) i = i->getConstant( );
+    if ( t->getConstant( ) ) t = t->getConstant( );
+    if ( e->getConstant( ) ) e = e->getConstant( );
+  }
 
   if ( i->isTrue ( ) ) return t;
   if ( i->isFalse( ) ) return e;
@@ -2053,7 +2109,9 @@ Enode * Egraph::mkIte( Enode * i, Enode * t, Enode * e )
   assert( t );
   assert( e );
   assert( i->isDTypeBool( ) );
-  assert( (t->getDType( ) & e->getDType( )) != 0 );
+
+  if ( config.incremental )
+    if ( i->getConstant( ) ) i = i->getConstant( );
 
   if ( i->isTrue( )  ) return t;
   if ( i->isFalse( ) ) return e;
@@ -2071,6 +2129,14 @@ Enode * Egraph::mkXor( Enode * args )
   assert( args->getArity( ) == 2 );
   Enode * first  = args->getCar( );
   Enode * second = args->getCdr( )->getCar( );
+  assert( first->isDTypeBool( ) );
+  assert( second->isDTypeBool( ) );
+
+  if ( config.incremental )
+  {
+    if ( first->getConstant( ) ) first = first->getConstant( );
+    if ( second->getConstant( ) ) second = second->getConstant( );
+  }
 
   if ( first ->isFalse( ) )               return second;
   if ( first ->isTrue ( ) )               return mkNot( cons( second ) );
@@ -2353,6 +2419,10 @@ void Egraph::addAssumption( Enode * e )
 	e = la.toEnode( *this );
 	assumptions.push_back( e );
       }
+    }
+    else
+    {
+      assumptions.push_back( e );
     }
   }
   else

@@ -255,6 +255,7 @@ protected:
     // Added Line
     template<class C>
     void     printSMTClause   ( ostream & os, const C& c );
+    void     printSMTLit      ( ostream & os, const Lit );
     void     verifyModel      ();
     void     checkLiteralCount();
 
@@ -278,7 +279,6 @@ protected:
 
 public:
 
-    bool  addSMTClause      ( vector< Enode * > & ); // Adds clause to SAT solver
     lbool smtSolve          ( );                     // Solve
 #ifndef SMTCOMP
     void   printModel       ( ostream & );           // Prints model
@@ -292,6 +292,7 @@ protected:
     void   printTrail          ( );             // Prints the trail (debugging)
     int    checkTheory         ( bool );        // Checks consistency in theory
     int    deduceTheory        ( );             // Perform theory-deductions
+    int    splittingOnDemand   ( );             // Adds clauses for splitting on demand
     void   cancelUntilVar      ( Var );         // Backtrack until a certain variable
     void   cancelUntilVarTempInit ( Var );      // Backtrack until a certain variable
     void   cancelUntilVarTempDone ( );          // Backtrack until a certain variable
@@ -463,6 +464,18 @@ inline void CoreSMTSolver::printSMTClause( ostream & os, const C& c )
     if ( v <= 1 ) continue;
     Enode * e = theory_handler->varToEnode( v );
     os << (sign(c[i])?"(not ":" ") << e << (sign(c[i])?") ":" ");
+  }
+}
+
+inline void CoreSMTSolver::printSMTLit( ostream & os, const Lit l )
+{
+  Var v = var( l );
+       if ( v == 0 ) os << "true";
+  else if ( v == 1 ) os << "false";
+  else
+  {
+    Enode * e = theory_handler->varToEnode( v );
+    os << (sign(l)?"(not ":" ") << e << (sign(l)?") ":" ");
   }
 }
 

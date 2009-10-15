@@ -113,7 +113,7 @@ void SMTConfig::parseConfig ( const char * f )
   // Open statistics file if necessary
   //
   if ( sfile == "$stderr"
-    || ( filename != NULL && sfile == string("$filename") ) )
+    || ( filename != NULL && sfile == string( "$filename" ) ) )
   {
     stats_out_flag = false;
   }

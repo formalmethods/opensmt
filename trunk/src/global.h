@@ -140,7 +140,7 @@ typedef enum
   , QF_UFLRA      // UF + LRA
   , QF_UFLIA      // UF + LIA
   , QF_UFBV       // UF + BV
-  , QF_AX	  // Arrays Extensional
+  , QF_AX	  // Arrays with extensionality
 } logic_t;
 
 static inline double cpuTime(void)

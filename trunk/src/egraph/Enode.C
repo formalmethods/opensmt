@@ -116,13 +116,27 @@ Enode::Enode( const enodeid_t id_
     //
     // Set Dtype
     //
-    if ( isIte( ) )
+    //
+    // For arithmetic and ites we don't know whether 
+    // they contain Real, Int, BitVec, ... . We 
+    // determine the type now
+    //
+    if ( isPlus  ( ) 
+      || isMinus ( ) 
+      || isTimes ( ) 
+      || isUminus( )
+      || isDiv   ( ) )
     {
-      assert( (get2nd( )->getDType( ) & get3rd( )->getDType( )) != 0 );
-      setDtype( get2nd( )->getDType( ) | get3rd( )->getDType( ) );
+      setDtype( get1st( )->getDType( ) );
+    }
+    else if ( isIte( ) )
+    {
+      setDtype( get2nd( )->getDType( ) );
     }
     else
+    {
       setDtype( car->getDType( ) );
+    }
     //
     // Set width for bitvectors
     //

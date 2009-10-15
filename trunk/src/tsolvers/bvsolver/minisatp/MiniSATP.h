@@ -168,7 +168,7 @@ protected:
     // Data structures required for communicating conflicts and deductions
     // incrementality, backtrackability ...
     //
-    enum oper_t { NEWVAR, NEWUNIT, NEWCLAUSE };
+    enum oper_t { NEWVAR, NEWUNIT, NEWCLAUSE };         
 
     const int                      solver_id;           // Id of the t-solver that wraps
     vector< Enode * > &            explanation;         // For conflict sets
@@ -178,12 +178,12 @@ protected:
     vector< Enode * >              clause_id_to_enode;  // Clause --> Enode
     const bool                     theory_prop;         // Theory propagation on ?
 
-    bool                           active_exp_dup;
-    vector< int >                  exp_dup;
-    int                            exp_dup_count;
-    bool                           active_var_dup;
-    vector< int >                  var_dup;
-    int                            var_dup_count;
+    bool                           active_exp_dup;      // Fast explanation duplicate check flag
+    vector< int >                  exp_dup;             // Fast explanation duplicate check
+    int                            exp_dup_count;       // Counter 
+    bool                           active_var_dup;      // Fast variable duplicate check flag
+    vector< int >                  var_dup;             // Fast variable duplicate check
+    int                            var_dup_count;       // Counter
 
     vector< size_t >               undo_stack_size;     // Keep track of stack_oper size
     vector< int >                  undo_trail_size;     // Keep track of trail size
@@ -337,50 +337,12 @@ inline void     MiniSATP::setDecisionVar(Var v, bool b) { decision_var[v] = (cha
 inline bool     MiniSATP::solve         ()              { vec<Lit> tmp; return solve(tmp); }
 inline bool     MiniSATP::okay          ()      const   { return ok; }
 
-
-
-//=================================================================================================
-// Debug + etc:
-
-
 #define reportf(format, args...) ( fflush(stdout), fprintf(stderr, format, ## args), fflush(stderr) )
 
-static inline void logLit(FILE* f, Lit l)
-{
-    fprintf(f, "%sx%d", sign(l) ? "~" : "", var(l)+1);
-}
-
-static inline void logLits(FILE* f, const vec<Lit>& ls)
-{
-    fprintf(f, "[ ");
-    if (ls.size() > 0){
-        logLit(f, ls[0]);
-        for (int i = 1; i < ls.size(); i++){
-            fprintf(f, ", ");
-            logLit(f, ls[i]);
-        }
-    }
-    fprintf(f, "] ");
-}
-
-static inline const char* showBool(bool b) { return b ? "true" : "false"; }
-
-
-// Just like 'assert()' but expression will be evaluated in the release version as well.
-static inline void check(bool expr) { (void)expr; assert(expr); }
-
-#if 0
 inline void MiniSATP::printLit(Lit l)
 {
-    reportf("%s%d:%c", sign(l) ? "-" : "", var(l)+1, value(l) == l_True ? '1' : (value(l) == l_False ? '0' : 'X'));
+    reportf("%s%d:%c:%d", sign(l) ? "-" : " ", var(l)+1, value(l) == l_True ? '1' : (value(l) == l_False ? '0' : 'X'), level[var(l)]);
 }
-#else
-inline void MiniSATP::printLit(Lit l)
-{
-    reportf("%s%d", sign(l) ? "-" : " ", var(l));
-}
-#endif
-
 
 template<class C>
 inline void MiniSATP::printClause(const C& c)
@@ -391,6 +353,4 @@ inline void MiniSATP::printClause(const C& c)
     }
 }
 
-
-//=================================================================================================
 #endif

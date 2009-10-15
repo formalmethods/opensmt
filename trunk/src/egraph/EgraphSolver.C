@@ -26,6 +26,7 @@ along with OpenSMT. If not, see <http://www.gnu.org/licenses/>.
 #include "DLSolver.h"
 // TODO: check this - added to support compiling templates
 #include "DLSolver.C"
+#include "SimpSMTSolver.h"
 
 //
 // Inform the solver about the existence of node e
@@ -421,6 +422,8 @@ void Egraph::popBacktrackPoint( )
   for ( unsigned i = 1 ; i < tsolvers.size( ) ; i ++ )
     tsolvers[ i ]->popBacktrackPoint( );
 
+  assert( deductions_last.size( ) > 0 );
+  assert( deductions_lim.size( ) > 0 );
   // Restore deduction next
   deductions_next = deductions_last.back( );
   deductions_last.pop_back( );
@@ -519,8 +522,9 @@ vector< Enode * > & Egraph::getConflict( bool deduction )
   return explanation;
 }
 
-void Egraph::initializeTheorySolvers( )
+void Egraph::initializeTheorySolvers( SimpSMTSolver * s )
 {
+  setSolver( s );
   // Enable undoable cons - New terms are
   // always created w.r.t. the current 
   // status of the congruence closure
@@ -957,6 +961,23 @@ void Egraph::backtrackToStackSize ( size_t size )
   }
 
   assert( undo_stack_term.size( ) == undo_stack_oper.size( ) );
+}
+
+void Egraph::splitOnDemand( vector< Enode * > & c, const int id )
+{
+#ifdef STATISTICS
+  assert( id >= 0 );
+  assert( id < static_cast< int >( tsolvers_stats.size( ) ) );
+  TSolverStats & ts = *tsolvers_stats[ id ];
+  if ( (long)c.size( ) > ts.max_sod_size )
+      ts.max_sod_size = c.size( );
+  if ( (long)c.size( ) < ts.min_sod_size )
+    ts.min_sod_size = c.size( );
+  ts.sod_sent ++;
+  ts.sod_done ++;
+  ts.avg_sod_size += c.size( );
+#endif
+  solver->addSMTClause( c );
 }
 
 //=============================================================================
