@@ -24,6 +24,7 @@ along with OpenSMT. If not, see <http://www.gnu.org/licenses/>.
 #include "SMTConfig.h"
 #include "SolverTypes.h"
 
+class SimpSMTSolver;
 class Egraph;
 
 #ifdef STATISTICS
@@ -70,6 +71,14 @@ struct TSolverStats
 	os << "# Max reason size..........: " << max_reas_size << endl;
 	os << "# Min reason size..........: " << min_reas_size << endl;
       }
+      os << "# SOD done.................: " << sod_done << endl;
+      os << "# SOD sent.................: " << sod_sent << endl;
+      if ( sod_sent > 0 )
+      {
+	os << "# Average reason size......: " << avg_reas_size / (float)sod_sent << endl;
+	os << "# Max reason size..........: " << max_reas_size << endl;
+	os << "# Min reason size..........: " << min_reas_size << endl;
+      }
     }
   }
 
@@ -88,6 +97,12 @@ struct TSolverStats
   float avg_reas_size;
   int   max_reas_size;
   int   min_reas_size;
+  // Deductions statistics
+  int   sod_done;
+  int   sod_sent;
+  float avg_sod_size;
+  int   max_sod_size;
+  int   min_sod_size;
 };
 #endif
 
@@ -109,14 +124,14 @@ public:
   virtual void                popBacktrackPoint   ( )                       = 0; // Backtrack to last saved point
   virtual bool                check               ( bool )                  = 0; // Check satisfiability
 
-  inline const string &       getName             ( ) { return name; }
+  inline const string &       getName             ( ) { return name; }           // The name of the solver
 
 protected:
-  
-  const int           id;               // Id of the solver
-  const string        name;             // Name of the solver
-  SMTConfig &         config;           // Reference to configuration
-  vector< size_t >    backtrack_points; // Keeps track of backtrack points
+
+  const int                   id;               // Id of the solver
+  const string                name;             // Name of the solver
+  SMTConfig &                 config;           // Reference to configuration
+  vector< size_t >            backtrack_points; // Keeps track of backtrack points
 };
 
 class OrdinaryTSolver : public TSolver
@@ -160,13 +175,17 @@ public:
 	      , SMTConfig &  c )
     : TSolver         ( i, n, c )
     , deductions_next ( 0 )
+    , solver          ( NULL )
   { }
 
   virtual ~CoreTSolver ( ) 
   { }
 
-  virtual vector< Enode * > & getConflict  ( bool = false ) = 0; // Return conflict
-  virtual Enode *             getDeduction ( )              = 0; // Return an implied node based on the current state
+  virtual vector< Enode * > & getConflict   ( bool = false ) = 0; // Return conflict
+  virtual Enode *             getDeduction  ( )              = 0; // Return an implied node based on the current state
+  inline void                 setSolver     ( SimpSMTSolver * s ) { assert( s ); assert( solver == NULL ); solver = s; }
+  virtual void                splitOnDemand ( vector< Enode * > &
+                                            , const int )    = 0; // For splitting on demand
 
 protected:
 
@@ -180,6 +199,7 @@ protected:
   vector< size_t >            deductions_lim;      // Keeps track of deductions done up to a certain point
   vector< size_t >            deductions_last;     // Keeps track of deductions done up to a certain point
   vector< Enode * >           suggestions;         // List of suggestions for decisions
+  SimpSMTSolver *             solver;              // Pointer to solver
 };
 
 #endif

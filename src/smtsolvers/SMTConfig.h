@@ -90,7 +90,7 @@ struct SMTConfig
     gconfig.print_stats           = 0;
     gconfig.print_model           = 0;
     satconfig.theory_propagation  = 1;
-    satconfig.verbose             = 1;
+    satconfig.verbose             = 0;
     satconfig.initial_skip_step   = 1;
     satconfig.skip_step_factor    = 1;
     satconfig.restart_first       = 100;

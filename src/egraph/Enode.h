@@ -126,6 +126,8 @@ public:
   inline bool isBvurem          ( ) const { return hasSymbolId( ENODE_ID_BVUREM      ); }
   inline bool isBvsdiv          ( ) const { return hasSymbolId( ENODE_ID_BVSDIV      ); }
   inline bool isBvudiv          ( ) const { return hasSymbolId( ENODE_ID_BVUDIV      ); }
+  inline bool isStore           ( ) const { return hasSymbolId( ENODE_ID_STORE ); }
+  inline bool isSelect          ( ) const { return hasSymbolId( ENODE_ID_SELECT); }
   inline bool isSignExtend      ( ) const { int i; return sscanf( car->getName( ), "sign_extend[%d]", &i ) == 1; }
   bool        isSignExtend      ( int * );
   inline bool isZeroExtend      ( ) const { return hasSymbolId( ENODE_ID_ZERO_EXTEND ); }
@@ -163,6 +165,10 @@ public:
   inline bool isDTypeReal       ( ) { assert( isTerm( ) || isSymb( ) || isNumb( ) ); return (properties & DTYPE_MASK) == DTYPE_REAL; }
   inline bool isDTypeInt        ( ) { assert( isTerm( ) || isSymb( ) || isNumb( ) ); return (properties & DTYPE_MASK) == DTYPE_INT; }
   inline bool isDTypeBitVec     ( ) { assert( isTerm( ) || isSymb( ) || isNumb( ) ); return (properties & DTYPE_MASK) == DTYPE_BITVEC; }
+  inline bool isDTypeArray      ( ) { assert( isTerm( ) || isSymb( ) || isNumb( ) ); return (properties & DTYPE_MASK) == DTYPE_ARRAY; }
+  inline bool isDTypeArrayIndex ( ) { assert( isTerm( ) || isSymb( ) || isNumb( ) ); return (properties & DTYPE_MASK) == DTYPE_ARRAY_INDEX; }
+  inline bool isDTypeArrayElement( ) { assert( isTerm( ) || isSymb( ) || isNumb( ) ); return (properties & DTYPE_MASK) == DTYPE_ARRAY_ELEMENT; }
+  inline bool isDTypeUndef      ( ) { assert( isTerm( ) || isSymb( ) || isNumb( ) ); return (properties & DTYPE_MASK) == DTYPE_UNDEF; }
 
   inline bool hasCongData       ( ) { return cong_data != NULL; }
 
@@ -173,7 +179,7 @@ public:
   //
   inline enodeid_t            getId     ( ) const { return id; }
   inline unsigned             getArity  ( ) const { return ((properties & ARITY_MASK) >> ARITY_SHIFT); }
-  inline unsigned             getDType  ( ) const { return (properties & DTYPE_MASK) /*| (properties & WIDTH_MASK)*/; }
+  inline unsigned             getDType  ( ) const { return (properties & DTYPE_MASK); }
   inline vector< unsigned > & getSort   ( )       { assert( isSymb( ) ); assert( symb_data ); return symb_data->args_sorts; }
   inline char *  getName                ( ) const { assert( isSymb( ) || isNumb( ) ); assert( symb_data ); return symb_data->name; }
   inline Enode * getCar                 ( ) const { return car; }

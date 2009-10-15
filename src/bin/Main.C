@@ -244,11 +244,11 @@ int main( int argc, char * argv[] )
   }
   else
   {
-    // Initializes theory solvers
-    egraph.initializeTheorySolvers( );
-
     // Allocates SMTSolver based on MiniSAT
     SimpSMTSolver solver( egraph, config );
+
+    // Initializes theory solvers
+    egraph.initializeTheorySolvers( &solver );
 
     // Allocates Tseitin-like cnfizer
     Tseitin cnfizer( egraph, solver, config );
@@ -270,9 +270,6 @@ int main( int argc, char * argv[] )
     // Prints the result and check against status
     printResult( result, config.status );
   }
-
-  // Prints the model on a file (currently disabled)
-  // if ( result == l_True ) S.printModel( file );
 
   return 0;
 }
