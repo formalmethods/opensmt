@@ -34,6 +34,8 @@ sudo make install
 cd ..
 }}}
 
+Pay attention to the flag `--enable-cxx` in configuration, necessary for producing C++ linkable library.
+
 = Compile =
 
 From the root directory of OpenSMT:
