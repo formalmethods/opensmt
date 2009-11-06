@@ -9,19 +9,21 @@ Linux and Mac. In order to compile OpenSMT you need:
   * autotools
   * flex
   * bison
-  * The [http://gmplib.org/ GNU Multiple Precision Library] installed. IMPORTANT: in order to work properly gmp has to be configured with the --enable-cxx flag
   * libtool
 
-= Quick Tip for Ubuntu Users =
+== Quick Tip for Ubuntu Users ==
 
 On a fresh ubuntu 8.10+ distribution:
 
-* install required packages with:
+  * install required packages:
 {{{
 sudo apt-get install autoconf libtool g++ bison flex
 }}}
 
-* download and install gmp with
+== Install GMP ==
+
+Finally you need to download and install [GMP http://http://gmplib.org]: 
+
 {{{
 wget ftp://ftp.gmplib.org/pub/gmp-4.3.1/gmp-4.3.1.tar.gz
 tar xzvf gmp-4.3.1.tar.gz
