@@ -13,16 +13,15 @@ Linux and Mac. In order to compile OpenSMT you need:
 
 == Quick Tip for Ubuntu Users ==
 
-On a fresh ubuntu 8.10+ distribution:
+On Ubuntu 8.10+ (8.04- may have a too old gcc version):
 
-  * install required packages:
 {{{
 sudo apt-get install autoconf libtool g++ bison flex
 }}}
 
 == Install GMP ==
 
-Finally you need to download and install [GMP http://http://gmplib.org]: 
+Finally you need to download and install [http://http://gmplib.org GMP]: 
 
 {{{
 wget ftp://ftp.gmplib.org/pub/gmp-4.3.1/gmp-4.3.1.tar.gz
