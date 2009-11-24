@@ -2390,7 +2390,8 @@ void Egraph::addAssumption( Enode * e )
   assert( e );
 
   // Canonize atom for arithmetic logics
-  if ( config.incremental )
+  if ( e->isTAtom( ) 
+    && config.incremental )
   {
     if ( config.logic == QF_IDL 
       || config.logic == QF_RDL
