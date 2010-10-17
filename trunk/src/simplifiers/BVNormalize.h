@@ -20,7 +20,7 @@ along with OpenSMT. If not, see <http://www.gnu.org/licenses/>.
 #ifndef BV_NORMALIZE_HH
 #define BV_NORMALIZE_HH
 
-#include "global.h"
+#include "Global.h"
 #include "Otl.h"
 #include "Egraph.h"
 
@@ -42,9 +42,9 @@ private:
   Enode * normalize                       ( Enode * ); 
   Enode * makeNumberFromGmp               ( mpz_class &, const int );
   void    scanPolynome                    ( Enode *
-	                                  , Map( enodeid_t, mpz_class * ) &
+	                                  , map< enodeid_t, mpz_class * > &
 			                  , mpz_class &
-			                  , Map( enodeid_t, Enode * ) &
+			                  , map< enodeid_t, Enode * > &
 			                  , vector< mpz_class * > &
 			                  , bool );
   Enode * propagateUnconstrainedVariables ( Enode * );

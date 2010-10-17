@@ -43,8 +43,8 @@ OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWA
 // Constructor/Destructor:
 
 
-SimpSMTSolver::SimpSMTSolver( Egraph & e, SMTConfig & c ) 
-  : CoreSMTSolver( e, c ) 
+SimpSMTSolver::SimpSMTSolver( Egraph & e, SMTConfig & c )
+  : CoreSMTSolver( e, c )
   , grow               (0)
   , asymm_mode         (false)
   , redundancy_check   (false)
@@ -52,7 +52,7 @@ SimpSMTSolver::SimpSMTSolver( Egraph & e, SMTConfig & c )
   , asymm_lits         (0)
   , remembered_clauses (0)
   , elimorder          (1)
-  , use_simplification (c.satconfig.preprocess_booleans > 0)
+  , use_simplification (false)
   , elim_heap          (ElimLt(n_occ))
   , bwdsub_assigns     (0)
 {
@@ -60,6 +60,9 @@ SimpSMTSolver::SimpSMTSolver( Egraph & e, SMTConfig & c )
     bwdsub_tmpunit   = Clause_new(dummy);
     remove_satisfied = false;
 
+    /* 
+     * Moved to initialize( )
+     * 
     // Add clauses for true/false
     // Useful for expressing TAtoms that are constantly true/false
     const Var var_True = newVar( );
@@ -75,6 +78,7 @@ SimpSMTSolver::SimpSMTSolver( Egraph & e, SMTConfig & c )
     addClause( clauseFalse );
 
     theory_handler = new THandler( egraph, config, *this, trail, level, assigns, var_True, var_False );
+    */
 }
 
 
@@ -87,7 +91,7 @@ SimpSMTSolver::~SimpSMTSolver()
         for (int j = 0; j < elimtable[i].eliminated.size(); j++)
             free(elimtable[i].eliminated[j]);
 
-    if ( config.satconfig.preprocess_theory != 0 )
+    if ( config.sat_preprocess_theory != 0 )
     {
       for ( vector< Clause * >::iterator it = unary_to_remove.begin( )
 	  ; it != unary_to_remove.end( )
@@ -98,8 +102,31 @@ SimpSMTSolver::~SimpSMTSolver()
     }
 }
 
+void SimpSMTSolver::initialize( )
+{
+  CoreSMTSolver::initialize( );
 
-Var SimpSMTSolver::newVar(bool sign, bool dvar) 
+  use_simplification = config.sat_preprocess_booleans != 0;
+
+  // Add clauses for true/false
+  // Useful for expressing TAtoms that are constantly true/false
+
+  const Var var_True = newVar( );
+  const Var var_False = newVar( );
+
+  setFrozen( var_True, true );
+  setFrozen( var_False, true );
+
+  vec< Lit > clauseTrue, clauseFalse;
+  clauseTrue.push( Lit( var_True ) );
+  addClause( clauseTrue );
+  clauseFalse.push( Lit( var_False, true ) );
+  addClause( clauseFalse );
+
+  theory_handler = new THandler( egraph, config, *this, trail, level, assigns, var_True, var_False );
+}
+
+Var SimpSMTSolver::newVar(bool sign, bool dvar)
 {
     Var v = CoreSMTSolver::newVar(sign, dvar);
 
@@ -113,30 +140,95 @@ Var SimpSMTSolver::newVar(bool sign, bool dvar)
         elimtable.push();
     }
 
-    return v; 
+    return v;
 }
 
-bool SimpSMTSolver::solve(const vec<Lit>& assumps, bool do_simp, bool turn_off_simp) 
+lbool SimpSMTSolver::solve( const vec< Enode * > & assumps
+                          , bool do_simp
+  			  , bool turn_off_simp )
+{
+  vec<Lit> lits;
+  for ( int i=0; i<assumps.size(); ++i )
+  {
+    Enode * e = assumps[ i ];
+    if ( e->isFalse( ) )
+    {
+      return l_False;
+    }
+    if ( e->isTrue( ) )
+    {
+      continue;
+    }
+
+    Lit l = theory_handler->enodeToLit( e );
+    lits.push( l );
+  }
+  return solve( lits, do_simp, turn_off_simp );
+}
+
+lbool SimpSMTSolver::solve( const vec< Enode * > & assumps
+                          , const unsigned conflicts
+			  , bool do_simp
+			  , bool turn_off_simp )
+{
+  vec<Lit> lits;
+  for ( int i=0; i<assumps.size(); ++i )
+  {
+    Enode * e = assumps[ i ];
+    if ( e->isFalse( ) )
+    {
+      return l_False;
+    }
+    if ( e->isTrue( ) )
+    {
+      continue;
+    }
+
+    Lit l = theory_handler->enodeToLit( e );
+
+
+    lits.push( l );
+  }
+  return solve( lits, conflicts, do_simp, turn_off_simp );
+}
+
+lbool SimpSMTSolver::solve( const vec< Lit > & assumps
+                         , bool do_simp
+			 , bool turn_off_simp )
+{
+  return solve( assumps, 0, do_simp, turn_off_simp );
+}
+
+lbool SimpSMTSolver::solve( const vec< Lit > & assumps
+			  , const unsigned conflicts
+                          , bool do_simp
+			  , bool turn_off_simp)
 {
   // Added Line
-  assert( assumps.size( ) == 0 );
+  // assert( assumps.size( ) == 0 );
 
   vec<Var> extra_frozen;
   bool     result = true;
 
 //=================================================================================================
 // Added Code
-  if ( config.satconfig.preprocess_theory == 0 )
+
+  // use_simplification = config.sat_preprocess_booleans > 0;
+
+  if ( config.sat_preprocess_theory == 0 )
     goto skip_theory_preproc;
 
+  opensmt_error( "preprocess theory has been temporairly disabled in this version" );
+
+#if 0
 #if NEW_SIMPLIFICATIONS
 skip_theory_preproc:
 #else
 #ifdef STATISTICS
-  total_tvars = t_var.size( ); 
+  total_tvars = t_var.size( );
 #endif
 
-  for ( map< Enode *, set< int > >::iterator it = t_var.begin( ) 
+  for ( map< Enode *, set< int > >::iterator it = t_var.begin( )
       ; it != t_var.end( )
       ; it ++ )
   {
@@ -146,7 +238,7 @@ skip_theory_preproc:
     //
     // Heuristic 1: don't apply if centrality greater parameter
     //
-    if ( static_cast<int>( s.size( ) ) > config.satconfig.centrality )
+    if ( static_cast<int>( s.size( ) ) > config.sat_centrality )
       continue;
 
     const int to_add = t_pos[ x->getId( ) ].size( ) * t_neg[ x->getId( ) ].size( );
@@ -154,7 +246,7 @@ skip_theory_preproc:
     //
     // Heuristic 2: don't apply if clauses to explore are too many
     //
-    if ( to_add - to_rem > config.satconfig.trade_off )
+    if ( to_add - to_rem > config.sat_trade_off )
       continue;
 
     eliminateTVar( x );
@@ -189,11 +281,17 @@ skip_theory_preproc:
 
 skip_theory_preproc:
 #endif
-  
+#endif
+skip_theory_preproc:
+
 // Added Code
 //=================================================================================================
 
   do_simp &= use_simplification;
+
+#ifdef PRODUCE_PROOF
+  if ( do_simp ) opensmt_error( "can't simplify and produce proof. Disable preprocessing in configure" );
+#endif
 
   if (do_simp)
   {
@@ -211,7 +309,7 @@ skip_theory_preproc:
 	// Freeze and store.
 	setFrozen(v, true);
 	extra_frozen.push(v);
-      } 
+      }
     }
 
     result = eliminate(turn_off_simp);
@@ -221,10 +319,13 @@ skip_theory_preproc:
   CoreSMTSolver::preproc_time = cpuTime( );
 #endif
 
+  lbool lresult = l_Undef;
   if (result)
-    result = CoreSMTSolver::solve(assumps);
+    lresult = CoreSMTSolver::solve(assumps, conflicts);
+  else
+    lresult = l_False;
 
-  if (result) 
+  if (lresult == l_True)
   {
     extendModel();
 // Previous line
@@ -239,18 +340,20 @@ skip_theory_preproc:
     for (int i = 0; i < extra_frozen.size(); i++)
       setFrozen(extra_frozen[i], false);
 
-  return result;
+  return lresult;
 }
+
+
 
 //=================================================================================================
 // Added code
 
-bool SimpSMTSolver::addSMTClause( vector< Enode * > & smt_clause ) 
-{ 
+bool SimpSMTSolver::addSMTClause( vector< Enode * > & smt_clause, uint64_t in )
+{
   vec< Lit > sat_clause;
 
   bool first_tatom_found = false;
-  static int splits = 0;
+  // static int splits = 0;
 
 #if 0 && NEW_SPLIT
   // For splitting tlits
@@ -263,7 +366,7 @@ bool SimpSMTSolver::addSMTClause( vector< Enode * > & smt_clause )
   {
     Enode * e = *it;
     // Do not add false literals
-    if ( e->isFalse( ) ) continue; 
+    if ( e->isFalse( ) ) continue;
     // If a literal is true, the clause is true
     if ( e->isTrue( ) )
       return true;
@@ -272,7 +375,7 @@ bool SimpSMTSolver::addSMTClause( vector< Enode * > & smt_clause )
     {
       if ( !first_tatom_found )
 	first_tatom_found = true;
-      // 
+      //
       // Split clause
       //
       else
@@ -301,8 +404,9 @@ bool SimpSMTSolver::addSMTClause( vector< Enode * > & smt_clause )
     //
     if ( ( config.logic == QF_IDL
         || config.logic == QF_RDL
-        || config.logic == QF_LRA )
-      && ( e->isEq( ) 
+        || config.logic == QF_LRA
+        || config.logic == QF_LIA )
+      && ( e->isEq( )
 	|| ( e->isNot( ) && e->get1st( )->isEq( ) ) ) )
     {
       if ( e->isEq( ) )
@@ -350,30 +454,45 @@ bool SimpSMTSolver::addSMTClause( vector< Enode * > & smt_clause )
   {
     Enode * e = *it;
     // Do not add false literals
-    if ( e->isFalse( ) ) continue; 
+    if ( e->isFalse( ) ) continue;
     // If a literal is true, the clause is true
     if ( e->isTrue( ) )
       return true;
 
-    if ( config.satconfig.preprocess_theory != 0 
+    /*
+     * Done in preprocessing now
+     *
+    // Extract shared variables for lazy delayed theory combination
+    if ( config.sat_lazy_dtc != 0
+      && ( config.logic == QF_UFIDL
+        || config.logic == QF_UFLRA ) )
+    {
+      gatherInterfaceTerms( e );
+    }
+    */
+
+    if ( config.sat_preprocess_theory != 0
       && e->isTLit( ) )
     {
       if ( !first_tatom_found )
 	first_tatom_found = true;
-      // 
+      //
       // Split clause
       //
       else
       {
+	assert( false );
+	/*
 	char def_name[ 32 ];
 	sprintf( def_name, SPL_STR, splits++ );
 	egraph.newSymbol( def_name, DTYPE_BOOL );
 	Enode * split = egraph.mkVar( def_name );
 	Lit sl = theory_handler->enodeToLit( split );
 	sat_clause.push( sl );
-	addClause( sat_clause );
+	addClause( sat_clause, in );
 	sat_clause.clear( );
 	sat_clause.push( ~sl );
+	*/
       }
     }
     //
@@ -395,20 +514,20 @@ bool SimpSMTSolver::addSMTClause( vector< Enode * > & smt_clause )
   }
 #endif
 
-  return addClause( sat_clause );
+  return addClause( sat_clause, in );
 }
 
 // Added code
 //=================================================================================================
 
 
-bool SimpSMTSolver::addClause(vec<Lit>& ps)
+bool SimpSMTSolver::addClause(vec<Lit>& ps, uint64_t in)
 {
 //=================================================================================================
 // Added code
 
     if ( !use_simplification )
-      return CoreSMTSolver::addClause(ps);
+      return CoreSMTSolver::addClause(ps,in);
 
 // Added code
 //=================================================================================================
@@ -430,7 +549,7 @@ bool SimpSMTSolver::addClause(vec<Lit>& ps)
     // wouldn't otherwise be considered by
     // MiniSAT
     //
-    if ( config.satconfig.preprocess_theory != 0 
+    if ( config.sat_preprocess_theory != 0
       && ps.size( ) == 1   // Consider unit clauses
       && var(ps[0]) >= 2 ) // Don't consider true/false
     {
@@ -489,8 +608,8 @@ bool SimpSMTSolver::addClause(vec<Lit>& ps)
 // Added code
 
 #if NEW_SIMPLIFICATIONS
-	    if ( config.satconfig.preprocess_theory != 0 
-	      && ( config.logic == QF_IDL 
+	    if ( config.sat_preprocess_theory != 0
+	      && ( config.logic == QF_IDL
 	        || config.logic == QF_RDL ) )
 	    {
 	      Var v = var(c[i]);
@@ -500,8 +619,8 @@ bool SimpSMTSolver::addClause(vec<Lit>& ps)
 	      gatherTVars( e, sign(ps[0]), &c );
 	    }
 #else
-	    if ( config.satconfig.preprocess_theory != 0 
-	      && ( config.logic == QF_IDL 
+	    if ( config.sat_preprocess_theory != 0
+	      && ( config.logic == QF_IDL
 	        || config.logic == QF_RDL ) )
 	    {
 	      Var v = var(c[i]);
@@ -521,7 +640,7 @@ bool SimpSMTSolver::addClause(vec<Lit>& ps)
 
 // Added code
 //=================================================================================================
-      
+
         }
     }
 
@@ -724,8 +843,8 @@ bool SimpSMTSolver::backwardSubsumptionCheck(bool verbose)
 
         if (c.mark()) continue;
 
-        if (verbose && verbosity >= 2 && cnt++ % 1000 == 0)
-            reportf("subsumption left: %10d (%10d subsumed, %10d deleted literals)\r", subsumption_queue.size(), subsumed, deleted_literals);
+        if (verbose && config.verbosity > 9 && cnt++ % 1000 == 0)
+            reportf("# Subsumption left: %10d (%10d subsumed, %10d deleted literals)\r", subsumption_queue.size(), subsumed, deleted_literals);
 
         assert(c.size() > 1 || value(c[0]) == l_True);    // Unit-clauses should have been propagated before this point.
 
@@ -774,7 +893,9 @@ bool SimpSMTSolver::asymm(Var v, Clause& c)
     Lit l = lit_Undef;
     for (int i = 0; i < c.size(); i++)
         if (var(c[i]) != v && value(c[i]) != l_False)
+	{
             uncheckedEnqueue(~c[i]);
+	}
         else
             l = c[i];
 
@@ -840,7 +961,7 @@ next:;
     // Modified line
     // reportf("Verified %d eliminated clauses.\n", cnt);
     /*
-    if ( config.satconfig.verbose )
+    if ( config.sat_verbose )
       reportf("# Verified %d eliminated clauses.\n#\n", cnt);
     */
 }
@@ -874,7 +995,7 @@ bool SimpSMTSolver::eliminateVar(Var v, bool fail)
     for (int i = 0; i < cls.size(); i++)
     {
       elimtable[v].eliminated.push(Clause_new(*cls[i]));
-      removeClause(*cls[i]); 
+      removeClause(*cls[i]);
     }
 
     // Produce clauses in cross product:
@@ -1001,8 +1122,8 @@ bool SimpSMTSolver::eliminate(bool turn_off_elim)
       {
 	Var elim = elim_heap.removeMin();
 
-	if (verbosity >= 2 && cnt % 100 == 0)
-	  reportf("elimination left: %10d\r", elim_heap.size());
+	if (config.verbosity > 9 && cnt % 100 == 0)
+	  reportf("# Elimination left: %10d\r", elim_heap.size());
 
 	if (!frozen[elim] && !eliminateVar(elim))
 	  return false;
@@ -1022,9 +1143,9 @@ bool SimpSMTSolver::eliminate(bool turn_off_elim)
       continue;
     // Resolve using LRA-resolution
     modified = dpfm( );
-  } 
+  }
   while ( modified );
-  
+
   // Clean constraints
   while ( !top_level_eqs.empty( ) )
   {
@@ -1050,8 +1171,8 @@ bool SimpSMTSolver::eliminate(bool turn_off_elim)
     {
       Var elim = elim_heap.removeMin();
 
-      if (verbosity >= 2 && cnt % 100 == 0)
-	reportf("elimination left: %10d\r", elim_heap.size());
+      if (config.verbosity > 9 && cnt % 100 == 0)
+	reportf("# Elimination left: %10d\r", elim_heap.size());
 
       if (!frozen[elim] && !eliminateVar(elim))
 	return false;
@@ -1060,6 +1181,9 @@ bool SimpSMTSolver::eliminate(bool turn_off_elim)
     assert(subsumption_queue.size() == 0);
     gatherTouchedClauses();
   }
+
+  if ( config.verbosity >= 9 )
+    reportf("# \n");
 
 #endif
 
@@ -1135,7 +1259,7 @@ void SimpSMTSolver::cleanUpClauses()
 #if NEW_SIMPLIFICATIONS
 void SimpSMTSolver::gatherTVars( Enode * e, bool negate, Clause * c )
 {
-  assert( config.satconfig.preprocess_theory != 0 );
+  assert( config.sat_preprocess_theory != 0 );
   assert( e->isTAtom( ) );
   assert( e->isEq( ) || e->isLeq( ) );
   //
@@ -1154,7 +1278,7 @@ void SimpSMTSolver::gatherTVars( Enode * e, bool negate, Clause * c )
     if ( e_var == 0 ) continue;
     if ( is_eq )
     {
-      t_pos[ e_var->getId( ) ].push_back( c ); 
+      t_pos[ e_var->getId( ) ].push_back( c );
       t_neg[ e_var->getId( ) ].push_back( c );
     }
     else
@@ -1183,7 +1307,7 @@ bool SimpSMTSolver::dpfm( )
 #else
 void SimpSMTSolver::getDLVars( Enode * e, bool negate, Enode ** x, Enode ** y )
 {
-  assert( config.satconfig.preprocess_theory != 0 );
+  assert( config.sat_preprocess_theory != 0 );
   assert( e->isLeq( ) );
   Enode * lhs = e->get1st( );
   Enode * rhs = e->get2nd( );
@@ -1199,11 +1323,12 @@ void SimpSMTSolver::getDLVars( Enode * e, bool negate, Enode ** x, Enode ** y )
     Enode *tmp = *x;
     *x = *y;
     *y = tmp;
-  }	
+  }
 }
 #endif
 
 
+#if 0
 #if NEW_SIMPLIFICATIONS
 void SimpSMTSolver::eliminateTVar( Enode * x )
 {
@@ -1211,7 +1336,7 @@ void SimpSMTSolver::eliminateTVar( Enode * x )
 #else
 void SimpSMTSolver::eliminateTVar( Enode * x )
 {
-  assert( config.satconfig.preprocess_theory != 0 );
+  assert( config.sat_preprocess_theory != 0 );
   int added = 0;
 
   for ( vector< Clause * >::iterator pt = t_pos[ x->getId( ) ].begin( )
@@ -1289,7 +1414,7 @@ void SimpSMTSolver::eliminateTVar( Enode * x )
       //
       // If atom_pos + atom_neg = T do nothing
       // If atom_pos + atom_neg = F return merge clause without atom_pos + atom_neg
-      // If atom_pos + atom_neg = X return merge clause with also atom_pos + atom_neg 
+      // If atom_pos + atom_neg = X return merge clause with also atom_pos + atom_neg
       //
       Enode * res = mergeTAtoms( atom_pos, neg_pos, atom_neg, neg_neg, x );
 
@@ -1302,7 +1427,7 @@ void SimpSMTSolver::eliminateTVar( Enode * x )
 	addClause( new_clause );
       }
       // Add merge as well
-      else 
+      else
       {
 	added ++;
 	new_clause.push( theory_handler->enodeToLit( res ) );
@@ -1311,6 +1436,7 @@ void SimpSMTSolver::eliminateTVar( Enode * x )
     }
   }
 }
+#endif
 #endif
 
 #if NEW_SIMPLIFICATIONS
@@ -1321,7 +1447,8 @@ void SimpSMTSolver::gaussianElimination( )
 
   assert( config.logic == QF_IDL
        || config.logic == QF_RDL
-       || config.logic == QF_LRA );
+       || config.logic == QF_LRA
+       || config.logic == QF_LIA );
 
   //
   // If just one equality, produce substitution right away
@@ -1335,12 +1462,12 @@ void SimpSMTSolver::gaussianElimination( )
       error( "there is something wrong here", "" );
   }
   //
-  // Otherwise obtain substitutions 
+  // Otherwise obtain substitutions
   // by means of Gaussian Elimination
   //
   else
   {
-    // 
+    //
     // FORWARD substitution
     // We put the matrix top_level_eqs into upper triangular form
     //
@@ -1398,7 +1525,7 @@ void SimpSMTSolver::gaussianElimination( )
 
 void SimpSMTSolver::substituteInClauses ( )
 {
-  // 
+  //
   // Inefficient to traverse all clauses
   // everytime -- better to keep track
   // of just those that contain theory atoms
@@ -1429,7 +1556,7 @@ void SimpSMTSolver::substituteInClauses ( )
 	  LAExpression & sub = *top_level_eqs[ k ];
 	  combine( sub, lae );
 	}
-	// 
+	//
 	// l is true under assumptions, so we can remove the
 	// entire clause
 	//
@@ -1464,13 +1591,14 @@ void SimpSMTSolver::substituteInClauses ( )
 }
 #endif
 
+#if 0
 Enode * SimpSMTSolver::mergeTAtoms( Enode * atom_pos
                                   , bool neg_pos
 				  , Enode * atom_neg
 				  , bool neg_neg
                                   , Enode * x )
 {
-  assert( config.satconfig.preprocess_theory != 0 );
+  assert( config.sat_preprocess_theory != 0 );
 
   assert( atom_pos->isLeq( ) );
   assert( atom_pos->get1st( )->isMinus( ) );
@@ -1532,7 +1660,7 @@ Enode * SimpSMTSolver::mergeTAtoms( Enode * atom_pos
     assert( x_pos == y_neg );
     Real c = c_neg + c_pos;
     res = egraph.mkLeq( egraph.cons( egraph.mkMinus( egraph.cons( x_neg, egraph.cons( y_pos ) ) )
-	              , egraph.cons( egraph.mkNum( c ) ) ) ); 
+	              , egraph.cons( egraph.mkNum( c ) ) ) );
   }
   //
   // y - x <= c_pos
@@ -1544,7 +1672,7 @@ Enode * SimpSMTSolver::mergeTAtoms( Enode * atom_pos
   {
     Real c = c_neg + c_pos;
     res = egraph.mkLeq( egraph.cons( egraph.mkMinus( egraph.cons( y_pos, egraph.cons( x_neg ) ) )
-	              , egraph.cons( egraph.mkNum( c ) ) ) ); 
+	              , egraph.cons( egraph.mkNum( c ) ) ) );
   }
   else
   {
@@ -1553,6 +1681,7 @@ Enode * SimpSMTSolver::mergeTAtoms( Enode * atom_pos
 
   return res;
 }
+#endif
 
 // Added Code
 //=================================================================================================

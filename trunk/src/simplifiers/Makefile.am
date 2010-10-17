@@ -7,4 +7,6 @@ libsimplifiers_la_SOURCES = TopLevelProp.h TopLevelProp.C \
 			    BVBooleanize.h BVBooleanize.C \
 			    DLRescale.h DLRescale.C \
 			    BVNormalize.h BVNormalize.C \
-			    Ackermanize.h Ackermanize.C
+			    Ackermanize.h Ackermanize.C \
+			    ArraySimplify.h ArraySimplify.C \
+			    Purify.C Purify.h

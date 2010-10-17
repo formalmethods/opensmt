@@ -20,7 +20,7 @@ along with OpenSMT. If not, see <http://www.gnu.org/licenses/>.
 #ifndef TOP_LEVEL_PROP_H
 #define TOP_LEVEL_PROP_H
 
-#include "global.h"
+#include "Global.h"
 #include "Otl.h"
 #include "Egraph.h"
 
@@ -41,15 +41,15 @@ private:
 
   Enode * learnEqTransitivity             ( Enode * );
 
-  bool    retrieveSubstitutions           ( Enode *, Map( enodeid_t, Enode * ) & );
+  bool    retrieveSubstitutions           ( Enode *, map< enodeid_t, Enode * > & );
+  bool    arithmeticElimination           ( vector< Enode * > &, map< enodeid_t, Enode * > & );
   bool    contains                        ( Enode *, Enode * );
-  Enode * substitute                      ( Enode *, Map( enodeid_t, Enode * ) &, bool & );
+  Enode * substitute                      ( Enode *, map< enodeid_t, Enode * > &, bool & );
   Enode * canonize                        ( Enode * );
 #if NEW_SPLIT
 #else
   Enode * splitEqs                        ( Enode * );
 #endif
-  Enode * simplifyTwinEqualities          ( Enode *, bool & );
   Enode * propagateUnconstrainedVariables ( Enode *, bool & );
   Enode * replaceUnconstrainedTerms       ( Enode *, vector< int > & , bool & );
   void    computeIncomingEdges            ( Enode *, vector< int > & );

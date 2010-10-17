@@ -24,6 +24,7 @@
 #include "TSolver.h"
 #include "LAVar.h"
 #include "LARow.h"
+#include "LAColumn.h"
 
 //
 // Class to solve Linear Arithmetic theories
@@ -51,10 +52,17 @@ private:
 
 public:
 
-  LRASolver( const int i, const char * n, SMTConfig & c, Egraph & e, vector<Enode *> & x, vector<Enode *> & d, vector<Enode *> & s ) :
-    OrdinaryTSolver( i, n, c, e, x, d, s )           // constructor
+  LRASolver( const int i
+           , const char * n
+	   , SMTConfig & c
+	   , Egraph & e
+	   , SStore & t
+	   , vector<Enode *> & x, vector<Enode *> & d, vector<Enode *> & s) :
+    OrdinaryTSolver( i, n, c, e, t, x, d, s )        // constructor
   {
     status = INIT;
+    checks_history.push_back(0);
+    first_update_after_backtrack = true;
   }
   ~LRASolver( );                                     // destructor
 
@@ -66,6 +74,19 @@ public:
   bool  belongsToT        ( Enode * );               // Checks if Atom belongs to this theory
   void  computeModel      ( );                       // Computes the model into enodes
 
+protected:
+  // vector in which witnesses for unsatisfiability are stored
+  vector<Real> explanationCoefficients;
+
+  VectorLAVar columns;                 // Maps terms' ID to LAVar pointers
+  VectorLAVar rows;                    // Maps terms' ID to LAVar pointers, used to store basic columns
+  VectorLAVar enode_lavar;             // Maps original constraints to solver's terms and bounds
+
+  bool assertBoundOnColumn( LAVar * it, unsigned it_i);
+
+  vector<unsigned> checks_history;
+
+
 private:
   void doGaussianElimination( );                          // Performs Gaussian elimination of all redundant terms in the Tableau
   void update( LAVar *, const Delta & );                  // Updates the bounds after constraint pushing
@@ -76,15 +97,22 @@ private:
   inline bool setStatus( LRASolverStatus );               // Sets and return status of the solver
   void initSolver( );                                     // Initializes the solver
   void print( ostream & out );                            // Prints terms, current bounds and the tableau
+  void addVarToRow( LAVar*, LAVar*, Real*);     //
+  bool checkIntegersAndSplit();
+
+#ifdef PRODUCE_PROOF
+  bool             fillInterpolants( );
+#endif
+
+  bool first_update_after_backtrack;
 
   LRASolverStatus status;                  // Internal status of the solver (different from bool)
-  vector<LAVar *> enode_lavar;             // Maps original constraints to solver's terms and bounds
-  vector<LAVar *> columns;                 // Maps terms' ID to LAVar pointers
-  vector<LAVar *> rows;                    // Maps terms' ID to LAVar pointers, used to store basic columns
-  vector<LAVar *> slack_vars;              // Collect slack variables (useful for removal)
+  VectorLAVar slack_vars;              // Collect slack variables (useful for removal)
   vector<Real *> numbers_pool;             // Collect numbers (useful for removal)
   vector<LAVarHistory> pushed_constraints; // Keeps history of constraints
-  set<LAVar *> touched_rows;               // Keeps the list of modified rows
+  set<LAVar *> touched_rows;               // Keeps the set of modified rows
+
+  vector < LAVar * > removed_by_GaussianElimination;       // Stack of variables removed during Gaussian elimination
 
   // Two reloaded output operators
   inline friend ostream & operator <<( ostream & out, LRASolver & solver )

@@ -32,7 +32,6 @@ OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWA
 //=================================================================================================
 // Solver -- the main class:
 
-
 class Solver {
 public:
 
@@ -296,7 +295,6 @@ inline void Solver::printClause(const C& c)
         fprintf(stderr, " ");
     }
 }
-
 
 //=================================================================================================
 #endif

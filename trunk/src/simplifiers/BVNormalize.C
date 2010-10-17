@@ -22,10 +22,11 @@ along with OpenSMT. If not, see <http://www.gnu.org/licenses/>.
 Enode *
 BVNormalize::doit( Enode * formula )
 {
+  /*
   assert( formula );
 
   vector< Enode * > unprocessed_enodes;
-  egraph.initDupMap( );
+  egraph.initDupMap1( );
 
   unprocessed_enodes.push_back( formula );
   //
@@ -37,7 +38,7 @@ BVNormalize::doit( Enode * formula )
     // 
     // Skip if the node has already been processed before
     //
-    if ( egraph.valDupMap( enode ) != NULL )
+    if ( egraph.valDupMap1( enode ) != NULL )
     {
       unprocessed_enodes.pop_back( );
       continue;
@@ -57,7 +58,7 @@ BVNormalize::doit( Enode * formula )
 	// Push only if it is unprocessed
 	// boolean operator
 	//
-	if ( egraph.valDupMap( arg ) == NULL )
+	if ( egraph.valDupMap1( arg ) == NULL )
 	{
 	  unprocessed_enodes.push_back( arg );
 	  unprocessed_children = true;
@@ -83,20 +84,23 @@ BVNormalize::doit( Enode * formula )
       result = egraph.copyEnodeEtypeTermWithCache( enode );
     }
 
-    assert( egraph.valDupMap( enode ) == NULL );
-    egraph.storeDupMap( enode, result );
+    assert( egraph.valDupMap1( enode ) == NULL );
+    egraph.storeDupMap1( enode, result );
   }
 
-  Enode * new_formula = egraph.valDupMap( formula );
+  Enode * new_formula = egraph.valDupMap1( formula );
   assert( new_formula );
-  egraph.doneDupMap( );
+  egraph.doneDupMap1( );
 
   return new_formula;
+  */
+  return formula;
 }
 
 Enode *
 BVNormalize::normalize( Enode * term )
 {
+  /*
   assert( term );
   //
   // Simplification for predicates
@@ -137,8 +141,8 @@ BVNormalize::normalize( Enode * term )
   // 
   // Map between node and coefficient
   //
-  Map( enodeid_t, mpz_class * ) term_to_coeff;
-  Map( enodeid_t, Enode * ) id_to_enode;
+  map< enodeid_t, mpz_class * > term_to_coeff;
+  map< enodeid_t, Enode * > id_to_enode;
   vector< mpz_class * > garbage;
   //
   // For now process just equalities and signed le, which
@@ -157,7 +161,7 @@ BVNormalize::normalize( Enode * term )
   //
   Enode * new_lhs = const_cast< Enode * >( egraph.enil );
   Enode * new_rhs = const_cast< Enode * >( egraph.enil );
-  for ( Map( enodeid_t, mpz_class * )::iterator it = term_to_coeff.begin( ) 
+  for ( map< enodeid_t, mpz_class * >::iterator it = term_to_coeff.begin( ) 
       ; it != term_to_coeff.end( ) 
       ; it ++ )
   {
@@ -195,15 +199,6 @@ BVNormalize::normalize( Enode * term )
       else
 	return egraph.mkFalse( );
     }
-    /*
-    else if ( term->isBvsle( ) )
-    {
-      if ( const_value <= 0 )
-	return egraph.mkTrue ( );
-      else
-	return egraph.mkFalse( );
-    }
-    */
     else
     {
       error( "Unsupported operator: ", term->getCar( ) );
@@ -258,11 +253,16 @@ BVNormalize::normalize( Enode * term )
   }
 
   return res;
+  */
+  return term;
 }
 
 Enode *
-BVNormalize::makeNumberFromGmp( mpz_class & n, const int width )
+BVNormalize::makeNumberFromGmp( mpz_class & //n
+                              , const int //width 
+			      )
 {
+  /*
   assert( n >= 0 );
   string s = n.get_str( 2 );
   string new_bin_value;
@@ -279,16 +279,20 @@ BVNormalize::makeNumberFromGmp( mpz_class & n, const int width )
     new_bin_value.insert( 0, width - s.size( ), '0' );
   new_bin_value += s;
   return egraph.mkBvnum( const_cast< char * >(new_bin_value.c_str( )) );
+  */
+  return NULL;
 }
 
 void
-BVNormalize::scanPolynome( Enode * p
-                         , Map( enodeid_t, mpz_class * ) & term_to_coeff
-			 , mpz_class & const_value
-			 , Map( enodeid_t, Enode * ) & id_to_enode
-			 , vector< mpz_class * > & garbage
-			 , bool negate )
+BVNormalize::scanPolynome( Enode *                         //p
+                         , map< enodeid_t, mpz_class * > & //term_to_coeff
+			 , mpz_class &                     //const_value
+			 , map< enodeid_t, Enode * > &     //id_to_enode
+			 , vector< mpz_class * > &         //garbage
+			 , bool                            //negate 
+			 )
 {
+  /*
   vector< Enode * >     unprocessed_enodes;
   vector< mpz_class * > unprocessed_coeffs;
 
@@ -371,7 +375,7 @@ BVNormalize::scanPolynome( Enode * p
     else
     {
       id_to_enode[ enode->getId( ) ] = enode;
-      Map( enodeid_t, mpz_class * )::iterator it = term_to_coeff.find( enode->getId( ) );
+      map< enodeid_t, mpz_class * >::iterator it = term_to_coeff.find( enode->getId( ) );
       //
       // Create new entry
       //
@@ -391,4 +395,5 @@ BVNormalize::scanPolynome( Enode * p
       }
     }
   }
+*/
 }

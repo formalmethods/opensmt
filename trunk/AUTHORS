@@ -1,14 +1,9 @@
-(.) Developed at 
-
------------------------------------
-Universita' della Svizzera Italiana
-     Department of Informatics
-  Verification and Security Group
------------------------------------
-
-Supervisor
-----------
-Prof. Natasha Sharygina       <natasha.sharygina@usi.ch>
+--------------------------------------------------------------
+          Universita' della Svizzera Italiana
+               Department of Informatics
+            Verification and Security Group
+  Lead by Prof. Natasha Sharygina <natasha.sharygina@usi.ch>
+--------------------------------------------------------------
 
 Project leader and main code designer
 -------------------------------------
@@ -23,7 +18,11 @@ Previous members
 ----------------
 Edgar    Pek                  <edgar.pek@usi.ch>
 
+Other contributions
+-------------------
+David Monniaux (for providing FastRational)
+Anders Franzen (for providing the Theory of Costs Solver)
 
-(.) Acknowledgments
-
+Acknowledgments
+---------------
 This work is supported by TASSO Foundation

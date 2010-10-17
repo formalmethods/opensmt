@@ -20,7 +20,7 @@ along with OpenSMT. If not, see <http://www.gnu.org/licenses/>.
 #ifndef EXPAND_ITES_H
 #define EXPAND_ITES_H
 
-#include "global.h"
+#include "Global.h"
 #include "Otl.h"
 #include "Egraph.h"
 

@@ -1,30 +1,32 @@
 /*********************************************************************
- Author: Aliaksei Tsitovich <aliaksei.tsitovich@lu.unisi.ch>
- , Roberto Bruttomesso <roberto.bruttomesso@unisi.ch>
+Author: Aliaksei Tsitovich <aliaksei.tsitovich@lu.unisi.ch>
+      , Roberto Bruttomesso <roberto.bruttomesso@unisi.ch>
 
- OpenSMT -- Copyright (C) 2009, Roberto Bruttomesso
+OpenSMT -- Copyright (C) 2008-2010, Roberto Bruttomesso
 
- OpenSMT is free software: you can redistribute it and/or modify
- it under the terms of the GNU General Public License as published by
- the Free Software Foundation, either version 3 of the License, or
- (at your option) any later version.
+OpenSMT is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
 
- OpenSMT is distributed in the hope that it will be useful,
- but WITHOUT ANY WARRANTY; without even the implied warranty of
- MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- GNU General Public License for more details.
+OpenSMT is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
 
- You should have received a copy of the GNU General Public License
- along with OpenSMT. If not, see <http://www.gnu.org/licenses/>.
- *********************************************************************/
+You should have received a copy of the GNU General Public License
+along with OpenSMT. If not, see <http://www.gnu.org/licenses/>.
+*********************************************************************/
 
-#ifndef LAVAR_H_
-#define LAVAR_H_
+#ifndef LAVAR_H
+#define LAVAR_H
 
-#include "global.h"
+#include "Global.h"
 #include "Enode.h"
 #include "Delta.h"
 #include "LARow.h"
+#include "LAColumn.h"
+
 //
 // Class to store the term of constraints as a column of Simplex method tableau
 //
@@ -64,19 +66,29 @@ private:
 public:
   Enode * e;             //pointer to original Enode. In case of slack variable points to polynomial
   LARow polynomial;      // elements of the variable polynomial (if variable is basic), list of <id, Real*>
-  LARow binded_rows;     // rows a variable is binded to (if it is nonbasic) ,list of <id, Real*>
+  LAColumn binded_rows;     // rows a variable is binded to (if it is nonbasic) ,list of <id, Real*>
   bool skip;             //used to skip columns deleted during Gaussian
   VectorBounds all_bounds;// array storage for all bounds of the variable
   unsigned u_bound;      // integer pointer to the current upper bound
   unsigned l_bound;      // integer pointer to the current lower bound
 
-  LAVar( Enode * e_orig );                                              // Default constructor
+  LAVar( Enode * e_orig);                                              // Default constructor
   LAVar( Enode * e_orig, Enode * e_bound, Enode * e_var, bool basic );  // Constructor with bounds
-  LAVar( Enode * e_orig, Enode * e_var, Real & v, bool revert );        // Constructor with bounds from real
+  LAVar( Enode * e_orig, Enode * e_var, const Real & v, bool revert );        // Constructor with bounds from real
   virtual ~LAVar( );                                                    // Destructor
 
-  void setBounds( Enode * e, Enode * e_bound );          // Set the bounds from Enode of original constraint (used on reading/construction stage)
-  void setBounds( Enode * e, Real & v, bool revert );   // Set the bounds according to enode type and a given value (used on reading/construction stage)
+  void setBounds( Enode * e, Enode * e_bound);          // Set the bounds from Enode of original constraint (used on reading/construction stage)
+  void setBounds( Enode * e, const Real & v, bool revert);   // Set the bounds according to enode type and a given value (used on reading/construction stage)
+
+  unsigned setUpperBound( const Real & v);
+  unsigned setLowerBound( const Real & v);
+
+  unsigned setBound( const Real & v, bool upper);
+  void addBoundsAndUpdateSorting(const LAVarBound & pb1, const LAVarBound & pb2);
+  void addBoundAndUpdateSorting(const LAVarBound & pb);
+  void updateSorting();
+
+  unsigned getBoundByValue( const Real & v, bool upper);
 
   void sortBounds( );   // sort bounds' list
   void printBounds( );  // print out bounds' list
@@ -90,14 +102,18 @@ public:
   inline bool isBasic( );               // Checks if current LAVar is Basic in current solver state
   inline bool isNonbasic( );            // Checks if current LAVar is NonBasic in current solver state
   inline bool isModelOutOfBounds( );    // Check if current Model for LAVar does not feat into the bounds.
+  inline bool isModelOutOfLowerBound( );// Check if current Model for LAVar does not feat into the lower bound.
+  inline bool isModelOutOfUpperBound( );// Check if current Model for LAVar does not feat into the upper bound.
   inline bool isUnbounded( );           // Check if LAVar has no bounds at all (it can be eliminated if possible).
-
+  inline bool isModelInteger( );        // Check if LAVar has an integer model.
+  inline bool isEquality();
+  inline const Delta overBound();
 
   inline int ID( );                             // Return the ID of the LAVar
   inline int basicID( );                        // Return the basicID (row id) of the basic LAVar (-1 if it is Nonbasic)
   inline void setNonbasic( );                   // Make LAVar Nonbasic
   inline void setBasic( int row );              // Make LAVar Basic and set the row number it corresponds
-  inline void bindRow( int row, Real * a );     // bind current LAVar to a row with an attribute a
+//  inline void bindRow( int row, Real * a );     // bind current LAVar to a row with an attribute a
   inline void unbindRow( int row );             // remove row from the binding list
   inline void saveModel( );                     // save model locally
   inline void restoreModel( );                  // restore to last globally saved model
@@ -114,7 +130,7 @@ public:
   // two operators for output
   inline friend ostream & operator <<( ostream & out, LAVar * v )
   {
-    if( v->e->isVar( ) )
+    if( v->e->isVar( ) || v->e->isUf( ) )
       out << v->e;
     else
       out << "s" << v->ID( );
@@ -140,7 +156,53 @@ bool LAVar::isBasic( )
 
 bool LAVar::isModelOutOfBounds( )
 {
+//  if ( M( ) > U( ) || M( ) < L( ) )
+//  {
+//cout << *this << ": " << L() << " <= " << M() << " <= " << U()<< endl;
+//    return true;
+//  }
+//  else
+//    return false;
   return ( M( ) > U( ) || M( ) < L( ) );
+}
+
+bool LAVar::isModelOutOfUpperBound( )
+{
+  return ( M( ) > U( ));
+}
+
+bool LAVar::isModelOutOfLowerBound( )
+{
+  return ( M( ) < L( ));
+}
+
+
+const Delta LAVar::overBound( )
+{
+  assert( isModelOutOfBounds( ) );
+  if( M( ) > U( ) )
+  {
+    return ( Delta(M( ) - U( )));
+  }
+  else if ( M( ) < L( ))
+  {
+    return ( Delta(L( ) - M( )) );
+  }
+  assert (false);
+}
+
+
+bool LAVar::isModelInteger( )
+{
+  return !( M( ).hasDelta() || M().R().get_den() != 1);
+}
+
+bool LAVar::isEquality( )
+{
+  if( l_bound + 1 == u_bound && !L( ).isInf( ) && !U( ).isInf( ) && all_bounds[l_bound].delta == all_bounds[u_bound].delta )
+    return true;
+  else
+    return false;
 }
 
 bool LAVar::isUnbounded( )
@@ -173,16 +235,16 @@ void LAVar::setBasic( int row )
   row_id = row;
 }
 
-void LAVar::bindRow( int row, Real * a )
-{
-  assert( this->binded_rows.find( row ) == this->binded_rows.end( ) );
-  this->binded_rows.assign( row, a );
-}
+//void LAVar::bindRow( int row, Real * a )
+//{
+//  assert( this->binded_rows.find( row ) == this->binded_rows.end( ) );
+//  this->binded_rows.add( row, a );
+//}
 
 void LAVar::unbindRow( int row )
 {
   assert( this->binded_rows.find( row ) != this->binded_rows.end( ) || this->isBasic( ) );
-  this->binded_rows.erase( row );
+  this->binded_rows.remove( this->binded_rows.find( row ) );
 }
 
 void LAVar::saveModel( )
@@ -234,4 +296,4 @@ void LAVar::setM( const Delta &v )
   ( *m1 ) = v;
 }
 
-#endif /*LAVAR_H_*/
+#endif

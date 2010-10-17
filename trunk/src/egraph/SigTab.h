@@ -1,7 +1,7 @@
 /*********************************************************************
 Author: Roberto Bruttomesso <roberto.bruttomesso@gmail.com>
 
-OpenSMT -- Copyright (C) 2009, Roberto Bruttomesso
+OpenSMT -- Copyright (C) 2010, Roberto Bruttomesso
 
 OpenSMT is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -26,7 +26,7 @@ along with OpenSMT. If not, see <http://www.gnu.org/licenses/>.
 #include "Enode.h"
 
 #define SIG_TAB_INITIAL_SIZE 1024
-#define CACHE_SIZE 3
+#define CACHE_SIZE           3
 
 class SigTab
 {
@@ -47,12 +47,15 @@ public:
   {
     Enode * elem;
     bool    active;
-    int     second;
+    // int     second;
   };
 #endif
 
-  void initialize      ( vector< int > & );
-  void printStatistics ( ostream &, int * );
+  void initialize        ( vector< int > & );
+  void printStatistics   ( ostream &, int * );
+#if PEDANTIC_DEBUG
+  bool checkInvariantSTC ( );
+#endif
 
 private:
 
@@ -65,6 +68,7 @@ private:
   vector< Cell * >		              cells;           // Collects cells for deletion
 #endif                                        
   bool                                        initialized;     // Has it been initialized ?
+
 };
 
 #endif

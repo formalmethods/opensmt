@@ -19,7 +19,7 @@ along with OpenSMT. If not, see <http://www.gnu.org/licenses/>.
 
 %{
 
-#include "global.h"
+#include "Global.h"
 
 #include "Egraph.h"
 #include <cstdio>

@@ -59,6 +59,7 @@ Enode * SigTab::insert ( const enodeid_t id, Enode * car, Enode * cdr )
   Enode * ret_value = NULL;
 
 #ifdef BUILD_64
+  (void)id;
   enodeid_pair_t key = encode( first, second );
   ret_value = store[ key ];
 #else
@@ -183,6 +184,7 @@ void SigTab::erase ( Enode * p )
   assert( initialized );
   const enodeid_t first  = p->getSigCar( );
   const enodeid_t second = p->getSigCdr( );
+
 #ifdef BUILD_64
   enodeid_pair_t key = encode( first, second );
   HashTable::iterator it = store.find( key ); 
@@ -233,8 +235,10 @@ Enode * SigTab::lookup ( const Pair( int ) & p )
 
 #ifdef BUILD_64
 void
-SigTab::printStatistics( ostream & os, int * maximal )
-{ }
+SigTab::printStatistics( ostream &, int * )
+{ 
+  assert( false );
+}
 #else
 void
 SigTab::printStatistics( ostream & os, int * maximal )

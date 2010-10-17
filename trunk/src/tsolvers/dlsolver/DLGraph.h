@@ -35,7 +35,6 @@ enum DL_sssp_direction { DL_sssp_forward, DL_sssp_backward };
 // . constructor first
 // . use reference when passing Numbers 
 // . input parameters in constructor should have different names than class attributes
-//struct DLVertex 
 template <class T> struct DLVertex 
 {
   DLVertex (  Enode * e_
@@ -253,10 +252,10 @@ public:
   typedef vector< DLEdge<T> * > AdjList;
 
   typedef __gnu_cxx::SizeTDLEdge< const DLEdge<T> * > HashDLEdge;
-  typedef vector< DLEdge<T> * >             DLPath;
+  typedef vector< DLEdge<T> * >                       DLPath;
 
-  typedef map< Enode *, DLVertex<T> * >	 Enode2Vertex;
-  typedef map< Enode *, DLComplEdges<T> >   Enode2Edge;
+  typedef map< Enode *, DLVertex<T> * >	  Enode2Vertex;
+  typedef map< Enode *, DLComplEdges<T> > Enode2Edge;
 
   inline unsigned getVcnt ( ) const { return Vcnt; }
   inline unsigned getEcnt ( ) const { return Ecnt; }
@@ -284,7 +283,7 @@ public:
   void	      deleteInactive( Enode * );
 
   inline DLEdge<T> * getOppositePolarityEdge( Enode * c ) { assert( c->hasPolarity( ) );  assert( edgeMap.find( c ) != edgeMap.end( ) );    DLComplEdges<T> edges = edgeMap.find( c )->second;     DLEdge<T> * e = c->getPolarity( ) == l_True ? edges.neg : edges.pos;  assert( e ); return e;  }
-  inline DLEdge<T> * getEdgeWithPolarity( Enode * c ) { assert( c->hasPolarity( ) );  assert( edgeMap.find( c ) != edgeMap.end( ) );    DLComplEdges<T> edges = edgeMap.find( c )->second;     DLEdge<T> * e = c->getPolarity( ) == l_True ? edges.pos : edges.neg;  assert( e ); return e;  }
+  inline DLEdge<T> * getEdgeWithPolarity    ( Enode * c ) { assert( c->hasPolarity( ) );  assert( edgeMap.find( c ) != edgeMap.end( ) );    DLComplEdges<T> edges = edgeMap.find( c )->second;     DLEdge<T> * e = c->getPolarity( ) == l_True ? edges.pos : edges.neg;  assert( e ); return e;  }
 
   inline void updateDynDegree( DLEdge<T> * e )
   {
@@ -321,7 +320,7 @@ public:
     assert ( ! e->c->hasPolarity( ) && ! e->c->isDeduced( ) );
     if ( rpath_wt + e->v->pi - e->u->pi <= e->wt )
     {
-      if ( 0 == LAZY_GENERATION )
+      if ( isGreedy( ) )
       {
         e->r = edge;
 	if ( findShortestPath( e ) )               // added for eager_lazy schema
@@ -341,6 +340,8 @@ public:
   inline DLPath & getShortestPath   ( DLEdge<T> *e ) { assert( e ); return shortest_paths[ e->id ]; }
   inline void     clearShortestPath ( DLEdge<T> *e ) { assert( e ); shortest_paths[ e->id ].clear( ); clearSPTs( ); }
 
+  inline void     computeModel      ( );
+
   void        printAdj      ( vector<AdjList> & );
   void        printAdjList  ( AdjList & );
   
@@ -358,6 +359,14 @@ public:
   void printShortestPath ( DLEdge<T> *, const char * );
   void printDLPath       ( DLPath, const char * );
 
+  //
+  // FIXME: This is a trick to deactivate LAZY_GENERATION for
+  // RDL. It seems that is is faster this way ...
+  //
+  inline bool isGreedy( )
+  {
+    return ( 0 == LAZY_GENERATION || config.logic == QF_RDL );
+  }
 private:
 
   inline DLVertex<T> * getDLVertex( Enode * x )   

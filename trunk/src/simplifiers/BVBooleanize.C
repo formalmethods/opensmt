@@ -21,6 +21,7 @@ along with OpenSMT. If not, see <http://www.gnu.org/licenses/>.
 
 Enode * BVBooleanize::doit( Enode * formula )
 {
+  /*
   assert( formula );
   //
   // Step 0: propagate extractions
@@ -46,14 +47,15 @@ Enode * BVBooleanize::doit( Enode * formula )
   // Step 4: remove type-casts
   //
   formula = removeCasts( formula );
-
+  */
   return formula;
 }
 
 Enode * BVBooleanize::propagateExtract( Enode * formula )
 {
+  /*
   vector< Enode * > unprocessed_enodes;
-  egraph.initDupMap( );
+  egraph.initDupMap1( );
 
   unprocessed_enodes.push_back( formula );
   //
@@ -65,7 +67,7 @@ Enode * BVBooleanize::propagateExtract( Enode * formula )
     // 
     // Skip if the node has already been processed before
     //
-    if ( egraph.valDupMap( enode ) != NULL )
+    if ( egraph.valDupMap1( enode ) != NULL )
     {
       unprocessed_enodes.pop_back( );
       continue;
@@ -83,7 +85,7 @@ Enode * BVBooleanize::propagateExtract( Enode * formula )
       //
       // Push only if it is unprocessed
       //
-      if ( egraph.valDupMap( arg ) == NULL )
+      if ( egraph.valDupMap1( arg ) == NULL )
       {
 	unprocessed_enodes.push_back( arg );
 	unprocessed_children = true;
@@ -102,7 +104,7 @@ Enode * BVBooleanize::propagateExtract( Enode * formula )
     
     if ( enode->isExtract( &msb, &lsb ) && msb == lsb )
     {
-      result = propagateExtractRec( egraph.mkExtract( msb, lsb, egraph.valDupMap( enode->get1st( ) ) ) );
+      result = propagateExtractRec( egraph.mkExtract( msb, lsb, egraph.valDupMap1( enode->get1st( ) ) ) );
     }
     else
     {
@@ -110,19 +112,22 @@ Enode * BVBooleanize::propagateExtract( Enode * formula )
     }
 
     assert( result );
-    assert( egraph.valDupMap( enode ) == NULL );
-    egraph.storeDupMap( enode, result );
+    assert( egraph.valDupMap1( enode ) == NULL );
+    egraph.storeDupMap1( enode, result );
   }
 
-  Enode * new_formula = egraph.valDupMap( formula );
+  Enode * new_formula = egraph.valDupMap1( formula );
   assert( new_formula );
 
-  egraph.doneDupMap( );
+  egraph.doneDupMap1( );
   return new_formula;
+  */
+  return formula;
 }
 
 Enode * BVBooleanize::propagateExtractRec( Enode * e )
 {
+  /*
   if ( extraction_cache.find( e->getId( ) ) != extraction_cache.end( ) )
     return extraction_cache[ e->getId( ) ];
 
@@ -237,12 +242,15 @@ Enode * BVBooleanize::propagateExtractRec( Enode * e )
   // Store
   extraction_cache[ e->getId( ) ] = res;
   return res;
+  */
+  return e;
 }
 
 Enode * BVBooleanize::propagateBoolcast( Enode * formula )
 {
+  /*
   vector< Enode * > unprocessed_enodes;
-  egraph.initDupMap( );
+  egraph.initDupMap1( );
 
   unprocessed_enodes.push_back( formula );
   //
@@ -254,7 +262,7 @@ Enode * BVBooleanize::propagateBoolcast( Enode * formula )
     // 
     // Skip if the node has already been processed before
     //
-    if ( egraph.valDupMap( enode ) != NULL )
+    if ( egraph.valDupMap1( enode ) != NULL )
     {
       unprocessed_enodes.pop_back( );
       continue;
@@ -272,7 +280,7 @@ Enode * BVBooleanize::propagateBoolcast( Enode * formula )
       //
       // Push only if it is unprocessed
       //
-      if ( egraph.valDupMap( arg ) == NULL )
+      if ( egraph.valDupMap1( arg ) == NULL )
       {
 	unprocessed_enodes.push_back( arg );
 	unprocessed_children = true;
@@ -287,7 +295,7 @@ Enode * BVBooleanize::propagateBoolcast( Enode * formula )
     unprocessed_enodes.pop_back( );                      
     Enode * result = NULL;
 
-    Enode * arg = enode->getArity( ) > 0 ? egraph.valDupMap( enode->get1st( ) ) : NULL;
+    Enode * arg = enode->getArity( ) > 0 ? egraph.valDupMap1( enode->get1st( ) ) : NULL;
 
     if ( enode->isBoolcast( ) )
     {
@@ -299,25 +307,28 @@ Enode * BVBooleanize::propagateBoolcast( Enode * formula )
     }
 
     assert( result );
-    assert( egraph.valDupMap( enode ) == NULL );
-    egraph.storeDupMap( enode, result );
+    assert( egraph.valDupMap1( enode ) == NULL );
+    egraph.storeDupMap1( enode, result );
   }
 
-  Enode * new_formula = egraph.valDupMap( formula );
+  Enode * new_formula = egraph.valDupMap1( formula );
   assert( new_formula );
 
-  egraph.doneDupMap( );
+  egraph.doneDupMap1( );
   return new_formula;
+  */
+  return formula;
 }
 
 Enode * BVBooleanize::propagateBoolcastRec( Enode * e )
 {
+  /*
   if ( boolcast_cache.find( e->getId( ) ) != boolcast_cache.end( ) )
     return boolcast_cache[ e->getId( ) ];
 
   if ( !e->isBoolcast( ) )
   {
-    assert( e->isDTypeBool( ) );
+    assert( e->isSortBool( ) );
     return e;
   }
 
@@ -367,7 +378,7 @@ Enode * BVBooleanize::propagateBoolcastRec( Enode * e )
   //
   // (bool (= x y)) --> (= x y)
   //
-  else if ( arg->isDTypeBool( ) )
+  else if ( arg->hasSortBool( ) )
   {
     res = arg;
   }
@@ -379,14 +390,17 @@ Enode * BVBooleanize::propagateBoolcastRec( Enode * e )
     res = egraph.mkBoolcast( arg );
   }
 
-  assert( res->isDTypeBool( ) );
+  assert( res->hasSortBool( ) );
   assert( boolcast_cache.find( e->getId( ) ) == boolcast_cache.end( ) );
   boolcast_cache[ e->getId( ) ] = res;
   return res;
+  */
+  return e;
 }
 
 Enode * BVBooleanize::replaceWithTypeCasts( Enode * formula )
 {
+  /*
   //
   // One, zero shortcuts
   //
@@ -394,7 +408,7 @@ Enode * BVBooleanize::replaceWithTypeCasts( Enode * formula )
   Enode * bv1 = egraph.mkBvnum( const_cast< char * >( "1" ) );
 
   vector< Enode * > unprocessed_enodes;
-  egraph.initDupMap( );
+  egraph.initDupMap1( );
 
   unprocessed_enodes.push_back( formula );
   //
@@ -406,7 +420,7 @@ Enode * BVBooleanize::replaceWithTypeCasts( Enode * formula )
     // 
     // Skip if the node has already been processed before
     //
-    if ( egraph.valDupMap( enode ) != NULL )
+    if ( egraph.valDupMap1( enode ) != NULL )
     {
       unprocessed_enodes.pop_back( );
       continue;
@@ -424,7 +438,7 @@ Enode * BVBooleanize::replaceWithTypeCasts( Enode * formula )
       //
       // Push only if it is unprocessed
       //
-      if ( egraph.valDupMap( arg ) == NULL )
+      if ( egraph.valDupMap1( arg ) == NULL )
       {
 	unprocessed_enodes.push_back( arg );
 	unprocessed_children = true;
@@ -439,8 +453,8 @@ Enode * BVBooleanize::replaceWithTypeCasts( Enode * formula )
     unprocessed_enodes.pop_back( );                      
     Enode * result = NULL;
     
-    Enode * arg1 = enode->getArity( ) > 0 ? egraph.valDupMap( enode->get1st( ) ) : NULL;
-    Enode * arg2 = enode->getArity( ) > 1 ? egraph.valDupMap( enode->get2nd( ) ) : NULL;
+    Enode * arg1 = enode->getArity( ) > 0 ? egraph.valDupMap1( enode->get1st( ) ) : NULL;
+    Enode * arg2 = enode->getArity( ) > 1 ? egraph.valDupMap1( enode->get2nd( ) ) : NULL;
 
     // (= x 1) --> boolcast( x )
     if ( enode->isEq( ) && ( arg1 == bv1 || arg2 == bv1 ) )
@@ -463,19 +477,22 @@ Enode * BVBooleanize::replaceWithTypeCasts( Enode * formula )
     }
 
     assert( result );
-    assert( egraph.valDupMap( enode ) == NULL );
-    egraph.storeDupMap( enode, result );
+    assert( egraph.valDupMap1( enode ) == NULL );
+    egraph.storeDupMap1( enode, result );
   }
 
-  Enode * new_formula = egraph.valDupMap( formula );
+  Enode * new_formula = egraph.valDupMap1( formula );
   assert( new_formula );
 
-  egraph.doneDupMap( );
+  egraph.doneDupMap1( );
   return new_formula;
+  */
+  return formula;
 }
 
 Enode * BVBooleanize::rewriteRules( Enode * formula )
 {
+  /*
   //
   // One, zero shortcuts
   //
@@ -483,7 +500,7 @@ Enode * BVBooleanize::rewriteRules( Enode * formula )
   Enode * bv1 = egraph.mkBvnum( const_cast< char * >( "1" ) );
 
   vector< Enode * > unprocessed_enodes;
-  egraph.initDupMap( );
+  egraph.initDupMap1( );
 
   unprocessed_enodes.push_back( formula );
   //
@@ -495,7 +512,7 @@ Enode * BVBooleanize::rewriteRules( Enode * formula )
     // 
     // Skip if the node has already been processed before
     //
-    if ( egraph.valDupMap( enode ) != NULL )
+    if ( egraph.valDupMap1( enode ) != NULL )
     {
       unprocessed_enodes.pop_back( );
       continue;
@@ -513,7 +530,7 @@ Enode * BVBooleanize::rewriteRules( Enode * formula )
       //
       // Push only if it is unprocessed
       //
-      if ( egraph.valDupMap( arg ) == NULL )
+      if ( egraph.valDupMap1( arg ) == NULL )
       {
 	unprocessed_enodes.push_back( arg );
 	unprocessed_children = true;
@@ -528,9 +545,9 @@ Enode * BVBooleanize::rewriteRules( Enode * formula )
     unprocessed_enodes.pop_back( );                      
     Enode * result = NULL;
     
-    Enode * arg1 = enode->getArity( ) > 0 ? egraph.valDupMap( enode->get1st( ) ) : NULL;
-    Enode * arg2 = enode->getArity( ) > 1 ? egraph.valDupMap( enode->get2nd( ) ) : NULL;
-    Enode * arg3 = enode->getArity( ) > 2 ? egraph.valDupMap( enode->get3rd( ) ) : NULL;
+    Enode * arg1 = enode->getArity( ) > 0 ? egraph.valDupMap1( enode->get1st( ) ) : NULL;
+    Enode * arg2 = enode->getArity( ) > 1 ? egraph.valDupMap1( enode->get2nd( ) ) : NULL;
+    Enode * arg3 = enode->getArity( ) > 2 ? egraph.valDupMap1( enode->get3rd( ) ) : NULL;
 
     // ite( s, 0, 1 ) --> s
     if ( enode->isIte( ) && arg2 == bv1 && arg3 == bv0 )
@@ -547,19 +564,22 @@ Enode * BVBooleanize::rewriteRules( Enode * formula )
       result = egraph.copyEnodeEtypeTermWithCache( enode );
 
     assert( result );
-    assert( egraph.valDupMap( enode ) == NULL );
-    egraph.storeDupMap( enode, result );
+    assert( egraph.valDupMap1( enode ) == NULL );
+    egraph.storeDupMap1( enode, result );
   }
 
-  Enode * new_formula = egraph.valDupMap( formula );
+  Enode * new_formula = egraph.valDupMap1( formula );
   assert( new_formula );
 
-  egraph.doneDupMap( );
+  egraph.doneDupMap1( );
   return new_formula;
+  */
+  return formula;
 }
 
 Enode * BVBooleanize::removeCasts( Enode * formula )
 {
+  /*
   //
   // One, zero shortcuts
   //
@@ -567,7 +587,7 @@ Enode * BVBooleanize::removeCasts( Enode * formula )
   Enode * bv1 = egraph.mkBvnum( const_cast< char * >( "1" ) );
 
   vector< Enode * > unprocessed_enodes;
-  egraph.initDupMap( );
+  egraph.initDupMap1( );
 
   unprocessed_enodes.push_back( formula );
   //
@@ -579,7 +599,7 @@ Enode * BVBooleanize::removeCasts( Enode * formula )
     // 
     // Skip if the node has already been processed before
     //
-    if ( egraph.valDupMap( enode ) != NULL )
+    if ( egraph.valDupMap1( enode ) != NULL )
     {
       unprocessed_enodes.pop_back( );
       continue;
@@ -597,7 +617,7 @@ Enode * BVBooleanize::removeCasts( Enode * formula )
       //
       // Push only if it is unprocessed
       //
-      if ( egraph.valDupMap( arg ) == NULL )
+      if ( egraph.valDupMap1( arg ) == NULL )
       {
 	unprocessed_enodes.push_back( arg );
 	unprocessed_children = true;
@@ -612,7 +632,7 @@ Enode * BVBooleanize::removeCasts( Enode * formula )
     unprocessed_enodes.pop_back( );                      
     Enode * result = NULL;
     
-    Enode * arg1 = enode->getArity( ) > 0 ? egraph.valDupMap( enode->get1st( ) ) : NULL;
+    Enode * arg1 = enode->getArity( ) > 0 ? egraph.valDupMap1( enode->get1st( ) ) : NULL;
 
     // boolCast( x ) --> (= x 1)
     if ( enode->isBoolcast( ) )
@@ -630,13 +650,15 @@ Enode * BVBooleanize::removeCasts( Enode * formula )
     }
 
     assert( result );
-    assert( egraph.valDupMap( enode ) == NULL );
-    egraph.storeDupMap( enode, result );
+    assert( egraph.valDupMap1( enode ) == NULL );
+    egraph.storeDupMap1( enode, result );
   }
 
-  Enode * new_formula = egraph.valDupMap( formula );
+  Enode * new_formula = egraph.valDupMap1( formula );
   assert( new_formula );
 
-  egraph.doneDupMap( );
+  egraph.doneDupMap1( );
   return new_formula;
+  */
+  return formula;
 }

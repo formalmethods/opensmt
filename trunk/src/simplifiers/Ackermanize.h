@@ -20,7 +20,7 @@ along with OpenSMT. If not, see <http://www.gnu.org/licenses/>.
 #ifndef ACKERMANIZE_H
 #define ACKERMANIZE_H
 
-#include "global.h"
+#include "Global.h"
 #include "Otl.h"
 #include "Egraph.h"
 

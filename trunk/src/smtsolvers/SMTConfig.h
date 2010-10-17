@@ -20,139 +20,150 @@ along with OpenSMT. If not, see <http://www.gnu.org/licenses/>.
 #ifndef SMTCONFIG_H
 #define SMTCONFIG_H
 
-#include "global.h"
+#include "Global.h"
 #include "SolverTypes.h"
 
-//
-// Forwards declarations
-//
-class TSolver;
-//
-// Generic configuration
-//
-struct GConfig
-{
-  char   stats_file[80];
-  char   model_file[80];
-  int    print_stats;
-  int    print_model;
-};
-//
-// SAT Solver configurations
-//
-struct SConfig
-{
-  int    theory_propagation;
-  double initial_skip_step;
-  double skip_step_factor;
-  int    restart_first;
-  double restart_inc;
-  int    use_luby_restart;
-  int    learn_up_to_size;
-  int    temporary_learn;
-  int    preprocess_booleans;
-  int    preprocess_theory;
-  int    centrality;
-  int    minimize_conflicts;   // Conflict minimization: 0 none, 1 bool only, 2 full
-  int    dump_cnf;
-  int    trade_off;
-  int    verbose;
-};
-//
-// Theory Solver configurations
-//
-struct TConfig
-{
-  int disable;             // Disable the solver
-  int theory_propagation;  // Enable theory propagation
-  int verbose;             // Enable verbosity
-  int int_extract_concat;  // Enable interpretation for extraction/concatenation
-  int poly_deduct_size;    // Used to define the size of polynomial to be used for deduction; 0 - no deduction for polynomials
-  int trade_off;           // Trade-off value for DL preprocessing
-  int gaussian_elim;       // Used to switch on/off Gaussian elimination in LRA
-};
 //
 // Holds informations about the configuration of the solver
 //
 struct SMTConfig
 {
-  SMTConfig  ( const char * filename_ )
-    : filename       ( filename_ )
-    , logic          ( UNDEF )
-    , status         ( l_Undef )
-    , incremental    ( false )
-    , stats_out_flag ( false )
-    , model_out_flag ( false )
+  //
+  // For standard executable
+  //
+  SMTConfig ( int    argc
+	    , char * argv[ ] )
+    : filename ( argv[ argc - 1 ] )
+    , rocset   ( false )
+    , docset   ( false )
   {
-    // Set Default configuration
-    strcpy( gconfig.stats_file, "stats.out" );
-    strcpy( gconfig.model_file, "model.out" );
-    gconfig.print_stats           = 0;
-    gconfig.print_model           = 0;
-    satconfig.theory_propagation  = 1;
-    satconfig.verbose             = 0;
-    satconfig.initial_skip_step   = 1;
-    satconfig.skip_step_factor    = 1;
-    satconfig.restart_first       = 100;
-    satconfig.restart_inc         = 1.1;
-    satconfig.use_luby_restart    = 0;
-    satconfig.learn_up_to_size    = 0;
-    satconfig.temporary_learn     = 1;
-    satconfig.preprocess_booleans = 0;
-    satconfig.preprocess_theory   = 0;
-    satconfig.centrality          = 18;
-    satconfig.trade_off           = 8192;
-    satconfig.minimize_conflicts  = 1;
-    satconfig.dump_cnf            = 0;
-    ufconfig.disable              = 0;
-    ufconfig.theory_propagation   = 1;
-    ufconfig.verbose              = 0;
-    ufconfig.int_extract_concat   = 0;
-    bvconfig.disable              = 0;
-    bvconfig.theory_propagation   = 1;
-    bvconfig.verbose              = 0;
-    dlconfig.disable              = 0;
-    dlconfig.theory_propagation   = 1;
-    dlconfig.verbose              = 0;
-    oconfig.disable               = 0;
-    oconfig.theory_propagation    = 1;
-    oconfig.verbose               = 0;
-    lraconfig.disable             = 0;
-    lraconfig.theory_propagation  = 1;
-    lraconfig.verbose             = 0;
-    lraconfig.poly_deduct_size    = 0;
-    lraconfig.gaussian_elim       = 1;
-#ifndef SMTCOMP
-    parseConfig( ".opensmtrc" );
-#endif
+    initializeConfig( );
+    // Parse command-line options
+    parseCMDLine( argc, argv );
+  }
+  //
+  // For API
+  //
+  SMTConfig ( )
+  {
+    initializeConfig( );
   }
 
-  ~SMTConfig ( ) { }
+  ~SMTConfig ( ) 
+  { 
+    if ( produce_stats )  stats_out.close( );
+    if ( rocset )         out.close( );
+    if ( docset )         err.close( );
+  }
 
-  const char *  filename;
-  logic_t       logic;
-  lbool	        status;
-  bool          incremental;
-  GConfig       gconfig;
-  SConfig       satconfig;
-  TConfig       ufconfig;
-  TConfig       oconfig;
-  TConfig       bvconfig;
-  TConfig       dlconfig;
-  TConfig       lraconfig;
+  void initializeConfig ( );
 
-  inline ostream & getStatsStream( ) { return stats_out_flag ? stats_out_file : cerr; }
-  inline ostream & getModelStream( ) { return model_out_flag ? model_out_file : cerr; }
+  void parseConfig      ( char * );
+  void parseCMDLine     ( int argc, char * argv[ ] );
+  void printHelp        ( );
+  void printConfig      ( ostream & out );
+
+  inline bool      isInit      ( ) { return logic != UNDEF; }
+
+  inline ostream & getStatsOut     ( ) { assert( produce_stats );  return stats_out; }
+  inline ostream & getRegularOut   ( ) { return rocset ? out : cout; }
+  inline ostream & getDiagnosticOut( ) { return docset ? err : cerr; }
+
+  inline void setProduceModels( ) { if ( produce_models != 0 ) return; produce_models = 1; }  
+  inline void setProduceProofs( ) { if ( produce_proofs != 0 ) return; produce_proofs = 1; }
+  inline void setProduceInter( )  { if ( produce_inter != 0 )  return; produce_inter = 1; }
+
+  inline void setRegularOutputChannel( const char * attr )
+  {
+    if ( strcmp( attr, "stdout" ) != 0 && !rocset )
+    {
+      out.open( attr );
+      if( !out ) 
+	opensmt_error2( "can't open ", attr );
+      rocset = true;
+    }
+  }
+
+  inline void setDiagnosticOutputChannel( const char * attr )
+  {
+    if ( strcmp( attr, "stderr" ) != 0 && !rocset )
+    {
+      err.open( attr );
+      if( !err ) 
+	opensmt_error2( "can't open ", attr );
+      rocset = true;
+    }
+  }
+
+  const char * filename;                     // Holds the name of the input filename
+  logic_t      logic;                        // SMT-Logic under consideration
+  lbool	       status;                       // Status of the benchmark
+  int          incremental;                  // Incremental solving
+  int          produce_stats;                // Should print statistics ?
+  int          produce_models;               // Should produce models ?
+  int          produce_proofs;               // Should produce proofs ?
+  int          produce_inter;                // Should produce interpolants ?
+  bool         rocset;                       // Regular Output Channel set ?
+  bool         docset;                       // Diagnostic Output Channel set ?
+  int          dump_formula;                 // Dump input formula
+  int          verbosity;                    // Verbosity level
+  bool         print_success;                // Print sat/unsat
+  // SAT-Solver related parameters
+  int          sat_theory_propagation;       // Enables theory propagation from the sat-solver
+  int          sat_polarity_mode;            // Polarity mode
+  double       sat_initial_skip_step;        // Initial skip step for tsolver calls
+  double       sat_skip_step_factor;         // Increment for skip step
+  int          sat_restart_first;            // First limit of restart
+  double       sat_restart_inc;              // Increment of limit
+  int          sat_use_luby_restart;         // Use luby restart mechanism
+  int          sat_learn_up_to_size;         // Learn theory clause up to size
+  int          sat_temporary_learn;          // Is learning temporary
+  int          sat_preprocess_booleans;      // Activate satelite (on booleans)
+  int          sat_preprocess_theory;        // Activate theory version of satelite
+  int          sat_centrality;               // Specify centrality parameter
+  int          sat_trade_off;                // Specify trade off
+  int          sat_minimize_conflicts;       // Conflict minimization: 0 none, 1 bool only, 2 full
+  int          sat_dump_cnf;                 // Dump cnf formula
+  int          sat_dump_rnd_inter;           // Dump random interpolant
+  int          sat_lazy_dtc;                 // Activate dtc
+  int          sat_lazy_dtc_burst;           // % of eij to generate
+  int	       sat_reduce_proof;	     // Enable proof reduction
+  int 	       sat_reorder_pivots;	     // Enable pivots reordering for interpolation
+  double       sat_ratio_red_time_solv_time; // Reduction time / solving time
+  double       sat_red_time;                 // Reduction time
+  int	       sat_num_glob_trans_loops;     // Number of loops recycle pivots + reduction
+  int	       sat_remove_mixed;             // Compression of AB-mixed subtrees
+  // Proof manipulation parameters
+  int          proof_reduce;                 // Enable proof reduction
+  double       proof_ratio_red_solv;         // Ratio reduction time solving time
+  double       proof_red_time;               // Reduction time
+  int          proof_red_trans;              // Number of reduction transformations loops
+  int          proof_reorder_pivots;         // Enable pivot reordering
+  int          proof_remove_mixed;           // Enable removal of mixed predicates
+  int          proof_dump_rnd_inter;         // Dump random interpolation problem
+  // UF-Solver related parameters
+  int          uf_disable;                   // Disable the solver
+  int          uf_theory_propagation;        // Enable theory propagation
+  // BV-Solver related parameters
+  int          bv_disable;                   // Disable the solver
+  int          bv_theory_propagation;        // Enable theory propagation
+  // DL-Solver related parameters
+  int          dl_disable;                   // Disable the solver
+  int          dl_theory_propagation;        // Enable theory propagation
+  // LRA-Solver related parameters
+  int          lra_disable;                  // Disable the solver
+  int          lra_theory_propagation;       // Enable theory propagation
+  int          lra_poly_deduct_size;         // Used to define the size of polynomial to be used for deduction; 0 - no deduction for polynomials
+  int          lra_trade_off;                // Trade-off value for DL preprocessing
+  int          lra_gaussian_elim;            // Used to switch on/off Gaussian elimination in LRA
+  int          lra_integer_solver;           // Flag to require integer solution for LA problem
+  int          lra_check_on_assert;          // Probability (0 to 100) to run check when assert is called
 
 private:
 
-  void parseConfig ( const char * );
-  void printConfig ( ostream & out );
-
-  bool           stats_out_flag;
-  ofstream       stats_out_file;
-  bool           model_out_flag;
-  ofstream       model_out_file;
+  ofstream     stats_out;                    // File for statistics
+  ofstream     out;                          // Regular output channel
+  ofstream     err;                          // Diagnostic output channel
 };
 
 #endif

@@ -19,7 +19,58 @@ along with OpenSMT. If not, see <http://www.gnu.org/licenses/>.
 
 #include "SMTConfig.h"
 
-void SMTConfig::parseConfig ( const char * f )
+void
+SMTConfig::initializeConfig( )
+{
+  // Set Global Default configuration
+  logic                        = UNDEF;
+  status                       = l_Undef;
+  incremental                  = 0;
+  produce_stats                = 1;
+  produce_models               = 0;
+  produce_proofs               = 0;
+  produce_inter                = 0;
+  dump_formula                 = 0;
+  verbosity                    = 0;
+  print_success                = false;
+  // Set SAT-Solver Default configuration
+  sat_theory_propagation       = 1;
+  sat_polarity_mode            = 0;
+  sat_initial_skip_step        = 1;
+  sat_skip_step_factor         = 1;
+  sat_restart_first            = 100;
+  sat_restart_inc              = 1.1;
+  sat_use_luby_restart         = 0;
+  sat_learn_up_to_size         = 0;
+  sat_temporary_learn          = 1;
+  sat_preprocess_booleans      = 1;
+  sat_preprocess_theory        = 0;
+  sat_centrality               = 18;
+  sat_trade_off                = 8192;
+  sat_minimize_conflicts       = 1;
+  sat_dump_cnf                 = 0;
+  sat_dump_rnd_inter           = 0;
+  sat_lazy_dtc                 = 0;
+  sat_lazy_dtc_burst           = 1;
+  // UF-Solver Default configuration
+  uf_disable                   = 0;
+  uf_theory_propagation        = 1;
+  // BV-Solver Default configuration
+  bv_disable                   = 0;
+  bv_theory_propagation        = 1;
+  // DL-Solver Default configuration
+  dl_disable                   = 0;
+  dl_theory_propagation        = 1;
+  // LRA-Solver Default configuration
+  lra_disable                  = 0;
+  lra_theory_propagation       = 1;
+  lra_poly_deduct_size         = 0;
+  lra_gaussian_elim            = 1;
+  lra_integer_solver           = 0;
+  lra_check_on_assert          = 0;
+}
+
+void SMTConfig::parseConfig ( char * f )
 {
   FILE * filein = NULL;
   // Open configuration file
@@ -27,9 +78,8 @@ void SMTConfig::parseConfig ( const char * f )
   {
     // No configuration file is found. Print out
     // the current configuration
-    cerr << "# " << endl;
-    cerr << "# WARNING: No configuration file found. Using default setting" << endl;
-    cerr << "# WARNING: Dumping default setting to " << f << endl;
+    // cerr << "# " << endl;
+    cerr << "# WARNING: No configuration file " << f << ". Dumping default setting to " << f << endl;
     ofstream fileout( f );
     printConfig( fileout );
     fileout.close( );
@@ -51,55 +101,66 @@ void SMTConfig::parseConfig ( const char * f )
       if ( buf[ 0 ] == '#' )
 	continue;
 
+      char tmpbuf[ 32 ];
+
       // GENERIC CONFIGURATION
-           if ( sscanf( buf, "stats_file %s\n"             , gconfig.stats_file )              == 1 );
-      else if ( sscanf( buf, "model_file %s\n"             , gconfig.model_file )              == 1 );
-      else if ( sscanf( buf, "print_stats %d\n"            , &(gconfig.print_stats) )          == 1 );
-      else if ( sscanf( buf, "print_model %d\n"            , &(gconfig.print_model) )          == 1 );
-      // SAT SOLVER CONFIGURATION
-      else if ( sscanf( buf, "sat_theory_propagation %d\n" , &(satconfig.theory_propagation))  == 1 );
-      else if ( sscanf( buf, "sat_verbose %d\n"            , &(satconfig.verbose))             == 1 );
-      else if ( sscanf( buf, "sat_initial_skip_step %lf\n" , &(satconfig.initial_skip_step))   == 1 );
-      else if ( sscanf( buf, "sat_skip_step_factor %lf\n"  , &(satconfig.skip_step_factor))    == 1 );
-      else if ( sscanf( buf, "sat_restart_first %d\n"      , &(satconfig.restart_first))       == 1 );
-      else if ( sscanf( buf, "sat_restart_increment %lf\n" , &(satconfig.restart_inc))         == 1 );
-      else if ( sscanf( buf, "sat_use_luby_restart %d\n"   , &(satconfig.use_luby_restart))    == 1 );
-      else if ( sscanf( buf, "sat_learn_up_to_size %d\n"   , &(satconfig.learn_up_to_size))    == 1 );
-      else if ( sscanf( buf, "sat_temporary_learn %d\n"    , &(satconfig.temporary_learn))     == 1 );
-      else if ( sscanf( buf, "sat_preprocess_booleans %d\n", &(satconfig.preprocess_booleans)) == 1 );
-      else if ( sscanf( buf, "sat_preprocess_theory %d\n"  , &(satconfig.preprocess_theory))   == 1 );
-      else if ( sscanf( buf, "sat_centrality %d\n"         , &(satconfig.centrality))          == 1 );
-      else if ( sscanf( buf, "sat_trade_off %d\n"          , &(satconfig.trade_off))           == 1 );
-      else if ( sscanf( buf, "sat_minimize_conflicts %d\n" , &(satconfig.minimize_conflicts))  == 1 );
-      else if ( sscanf( buf, "sat_dump_cnf %d\n"           , &(satconfig.dump_cnf))            == 1 );
-      else if ( sscanf( buf, "sat_verbose %d\n"            , &(satconfig.verbose))             == 1 );
+	   if ( sscanf( buf, "incremental %d\n"              , &incremental )                   == 1 );
+      else if ( sscanf( buf, "produce_stats %d\n"            , &produce_stats )                 == 1 );
+      else if ( sscanf( buf, "produce_models %d\n"           , &produce_models )                == 1 );
+      else if ( sscanf( buf, "produce_proofs %d\n"           , &produce_proofs )                == 1 );
+      else if ( sscanf( buf, "produce_inter %d\n"            , &produce_inter )                 == 1 );
+      else if ( sscanf( buf, "regular_output_channel %s\n"   , tmpbuf )                         == 1 )
+	setRegularOutputChannel( tmpbuf );
+      else if ( sscanf( buf, "diagnostic_output_channel %s\n", tmpbuf )                         == 1 )
+	setDiagnosticOutputChannel( tmpbuf );
+      else if ( sscanf( buf, "dump_formula %d\n"             , &dump_formula )                  == 1 );
+      else if ( sscanf( buf, "verbosity %d\n"                , &verbosity )                     == 1 );
+      // SAT SOLVER CONFIGURATION                            
+      else if ( sscanf( buf, "sat_theory_propagation %d\n"   , &(sat_theory_propagation))       == 1 );
+      else if ( sscanf( buf, "sat_polarity_mode %d\n"        , &(sat_polarity_mode))            == 1 );
+      else if ( sscanf( buf, "sat_initial_skip_step %lf\n"   , &(sat_initial_skip_step))        == 1 );
+      else if ( sscanf( buf, "sat_skip_step_factor %lf\n"    , &(sat_skip_step_factor))         == 1 );
+      else if ( sscanf( buf, "sat_restart_first %d\n"        , &(sat_restart_first))            == 1 );
+      else if ( sscanf( buf, "sat_restart_increment %lf\n"   , &(sat_restart_inc))              == 1 );
+      else if ( sscanf( buf, "sat_use_luby_restart %d\n"     , &(sat_use_luby_restart))         == 1 );
+      else if ( sscanf( buf, "sat_learn_up_to_size %d\n"     , &(sat_learn_up_to_size))         == 1 );
+      else if ( sscanf( buf, "sat_temporary_learn %d\n"      , &(sat_temporary_learn))          == 1 );
+      else if ( sscanf( buf, "sat_preprocess_booleans %d\n"  , &(sat_preprocess_booleans))      == 1 );
+      else if ( sscanf( buf, "sat_preprocess_theory %d\n"    , &(sat_preprocess_theory))        == 1 );
+      else if ( sscanf( buf, "sat_centrality %d\n"           , &(sat_centrality))               == 1 );
+      else if ( sscanf( buf, "sat_trade_off %d\n"            , &(sat_trade_off))                == 1 );
+      else if ( sscanf( buf, "sat_minimize_conflicts %d\n"   , &(sat_minimize_conflicts))       == 1 );
+      else if ( sscanf( buf, "sat_dump_cnf %d\n"             , &(sat_dump_cnf))                 == 1 );
+      else if ( sscanf( buf, "sat_dump_rnd_inter %d\n"       , &(sat_dump_rnd_inter))           == 1 );
+      else if ( sscanf( buf, "sat_lazy_dtc %d\n"             , &(sat_lazy_dtc))                 == 1 );
+      else if ( sscanf( buf, "sat_lazy_dtc_burst %d\n"       , &(sat_lazy_dtc_burst))           == 1 );
+      // PROOF PRODUCTION CONFIGURATION
+      else if ( sscanf( buf, "proof_reduce %d\n"             , &(proof_reduce))                 == 1 );
+      else if ( sscanf( buf, "proof_ratio_red_solv %lf\n"    , &(proof_ratio_red_solv))         == 1 );
+      else if ( sscanf( buf, "proof_red_time %lf\n"          , &(proof_red_time))               == 1 );
+      else if ( sscanf( buf, "proof_red_trans %d\n"          , &(proof_red_trans))              == 1 );
+      else if ( sscanf( buf, "proof_reorder_pivots %d\n"     , &(proof_reorder_pivots))         == 1 );
+      else if ( sscanf( buf, "proof_remove_mixed %d\n"       , &(proof_remove_mixed))           == 1 );
+      else if ( sscanf( buf, "proof_dump_rnd_inter %d\n"     , &(proof_dump_rnd_inter))         == 1 );
       // EUF SOLVER CONFIGURATION
-      else if ( sscanf( buf, "uf_disable %d\n"             , &(ufconfig.disable))              == 1 );
-      else if ( sscanf( buf, "uf_theory_propagation %d\n"  , &(ufconfig.theory_propagation))   == 1 );
-      else if ( sscanf( buf, "uf_int_extract_concat %d\n"  , &(ufconfig.int_extract_concat))   == 1 );
-      else if ( sscanf( buf, "uf_verbose %d\n"             , &(ufconfig.verbose))              == 1 );
-      // DL SOLVER CONFIGURATION
-      else if ( sscanf( buf, "o_disable %d\n"              , &(oconfig.disable))              == 1 );
-      else if ( sscanf( buf, "o_theory_propagation %d\n"   , &(oconfig.theory_propagation))   == 1 );
-      else if ( sscanf( buf, "o_verbose %d\n"              , &(oconfig.verbose))              == 1 );
-      // BV SOLVER CONFIGURATION
-      else if ( sscanf( buf, "bv_disable %d\n"             , &(bvconfig.disable))              == 1 );
-      else if ( sscanf( buf, "bv_theory_propagation %d\n"  , &(bvconfig.theory_propagation))   == 1 );
-      else if ( sscanf( buf, "bv_verbose %d\n"             , &(bvconfig.verbose))              == 1 );
-      // DL SOLVER CONFIGURATION
-      else if ( sscanf( buf, "dl_disable %d\n"             , &(dlconfig.disable))              == 1 );
-      else if ( sscanf( buf, "dl_theory_propagation %d\n"  , &(dlconfig.theory_propagation))   == 1 );
-      else if ( sscanf( buf, "dl_verbose %d\n"             , &(dlconfig.verbose))              == 1 );
-      // LRA SOLVER CONFIGURATION
-      else if ( sscanf( buf, "lra_disable %d\n"            , &(lraconfig.disable))             == 1 );
-      else if ( sscanf( buf, "lra_theory_propagation %d\n" , &(lraconfig.theory_propagation))  == 1 );
-      else if ( sscanf( buf, "lra_verbose %d\n"            , &(lraconfig.verbose))             == 1 );
-      else if ( sscanf( buf, "lra_poly_deduct_size %d\n"   , &(lraconfig.poly_deduct_size))    == 1 );
-      else if ( sscanf( buf, "lra_gaussian_elim %d\n"      , &(lraconfig.gaussian_elim))    == 1 );
+      else if ( sscanf( buf, "uf_disable %d\n"               , &(uf_disable))                   == 1 );
+      else if ( sscanf( buf, "uf_theory_propagation %d\n"    , &(uf_theory_propagation))        == 1 );
+      // BV SOLVER CONFIGURATION                                                                      
+      else if ( sscanf( buf, "bv_disable %d\n"               , &(bv_disable))                   == 1 );
+      else if ( sscanf( buf, "bv_theory_propagation %d\n"    , &(bv_theory_propagation))        == 1 );
+      // DL SOLVER CONFIGURATION                                                                      
+      else if ( sscanf( buf, "dl_disable %d\n"               , &(dl_disable))                   == 1 );
+      else if ( sscanf( buf, "dl_theory_propagation %d\n"    , &(dl_theory_propagation))        == 1 );
+      // LRA SOLVER CONFIGURATION                                                                     
+      else if ( sscanf( buf, "lra_disable %d\n"              , &(lra_disable))                  == 1 );
+      else if ( sscanf( buf, "lra_theory_propagation %d\n"   , &(lra_theory_propagation))       == 1 );
+      else if ( sscanf( buf, "lra_poly_deduct_size %d\n"     , &(lra_poly_deduct_size))         == 1 );
+      else if ( sscanf( buf, "lra_gaussian_elim %d\n"        , &(lra_gaussian_elim))            == 1 );
+      else if ( sscanf( buf, "lra_integer_solver %d\n"       , &(lra_integer_solver))           == 1 );
+      else if ( sscanf( buf, "lra_check_on_assert %d\n"      , &(lra_check_on_assert))          == 1 );
       else
       {
-	cerr << "# ERROR: unrecognized option " << buf << endl;
-	exit( 1 );
+	opensmt_error2( "unrecognized option ", buf );
       }
     }
 
@@ -107,73 +168,7 @@ void SMTConfig::parseConfig ( const char * f )
     fclose( filein );
   }
 
-  string sfile( gconfig.stats_file );
-
-  //
-  // Open statistics file if necessary
-  //
-  if ( sfile == "$stderr"
-    || ( filename != NULL && sfile == string( "$filename" ) ) )
-  {
-    stats_out_flag = false;
-  }
-  else
-  {
-    string fname( sfile );
-    string::size_type loc = sfile.find( "$filename", 0 );
-
-    if ( filename != NULL )
-    {
-      if ( loc != string::npos )
-	fname.replace( loc, 9, filename );
-
-      stats_out_file.open( fname.c_str( ) );
-      stats_out_flag = true;
-    }
-    else if ( loc == string::npos )
-    {
-      stats_out_file.open( fname.c_str( ) );
-      stats_out_flag = true;
-    }
-    else
-    {
-      stats_out_flag = false;
-    }
-  }
-
-  string mfile( gconfig.model_file );
-
-  //
-  // Open statistics file if necessary
-  //
-  if ( mfile == "$stderr"
-    || ( filename != NULL && mfile == string("$filename") ) )
-  {
-    model_out_flag = false;
-  }
-  else
-  {
-    string fname( mfile );
-    string::size_type loc = mfile.find( "$filename", 0 );
-
-    if ( filename != NULL )
-    {
-      if ( loc != string::npos )
-	fname.replace( loc, 9, filename );
-
-      model_out_file.open( fname.c_str( ) );
-      model_out_flag = true;
-    }
-    else if ( loc == string::npos )
-    {
-      model_out_file.open( fname.c_str( ) );
-      model_out_flag = true;
-    }
-    else
-    {
-      model_out_flag = false;
-    }
-  }
+  if ( produce_stats )  stats_out.open( "stats.out" );
 }
 
 void SMTConfig::printConfig ( ostream & out )
@@ -187,68 +182,129 @@ void SMTConfig::printConfig ( ostream & out )
   out << "#" << endl;
   out << "# GENERIC CONFIGURATION" << endl;
   out << "#" << endl;
-  out << "# Dump statistics and model to a file. Special values:" << endl
-      << "# $stderr       prints statistics on standard error" << endl
-      << "# $filename     variable expanded to the input filename" << endl;
-  out << "stats_file "             << gconfig.stats_file << endl;
-  out << "model_file "             << gconfig.model_file << endl;
-  out << "print_stats "            << gconfig.print_stats << endl;
-  out << "print_model "            << gconfig.print_model << endl;
+  out << "# Enables incrementality (SMT-LIB 2.0 script-compatible)" << endl;
+  out << "incremental "                << incremental << endl;
+  out << "# Regular output channel " << endl;
+  out << "regular_output_channel stdout" << endl;
+  out << "# Diagnostic output channel " << endl;
+  out << "diagnostic_output_channel stderr" << endl;
+  out << "# Prints statistics in stats.out" << endl;
+  out << "produce_stats "              << produce_stats << endl;
+  out << "# Prints models" << endl;
+  out << "produce_models "             << produce_models << endl;
+  out << "# Prints proofs"  << endl;
+  out << "produce_proofs "             << produce_proofs << endl;
+  out << "# Prints interpolants" << endl;
+  out << "produce_inter "              << produce_inter << endl;
+  out << "# Dumps input formula (debugging)" << endl;
+  out << "dump_formula "               << dump_formula << endl;
+  out << "# Choose verbosity level" << endl;
+  out << "verbosity "                  << verbosity << endl;
   out << "#" << endl;
   out << "# SAT SOLVER CONFIGURATION" << endl;
   out << "#" << endl;
   out << "# Enables theory propagation" << endl;
-  out << "sat_theory_propagation "  << satconfig.theory_propagation << endl;
+  out << "sat_theory_propagation "     << sat_theory_propagation << endl;
+  out << "# Polarity mode for TAtoms and BAtoms" << endl;
+  out << "# 0 - all true" << endl;
+  out << "# 1 - all false" << endl;
+  out << "# 2 - all random" << endl;
+  out << "# 3 - heuristic TAtoms, true BAtoms" << endl;
+  out << "# 4 - heuristic TAtoms, false BAtoms" << endl;
+  out << "# 5 - heuristic TAtoms, random BAtoms" << endl;
+  out << "sat_polarity_mode "  << sat_polarity_mode << endl;
   out << "# Initial and step factor for theory solver calls" << endl;
-  out << "sat_initial_skip_step "   << satconfig.initial_skip_step << endl;
-  out << "sat_skip_step_factor "    << satconfig.skip_step_factor << endl;
+  out << "sat_initial_skip_step "   << sat_initial_skip_step << endl;
+  out << "sat_skip_step_factor "    << sat_skip_step_factor << endl;
   out << "# Initial and increment conflict limits for restart" << endl;
-  out << "sat_restart_first "       << satconfig.restart_first << endl;
-  out << "sat_restart_increment "   << satconfig.restart_inc << endl;
-  out << "sat_use_luby_restart "    << satconfig.use_luby_restart << endl;
+  out << "sat_restart_first "       << sat_restart_first << endl;
+  out << "sat_restart_increment "   << sat_restart_inc << endl;
+  out << "sat_use_luby_restart "    << sat_use_luby_restart << endl;
   out << "# Learn theory-clauses up to the specified size (0 learns nothing)" << endl;
-  out << "sat_learn_up_to_size "    << satconfig.learn_up_to_size << endl;
-  out << "sat_temporary_learn "     << satconfig.temporary_learn << endl;
+  out << "sat_learn_up_to_size "    << sat_learn_up_to_size << endl;
+  out << "sat_temporary_learn "     << sat_temporary_learn << endl;
   out << "# Preprocess variables and clauses when possible" << endl;
-  out << "sat_preprocess_booleans " << satconfig.preprocess_booleans << endl;
-  out << "sat_preprocess_theory "   << satconfig.preprocess_theory << endl;
-  out << "sat_centrality "          << satconfig.centrality << endl;
-  out << "sat_trade_off "           << satconfig.trade_off << endl;
-  out << "sat_minimize_conflicts "  << satconfig.minimize_conflicts << endl;
-  out << "sat_dump_cnf "            << satconfig.dump_cnf << endl;
-  out << "sat_verbose "             << satconfig.verbose << endl;
+  out << "sat_preprocess_booleans " << sat_preprocess_booleans << endl;
+  out << "sat_preprocess_theory "   << sat_preprocess_theory << endl;
+  out << "sat_centrality "          << sat_centrality << endl;
+  out << "sat_trade_off "           << sat_trade_off << endl;
+  out << "sat_minimize_conflicts "  << sat_minimize_conflicts << endl;
+  out << "sat_dump_cnf "            << sat_dump_cnf << endl;
+  out << "sat_dump_rnd_inter "      << sat_dump_rnd_inter << endl;
+  out << "sat_lazy_dtc "            << sat_lazy_dtc << endl;
+  out << "sat_lazy_dtc_burst "      << sat_lazy_dtc_burst << endl;
+  out << "#" << endl;
+  out << "# PROOF TRANSFORMER CONFIGURATION" << endl;
+  out << "#" << endl;
+  out << "proof_reduce "             << proof_reduce << endl;
+  out << "# Reduction timeout w.r.t. solving time" << endl;
+  out << "proof_ratio_red_solv "     << proof_ratio_red_solv << endl;
+  out << "# Reduction timeout" << endl;
+  out << "proof_red_time "           << proof_red_time << endl;
+  out << "# Number of reduction iterations" << endl;
+  out << "proof_red_trans "          << proof_red_trans << endl;
+  out << "proof_reorder_pivots "     << proof_reorder_pivots << endl;
+  out << "proof_remove_mixed "       << proof_remove_mixed << endl;
+  out << "proof_dump_rnd_inter "     << proof_dump_rnd_inter << endl;
   out << "#" << endl;
   out << "# EUF SOLVER CONFIGURATION" << endl;
   out << "#" << endl;
-  out << "uf_disable "            << ufconfig.disable << endl;
-  out << "uf_theory_propagation " << ufconfig.theory_propagation << endl;
-  out << "uf_int_extract_concat " << ufconfig.int_extract_concat << endl;
-  out << "uf_verbose "            << ufconfig.verbose << endl;
-  out << "#" << endl;
-  out << "# WEAK-STRONG PARTIAL ORDER LOGIC SOLVER CONFIGURATION" << endl;
-  out << "#" << endl;
-  out << "o_disable "            << oconfig.disable << endl;
-  out << "o_theory_propagation " << oconfig.theory_propagation << endl;
-  out << "o_verbose "            << oconfig.verbose << endl;
+  out << "uf_disable "               << uf_disable << endl;
+  out << "uf_theory_propagation "    << uf_theory_propagation << endl;
   out << "#" << endl;
   out << "# BITVECTOR SOLVER CONFIGURATION" << endl;
   out << "#" << endl;
-  out << "bv_disable "            << bvconfig.disable << endl;
-  out << "bv_theory_propagation " << bvconfig.theory_propagation << endl;
-  out << "bv_verbose "            << bvconfig.verbose << endl;
+  out << "bv_disable "               << bv_disable << endl;
+  out << "bv_theory_propagation "    << bv_theory_propagation << endl;
   out << "#" << endl;
   out << "# DIFFERENCE LOGIC SOLVER CONFIGURATION" << endl;
   out << "#" << endl;
-  out << "dl_disable "            << dlconfig.disable << endl;
-  out << "dl_theory_propagation " << dlconfig.theory_propagation << endl;
-  out << "dl_verbose "            << dlconfig.verbose << endl;
+  out << "dl_disable "               << dl_disable << endl;
+  out << "dl_theory_propagation "    << dl_theory_propagation << endl;
   out << "#" << endl;
   out << "# LINEAR RATIONAL ARITHMETIC SOLVER CONFIGURATION" << endl;
   out << "#" << endl;
-  out << "lra_disable "            << lraconfig.disable << endl;
-  out << "lra_theory_propagation " << lraconfig.theory_propagation << endl;
-  out << "lra_verbose "            << lraconfig.verbose << endl;
-  out << "lra_poly_deduct_size "   << lraconfig.poly_deduct_size << endl;
-  out << "lra_gaussian_elim "      << lraconfig.gaussian_elim << endl;
+  out << "lra_disable "              << lra_disable << endl;
+  out << "lra_theory_propagation "   << lra_theory_propagation << endl;
+  out << "lra_poly_deduct_size "     << lra_poly_deduct_size << endl;
+  out << "lra_gaussian_elim "        << lra_gaussian_elim << endl;
+  out << "lra_check_on_assert "      << lra_check_on_assert << endl;
+}
 
+void
+SMTConfig::parseCMDLine( int argc
+                       , char * argv[ ] )
+{
+  char config_name[ 64 ];
+  for ( int i = 1 ; i < argc - 1 ; i ++ )
+  {
+    const char * buf = argv[ i ];
+    // Parsing of configuration options
+    if ( sscanf( buf, "--config=%s", config_name ) == 1 )
+    {
+      parseConfig( config_name );
+      break;
+    }      
+    else if ( strcmp( buf, "--help" ) == 0 
+	   || strcmp( buf, "-h" ) == 0 )
+    {
+      printHelp( );
+      exit( 1 );
+    }
+    else
+    {
+      printHelp( );
+      opensmt_error2( "unrecognized option", buf );
+    }
+  }
+}
+
+void SMTConfig::printHelp( )
+{
+  const char help_string[] 
+    = "Usage: ./opensmt [OPTION] filename\n"
+      "where OPTION can be\n"
+      "  --help [-h]              print this help\n"
+      "  --config=<filename>      use configuration file <filename>\n";
+  cerr << help_string;
 }

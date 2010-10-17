@@ -22,7 +22,7 @@ along with OpenSMT. If not, see <http://www.gnu.org/licenses/>.
 #ifndef DLRESCALE_H
 #define DLRESCALE_H
 
-#include "global.h"
+#include "Global.h"
 #include "Otl.h"
 #include "Egraph.h"
 
@@ -38,7 +38,7 @@ public:
 
   ~DLRescale( ) { }
 
-  Enode * doit ( Enode * );
+  void doit ( Enode * );
 
 private:
 

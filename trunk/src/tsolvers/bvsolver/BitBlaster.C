@@ -1,7 +1,7 @@
 /*********************************************************************
 Author: Roberto Bruttomesso <roberto.bruttomesso@gmail.com>
 
-OpenSMT -- Copyright (C) 2009, Roberto Bruttomesso
+OpenSMT -- Copyright (C) 2010, Roberto Bruttomesso
 
 OpenSMT is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -17,6 +17,11 @@ You should have received a copy of the GNU General Public License
 along with OpenSMT. If not, see <http://www.gnu.org/licenses/>.
 *********************************************************************/
 
+/*
+ * FIXME: MANY LINES ARE DISABLED AS THEY HAVE TO BE
+ *        FIXED WRT SMTLIB2
+ */
+
 #include "BitBlaster.h"
 
 BitBlaster::BitBlaster ( const int i
@@ -30,7 +35,7 @@ BitBlaster::BitBlaster ( const int i
   , explanation ( ex )
   , deductions  ( d )
   , suggestions ( s )
-  , _solverP    ( new MiniSATP( i, ex, d, s, var_to_enode, config.bvconfig.theory_propagation > 0 ) )
+  , _solverP    ( new MiniSATP( i, ex, d, s, var_to_enode, config.bv_theory_propagation > 0 ) )
   , solverP     ( *_solverP )
 { 
   // Attach true
@@ -137,13 +142,16 @@ BitBlaster::bbEnode ( Enode * e )
   // BitBlasts predicates
   //
   if ( e->isEq         ( ) ) return bbEq         ( e );
+  /*
   if ( e->isBvsle      ( ) ) return bbBvsle      ( e );
   if ( e->isBvule      ( ) ) return bbBvule      ( e );
+  */
   if ( e->isDistinct   ( ) ) return bbDistinct   ( e );
   // if ( e->isUp         ( ) ) return bbUp         ( e );
   //                   
   // BitBlasts terms  
-  //                   
+  //
+  /*                   
   if ( e->isConcat     ( ) ) return bbConcat     ( e );
   if ( e->isExtract    ( ) ) return bbExtract    ( e );
   if ( e->isBvand      ( ) ) return bbBvand      ( e );
@@ -155,13 +163,14 @@ BitBlaster::bbEnode ( Enode * e )
   if ( e->isBvudiv     ( ) ) return bbBvudiv     ( e );
   if ( e->isBvurem     ( ) ) return bbBvurem     ( e );
   if ( e->isSignExtend ( ) ) return bbSignExtend ( e );
+  */
   if ( e->isVar        ( ) ) return bbVar        ( e );
   if ( e->isConstant   ( ) ) return bbConstant   ( e );
   // if ( e->isUf         ( ) ) return bbUf         ( e );
   //
   // Exit if term is not handled
   //
-  error( "term not handled (yet ?)", e );
+  opensmt_error2( "term not handled (yet ?)", e );
 }
 
 //
@@ -193,6 +202,7 @@ BitBlaster::bbEq( Enode * e )
   // Retrieve arguments' encodings
   vector< Enode * > & bb_lhs = bbEnode( lhs );
   vector< Enode * > & bb_rhs = bbEnode( rhs );
+
   assert( bb_lhs.size( ) == bb_rhs.size( ) );
   assert( (int)bb_lhs.size( ) == lhs->getWidth( ) );
 
@@ -216,7 +226,7 @@ vector< Enode * > &
 BitBlaster::bbBvsle( Enode * e )
 { 
   assert( e );
-  assert( e->isBvsle( ) );
+  // assert( e->isBvsle( ) );
 
   // Return previous result if computed
   if ( (int)bb_cache.size( ) <= e->getId( ) )
@@ -296,7 +306,7 @@ BitBlaster::bbBvule( Enode * e )
   //
   // Later comment: What did I mean ?? :-)
   //
-  assert( e->isBvule( ) );
+  // assert( e->isBvule( ) );
 
   // Return previous result if computed
   if ( (int)bb_cache.size( ) <= e->getId( ) )
@@ -361,7 +371,7 @@ vector< Enode * > &
 BitBlaster::bbConcat( Enode * e ) 
 { 
   assert( e );
-  assert( e->isConcat( ) );
+  // assert( e->isConcat( ) );
 
   // Return previous result if computed
   if ( (int)bb_cache.size( ) <= e->getId( ) )
@@ -411,8 +421,10 @@ BitBlaster::bbExtract( Enode * e )
 
   int lsb = 0, msb = 0;
 
+  /*
   assert( e->isExtract( ) );
   e->isExtract( &msb, &lsb );
+  */
   // Allocate new result
   vector< Enode * > * result = new vector< Enode * >;
   // Garbage collect
@@ -438,7 +450,7 @@ vector< Enode * > &
 BitBlaster::bbBvand( Enode * e ) 
 {
   assert( e );
-  assert( e->isBvand( ) );
+  // assert( e->isBvand( ) );
 
   assert( e->get1st( )->getWidth( ) == e->get2nd( )->getWidth( ) );
 
@@ -487,7 +499,7 @@ vector< Enode * > &
 BitBlaster::bbBvor( Enode * e ) 
 {
   assert( e );
-  assert( e->isBvor( ) );
+  // assert( e->isBvor( ) );
 
   // Return previous result if computed
   if ( (int)bb_cache.size( ) <= e->getId( ) )
@@ -530,7 +542,7 @@ vector< Enode * > &
 BitBlaster::bbBvxor( Enode * e ) 
 { 
   assert( e );
-  assert( e->isBvxor( ) );
+  // assert( e->isBvxor( ) );
   assert( e->getArity( ) == 2 );
 
   // Return previous result if computed
@@ -564,7 +576,7 @@ vector< Enode * > &
 BitBlaster::bbBvnot( Enode * e ) 
 { 
   assert( e );
-  assert( e->isBvnot( ) );
+  // assert( e->isBvnot( ) );
   assert( e->getArity( ) == 1 );
 
   // Return previous result if computed
@@ -593,7 +605,7 @@ vector< Enode * > &
 BitBlaster::bbBvadd( Enode * e ) 
 { 
   assert( e );
-  assert( e->isBvadd( ) );
+  // assert( e->isBvadd( ) );
   assert( e->getArity( ) == 2 );
 
   // Return previous result if computed
@@ -648,7 +660,7 @@ vector< Enode * > &
 BitBlaster::bbBvudiv( Enode * e ) 
 { 
   assert( e );
-  assert( e->isBvudiv( ) );
+  // assert( e->isBvudiv( ) );
   assert( e->getArity( ) == 2 );
 
   // Return previous result if computed
@@ -675,7 +687,7 @@ BitBlaster::bbBvudiv( Enode * e )
   //
   char buf[ 32 ];
   sprintf( buf, "bv0[%d]", arg2->getWidth( ) );
-  Enode * zero = E.mkBvnum( buf );
+  Enode * zero = NULL;/*E.mkBvnum( buf );*/
   Enode * div_eq_zero = bbEnode( E.mkEq( E.cons( arg2, E.cons( zero ) ) ) ).back( );
 
   const unsigned size = divisor.size( );
@@ -818,7 +830,7 @@ vector< Enode * > &
 BitBlaster::bbBvurem( Enode * e ) 
 { 
   assert( e );
-  assert( e->isBvurem( ) );
+  // assert( e->isBvurem( ) );
   assert( e->getArity( ) == 2 );
 
   // Return previous result if computed
@@ -846,7 +858,7 @@ BitBlaster::bbBvurem( Enode * e )
   //
   char buf[ 32 ];
   sprintf( buf, "bv0[%d]", arg2->getWidth( ) );
-  Enode * zero = E.mkBvnum( buf );
+  Enode * zero = NULL;/*E.mkBvnum( buf );*/
   Enode * div_eq_zero = bbEnode( E.mkEq( E.cons( arg2, E.cons( zero ) ) ) ).back( );
 
   const unsigned size = divisor.size( );
@@ -991,7 +1003,7 @@ vector< Enode * > &
 BitBlaster::bbBvmul( Enode * e ) 
 { 
   assert( e );
-  assert( e->isBvmul( ) );
+  // assert( e->isBvmul( ) );
   assert( e->getArity( ) == 2 );
 
   // Return previous result if computed
@@ -1066,94 +1078,11 @@ BitBlaster::bbBvmul( Enode * e )
   return *result;
 }
 
-/*
-vector< Enode * > &
-BitBlaster::bbBvsub( Enode * e ) 
-{ 
-  assert( e );
-  assert( e->isBvsub( ) );
-  assert( e->getArity( ) == 2 );
-
-  // Return previous result if computed
-  if ( (int)bb_cache.size( ) <= e->getId( ) )
-    bb_cache.resize( e->getId( ) + 1, NULL );
-  if ( bb_cache[ e->getId( ) ] != NULL )
-    return *bb_cache[ e->getId( ) ];
-
-  // Allocate new result
-  vector< Enode * > * result = new vector< Enode * >;
-  // Garbage collect
-  garbage.push_back( result );
-
-  Enode * arg1 = e->get1st( );
-  Enode * arg2 = e->get2nd( );
-  vector< Enode * > & bb_arg1 = bbEnode( arg1 );
-  vector< Enode * > & bb_arg2 = bbEnode( arg2 );
-  assert( bb_arg1.size( ) == bb_arg2.size( ) );
-
-  Enode * carry = NULL;
-
-  for( unsigned i = 0 ; i < bb_arg1.size( ) ; i++) 
-  {
-    Enode * bit_1 = bb_arg1[ i ];
-    Enode * bit_2 = bb_arg2[ i ];
-    assert( bit_1 );
-    assert( bit_2 );
-
-    Enode * bit_2_neg = E.mkNot( E.cons( bit_2 ) );
-    Enode * xor_1 = E.mkXor( E.cons( bit_1, E.cons( bit_2_neg ) ) );
-    Enode * and_1 = E.mkAnd( E.cons( bit_1, E.cons( bit_2_neg ) ) );
-
-    if ( carry ) 
-    {    
-      Enode * xor_2 = E.mkXor( E.cons( xor_1, E.cons( carry ) ) );
-      Enode * and_2 = E.mkAnd( E.cons( xor_1, E.cons( carry ) ) );
-      carry = E.mkOr( E.cons( and_1, E.cons( and_2 ) ) );
-      result->push_back( xor_2 );
-    }    
-    else 
-    {    
-      carry = and_1;
-      result->push_back( xor_1 );
-    }    
-  }
-  //
-  // Adds one
-  //
-  for( unsigned j = 0 ; j < (*result).size( ) ; j++ ) 
-  {
-    Enode * bit_1 = (*result)[ j ];
-    Enode * bit_2 = j == 0 ? E.mkTrue( ) : E.mkFalse( );
-    assert( bit_1 );
-    assert( bit_2 );
-
-    Enode * xor_1 = E.mkXor( E.cons( bit_1, E.cons( bit_2 ) ) );
-    Enode * and_1 = E.mkAnd( E.cons( bit_1, E.cons( bit_2 ) ) );
-
-    if ( carry ) 
-    {    
-      Enode * xor_2 = E.mkXor( E.cons( xor_1, E.cons( carry ) ) );
-      Enode * and_2 = E.mkAnd( E.cons( xor_1, E.cons( carry ) ) );
-      carry = E.mkOr( E.cons( and_1, E.cons( and_2 ) ) );
-      (*result)[ j ] = xor_2;
-    }    
-    else 
-    {    
-      carry = and_1;
-      (*result)[ j ] = xor_1;
-    }    
-  }
-  // Save result and return
-  bb_cache[ e->getId( ) ] = result;
-  return *result;
-}
-*/
-
 vector< Enode * > &
 BitBlaster::bbSignExtend( Enode * e ) 
 { 
   assert( e );
-  assert( e->isSignExtend( ) );
+  // assert( e->isSignExtend( ) );
   assert( e->getArity( ) == 1 );
 
   // Return previous result if computed
@@ -1205,11 +1134,11 @@ BitBlaster::bbVar( Enode * e )
 
   int width = e->getWidth( );
   // Allocate width new boolean variables
-  char def_name[ strlen( e->getCar( )->getName( ) ) + 10 ];
+  char def_name[ (e->getCar( )->getName( )).length( ) + 10 ];
   for ( int i = 0 ; i < width ; i ++ )
   {
-    sprintf( def_name, "_%s_%d", e->getCar( )->getName( ), i );
-    E.newSymbol( def_name, DTYPE_BOOL );  
+    sprintf( def_name, "_%s_%d", (e->getCar( )->getName( )).c_str( ), i );
+    // E.newSymbol( def_name, DTYPE_BOOL );  
     result->push_back( E.mkVar( def_name ) ); 
   }
   // Save result and return
@@ -1245,9 +1174,9 @@ BitBlaster::bbConstant( Enode * e )
   else
   {
     unsigned width = e->getWidth( );
-    const char * value = e->getCar( )->getName( );
+    const string value = e->getCar( )->getName( );
 
-    assert( strlen( value ) == width );
+    assert( value.length( ) == width );
     for ( unsigned i = 0 ; i < width ; i ++ )
     {
       result->push_back( value[ width - i - 1 ] == '1' 
@@ -1337,14 +1266,15 @@ BitBlaster::addClause ( vec< Lit > & c, Enode * e )
 Var 
 BitBlaster::cnfizeAndGiveToSolver( Enode * bb, Enode * atom )
 {
-  vector< Enode * > unprocessed_enodes; // Stack for unprocessed enodes
+  // Stack for unprocessed enodes
+  vector< Enode * > unprocessed_enodes; 
   // Cnfize and give to solver
   unprocessed_enodes.push_back( bb );
 
   while( !unprocessed_enodes.empty( ) )
   {
     Enode * enode = unprocessed_enodes.back( );
-    assert( enode->isDTypeBool( ) );
+    assert( enode->hasSortBool( ) );
     // 
     // Skip if the node has already been processed before
     //
@@ -1431,12 +1361,14 @@ BitBlaster::cnfizeAndGiveToSolver( Enode * bb, Enode * atom )
 	cnfizeAnd( enode, result, atom_ );
       else if ( enode->isOr( ) )
 	cnfizeOr ( enode, result, atom_ );
+      /*
       else if ( enode->isIff( ) )
 	cnfizeIff( enode, result, atom_ );
+      */
       else if ( enode->isXor( ) )
 	cnfizeXor( enode, result, atom_ );
       else
-	error( "operator not handled ", enode->getCar( ) );
+	opensmt_error2( "operator not handled ", enode->getCar( ) );
     }
 
     assert( result != lit_Undef );
@@ -1820,7 +1752,7 @@ Enode * BitBlaster::simplify( Enode * formula )
 //
 // Compute the number of incoming edges for e and children
 //
-void BitBlaster::computeIncomingEdges( Enode * e, Map( int, int ) & enodeid_to_incoming_edges )
+void BitBlaster::computeIncomingEdges( Enode * e, map< int, int > & enodeid_to_incoming_edges )
 {
   assert( e );
 
@@ -1832,7 +1764,7 @@ void BitBlaster::computeIncomingEdges( Enode * e, Map( int, int ) & enodeid_to_i
 	list = list->getCdr( ) )
   {
     Enode * arg = list->getCar( );
-    Map( int, int )::iterator it = enodeid_to_incoming_edges.find( arg->getId( ) );
+    map< int, int >::iterator it = enodeid_to_incoming_edges.find( arg->getId( ) );
     if ( it == enodeid_to_incoming_edges.end( ) )
       enodeid_to_incoming_edges[ arg->getId( ) ] = 1;
     else
@@ -1844,13 +1776,13 @@ void BitBlaster::computeIncomingEdges( Enode * e, Map( int, int ) & enodeid_to_i
 //
 // Rewrite formula with maximum arity for operators
 //
-Enode * BitBlaster::rewriteMaxArity( Enode * formula, Map( int, int ) & enodeid_to_incoming_edges )
+Enode * BitBlaster::rewriteMaxArity( Enode * formula, map< int, int > & enodeid_to_incoming_edges )
 {
   assert( formula );
 
   vector< Enode * > unprocessed_enodes;       // Stack for unprocessed enodes
   unprocessed_enodes.push_back( formula );    // formula needs to be processed
-  Map( int, Enode * ) cache;                  // Cache of processed nodes
+  map< int, Enode * > cache;                  // Cache of processed nodes
   //
   // Visit the DAG of the formula from the leaves to the root
   //
@@ -1933,8 +1865,8 @@ Enode * BitBlaster::rewriteMaxArity( Enode * formula, Map( int, int ) & enodeid_
 // Merge collected arguments for nodes
 //
 Enode * BitBlaster::mergeEnodeArgs( Enode * e
-                                  , Map( int, Enode * ) & cache
-		                  , Map( int, int ) & enodeid_to_incoming_edges )
+                                  , map< int, Enode * > & cache
+		                  , map< int, int > & enodeid_to_incoming_edges )
 {
   assert( e->isAnd( ) || e->isOr( ) );
 
@@ -2000,7 +1932,6 @@ void BitBlaster::computeModel( )
       value = value + coeff * bit;
       coeff = Real( 2 ) * coeff;
     }
-    E.initializeCong( e );
     e->setValue( value );
   } 
 }

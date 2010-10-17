@@ -1,7 +1,7 @@
 /*********************************************************************
 Author: Roberto Bruttomesso <roberto.bruttomesso@gmail.com>
 
-OpenSMT -- Copyright (C) 2009, Roberto Bruttomesso
+OpenSMT -- Copyright (C) 2008-2010, Roberto Bruttomesso
 
 OpenSMT is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -30,6 +30,7 @@ public:
              , const char *        
 	     , SMTConfig &         
 	     , Egraph &            
+	     , SStore &
 	     , vector< Enode * > & 
 	     , vector< Enode * > & 
              , vector< Enode * > & );
@@ -43,6 +44,9 @@ public:
   bool                check               ( bool );
   bool                belongsToT          ( Enode * );
   void                computeModel        ( );
+#ifdef PRODUCE_PROOF
+  Enode *             getInterpolants     ( );
+#endif
 };
 
 #endif

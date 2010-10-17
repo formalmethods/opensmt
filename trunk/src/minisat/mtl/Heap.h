@@ -21,6 +21,7 @@ OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWA
 #define Heap_h
 
 #include "Vec.h"
+#include "stdio.h"
 
 //=================================================================================================
 // A heap implementation with support for decrease/increase key.
@@ -100,11 +101,25 @@ class Heap {
 
     // 
     // I hope it makes sense
+    // Removes a variable from a
+    // position in the heap
     //
     void remove(int n)
     {
         assert(inHeap(n));
-        indices[n] = 0;
+	// Retrieve position of n in the heap
+	int ind = indices[n];
+	// Replace n with what is bigger in the heap
+	heap[ind] = heap.last( );
+	// Save new indices for that bigger variable
+	indices[heap[ind]] = ind;
+	// Percolate down bigger variable
+	heap.pop( );
+	// Percolate down
+	if ( heap.size( ) > 1 ) percolateDown(ind);
+	// Detach n
+        indices[n] = -1;
+	assert(!inHeap(n));
     }
 
 // Added Code

@@ -1,12 +1,13 @@
-SUBDIRS = emptysolver bvsolver lrasolver dlsolver osolver
+SUBDIRS = axsolver bvsolver dlsolver emptysolver lrasolver ctsolver
 
 noinst_LTLIBRARIES = libtsolvers.la
 
 INCLUDES=$(config_includedirs)
 
 libtsolvers_la_SOURCES = TSolver.h THandler.C THandler.h
-libtsolvers_la_LIBADD = emptysolver/libemptysolver.la \
+libtsolvers_la_LIBADD = axsolver/libaxsolver.la \
 			bvsolver/libbvsolver.la \
-			lrasolver/liblrasolver.la \
 			dlsolver/libdlsolver.la \
-			osolver/libosolver.la
+			lrasolver/liblrasolver.la \
+			ctsolver/libctsolver.la \
+			emptysolver/libemptysolver.la
