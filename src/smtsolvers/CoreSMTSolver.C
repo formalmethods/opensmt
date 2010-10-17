@@ -1923,6 +1923,7 @@ lbool CoreSMTSolver::solve( const vec<Lit> & assumps
   return status;
 }
 
+#ifndef SMTCOMP
 lbool CoreSMTSolver::getModel( Enode * atom )
 {
   assert( atom->isAtom() );
@@ -1930,6 +1931,7 @@ lbool CoreSMTSolver::getModel( Enode * atom )
   assert( model[ v ] != l_Undef );
   return model[ v ];
 }
+#endif
 
 lbool CoreSMTSolver::smtSolve( ) { return solve(); }
 

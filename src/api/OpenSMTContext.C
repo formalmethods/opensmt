@@ -743,6 +743,7 @@ void OpenSMTContext::Exit( )
 
 void OpenSMTContext::PrintResult( const lbool & result, const lbool & config_status )
 {
+  ostream & out = config.getRegularOut( );
 #ifdef SMTCOMP
   (void)config_status;
 #else
@@ -751,7 +752,6 @@ void OpenSMTContext::PrintResult( const lbool & result, const lbool & config_sta
   //
   // For testing purposes we return error if bug is found
   //
-  ostream & out = config.getRegularOut( );
   if ( config_status != l_Undef
     && result != l_Undef
     && result != config_status )

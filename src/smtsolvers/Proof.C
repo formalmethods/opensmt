@@ -17,6 +17,8 @@ You should have received a copy of the GNU General Public License
 along with OpenSMT. If not, see <http://www.gnu.org/licenses/>.
 *********************************************************************/
 
+#ifndef SMTCOMP
+
 #include "Proof.h"
 
 void CoreSMTSolver::dumpRndInter( )
@@ -570,5 +572,7 @@ void CoreSMTSolver::mixedVarDecActivity( )
     }
   }
 }
+
+#endif
 
 #endif

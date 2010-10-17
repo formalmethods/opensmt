@@ -211,7 +211,9 @@ public:
   inline unsigned    getLearnts   ( )           { return solver.nLearnts( ); }
   inline unsigned    getDecisions ( )           { return solver.decisions; }
   inline lbool       getStatus    ( )           { return state; }
+#ifndef SMTCOMP
   inline lbool       getModel     ( Enode * a ) { return solver.getModel( a ); } 
+#endif
 
   //======================================================================
   //
