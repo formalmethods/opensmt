@@ -22,7 +22,7 @@ along with OpenSMT. If not, see <http://www.gnu.org/licenses/>.
 
 #include "THandler.h"
 #include "SolverTypes.h"
-#include "global.h"
+#include "Global.h"
 #include "Egraph.h"
 #include "SMTConfig.h"
 
@@ -45,19 +45,19 @@ public:
   // addClause
   //
   // Receive a clause in form of a list of
-  // enodes each representing a literal
+  // snodes each representing a literal
   // (atom or negated atom) and feeds a
   // corresponding clause in the SAT Solver
   //
-  virtual bool   addSMTClause  ( vector< Enode * > & )      = 0;
-  virtual lbool  smtSolve      ( )                          = 0;
-  virtual Var    newVar        ( bool = true, bool = true ) = 0;
-  virtual void   setFrozen     ( Var, bool )                = 0;
+  virtual bool   addSMTClause  ( vector< Enode * > &, uint64_t = 0 ) = 0;
+  virtual lbool  smtSolve      ( )                                   = 0;
+  virtual Var    newVar        ( bool = true, bool = true )          = 0;
+  virtual void   setFrozen     ( Var, bool )                         = 0;
 
 protected:
 
   THandler *  theory_handler; // Handles theory
-  Egraph &    egraph;         // Stores Egraph
+  Egraph &    egraph;         // Stores Sgraph
   SMTConfig & config;         // Stores Config
 };
 

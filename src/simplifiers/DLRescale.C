@@ -21,10 +21,10 @@
 
 #include "DLRescale.h"
 
-Enode * DLRescale::doit( Enode * formula )
+void DLRescale::doit( Enode * formula )
 {
   if ( formula->isTrue( ) || formula->isFalse( ) )
-    return formula;
+    return;
 
 #if USE_GMP
   assert( formula );
@@ -79,13 +79,13 @@ Enode * DLRescale::doit( Enode * formula )
 
     unprocessed_enodes.pop_back( );
 
-    if ( !enode->isDTypeBool( ) )
+    if ( !enode->hasSortBool( ) )
     {
       if ( enode->isVar( ) )
 	nof_variables ++;
       else if ( enode->isConstant( ) )
       {
-	const Real & c = enode->getCar( )->getValue( );
+	const Real & c = enode->getValue( );
 	mpz_lcm( lcm, lcm, c.get_den( ).get_mpz_t( ) );
       }
     }
@@ -96,12 +96,14 @@ Enode * DLRescale::doit( Enode * formula )
 
   egraph.doneDup1( );
 
-  Real rescale_factor = Real( mpz_class( lcm )) * Real( nof_variables * nof_variables + 1 );
+  Real rescale_factor = Real( mpz_class( lcm )) * Real( nof_variables ) * Real( nof_variables + 1 );
   assert( rescale_factor > 1 );
-
+  //
+  // Check if worst-case constants sum excees INT_MAX
+  // If so tell the TSolver allocator to use GMP
+  //
   curr_constant_sum = 0;
-  const bool gmpnotset = !egraph.getUseGmp( );
-  egraph.initDupMap( );
+  egraph.initDup1( );
   unprocessed_enodes.push_back( formula );
   //
   // Visit the DAG of the formula from the leaves to the root
@@ -112,7 +114,7 @@ Enode * DLRescale::doit( Enode * formula )
     //
     // Skip if the node has already been processed before
     //
-    if ( egraph.valDupMap( enode ) != NULL )
+    if ( egraph.isDup1( enode ) )
     {
       unprocessed_enodes.pop_back();
       continue;
@@ -131,7 +133,7 @@ Enode * DLRescale::doit( Enode * formula )
       // Push only children that haven't been processed yet,
       // but never children of a theory atom
       //
-      if ( egraph.valDupMap( arg ) == NULL )
+      if ( !egraph.isDup1( arg ) )
       {
 	unprocessed_enodes.push_back( arg );
 	unprocessed_children = true;
@@ -144,45 +146,35 @@ Enode * DLRescale::doit( Enode * formula )
       continue;
 
     unprocessed_enodes.pop_back( );
-    Enode * result = NULL;
 
-    if ( !enode->isDTypeBool( ) && enode->isConstant( ) )
+    if ( !enode->hasSortBool( ) && enode->isConstant( ) )
     {
-      Real c = enode->getCar( )->getValue( );
+      Real c = enode->getValue( );
       Real r = c * rescale_factor;
 
-      if ( gmpnotset )
+      if ( !egraph.getUseGmp( ) )
       {
 	if ( r < 0 )
 	  curr_constant_sum += -r + 1;
 	else
 	  curr_constant_sum +=  r + 1;
 
-	if ( curr_constant_sum > Real( LONG_MAX / 2 ) && !egraph.getUseGmp( ) )
+	if ( curr_constant_sum > Real( INT_MAX ) 
+	  && !egraph.getUseGmp( ) )
 	  egraph.setUseGmp( );
       }
-      result = enode;
-    }
-    else
-    {
-      result = enode;
     }
 
-    assert( egraph.valDupMap( enode ) == NULL );
-    assert( result );
-    egraph.storeDupMap( enode, result );
+    assert( !egraph.isDup1( enode ) );
+    egraph.storeDup1( enode );
   }
 
-  Enode * new_formula = egraph.valDupMap( formula );
-  assert( new_formula );
-  egraph.doneDupMap( );
+  egraph.doneDup1( );
+
   egraph.setRescale( rescale_factor );
 
   mpz_clear( lcm );
-
-  return new_formula;
 #else
   error( "cannot rescale without GMP", "" );
-  return NULL;
 #endif
 }

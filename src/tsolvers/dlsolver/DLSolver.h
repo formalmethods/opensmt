@@ -2,7 +2,7 @@
 Author: Roberto Bruttomesso <roberto.bruttomesso@unisi.ch>
       , Edgar Pek <edgar.pek@lu.unisi.ch>
 
-OpenSMT -- Copyright (C) 2008, Roberto Bruttomesso
+OpenSMT -- Copyright (C) 2008-2010, Roberto Bruttomesso
 
 OpenSMT is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -32,12 +32,13 @@ public:
           , const char *        n
           , SMTConfig &         c
           , Egraph &            e
+	  , SStore &            t
           , vector< Enode * > & x
-          , vector< Enode * > & d 
+          , vector< Enode * > & d
 	  , vector< Enode * > & s )
-	  : OrdinaryTSolver ( i, n, c, e, x, d, s )
-  { 
-    initGraph(); 
+	  : OrdinaryTSolver ( i, n, c, e, t, x, d, s )
+  {
+    initGraph();
   }
 
   ~DLSolver ( );
@@ -49,6 +50,9 @@ public:
   bool                check               ( bool );
   bool                belongsToT          ( Enode * );
   void                computeModel        ( );
+#ifdef PRODUCE_PROOF
+  Enode *             getInterpolants( );
+#endif
 
 private:
 
@@ -62,7 +66,7 @@ private:
 
   DLGraph< T > *      G;                         // The graph
   vector< Enode * >   undo_stack_edges;		 // Keeps track of edges present in a graph
-  vector< size_t  >   backtrack_points;		 // Keeps track of backtrack points 
+  vector< size_t  >   backtrack_points;		 // Keeps track of backtrack points
 };
 
 #endif

@@ -23,10 +23,11 @@ BVSolver::BVSolver ( const int           i
                    , const char *        n
 		   , SMTConfig &         c
 		   , Egraph &            e
+		   , SStore &            t
 		   , vector< Enode * > & x
 		   , vector< Enode * > & d
                    , vector< Enode * > & s )
- : OrdinaryTSolver ( i, n, c, e, x, d, s )
+ : OrdinaryTSolver ( i, n, c, e, t, x, d, s )
 { 
   B = new BitBlaster( id, c, egraph, explanation, deductions, suggestions );  
 }
@@ -144,8 +145,10 @@ bool BVSolver::belongsToT( Enode * e )
   // Standard BV Predicates
   //
   if ( e->isEq       ( )
+      /*
     || e->isBvsle    ( ) 
     || e->isBvule    ( )
+      */
     || e->isDistinct ( ) )
     return true;
   //

@@ -1,7 +1,7 @@
 /*********************************************************************
 Author: Roberto Bruttomesso <roberto.bruttomesso@gmail.com>
 
-OpenSMT -- Copyright (C) 2009, Roberto Bruttomesso
+OpenSMT -- Copyright (C) 2010, Roberto Bruttomesso
 
 OpenSMT is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -28,10 +28,11 @@ EmptySolver::EmptySolver( const int           i
                         , const char *        n
 	                , SMTConfig &         c
 	                , Egraph &            e
+			, SStore &            t
 	                , vector< Enode * > & x
 	                , vector< Enode * > & d
                         , vector< Enode * > & s )
-  : OrdinaryTSolver ( i, n, c, e, x, d, s )
+  : OrdinaryTSolver ( i, n, c, e, t, x, d, s )
 { 
   // Here Allocate External Solver
 
@@ -126,5 +127,11 @@ bool EmptySolver::belongsToT( Enode * e )
 //
 void EmptySolver::computeModel( )
 {
-
 }
+
+#ifdef PRODUCE_PROOF
+Enode * EmptySolver::getInterpolants( )
+{
+  return NULL;
+}
+#endif

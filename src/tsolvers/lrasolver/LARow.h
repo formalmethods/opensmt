@@ -1,6 +1,6 @@
 /*********************************************************************
- Author: Aliaksei Tsitovich <aliaksei.tsitovich@usi.ch>
- , Roberto Bruttomesso <roberto.bruttomesso@unisi.ch>
+ Author: Aliaksei Tsitovich <aliaksei.tsitovich@usi.ch>,
+         Roberto Bruttomesso <roberto.bruttomesso@unisi.ch>
 
  OpenSMT -- Copyright (C) 2009, Roberto Bruttomesso
 
@@ -18,28 +18,29 @@
  along with OpenSMT. If not, see <http://www.gnu.org/licenses/>.
  *********************************************************************/
 
-#ifndef LAROW_H_
-#define LAROW_H_
+#ifndef LAROW_H
+#define LAROW_H
 
-#include "global.h"
-#include "Enode.h"
-#include "Delta.h"
+#include "LAArray.h"
 
-//
-// The class to store the rows and columns of the simplex tableau.
-//
-class LARow: public list<pair<int, Real *> >
+struct LARowItem
 {
-private:
-  vector<bool> is_there; // used to perform the fast check if the value is in the row
+  int key;
+  int pos;
+  Real * coef;
 
-public:
-  LARow::iterator find( int key );              // find the iterator by the key
-  void erase( int key );                        // delete the element form the row by key
-  void erase( LARow::iterator it );             // delete the element form the row by iterator
-  void clear( );                                // clear the row;
-  void assign( const int & key, Real * a );     // assign the value by key
-  void assign( LARow::iterator it, Real * a );  // assign the value by iterator
+  LARowItem( int _key, int _pos, Real * _coef )
+  {
+    key = _key;
+    pos = _pos;
+    coef = _coef;
+  }
 };
 
-#endif /* LAROW_H_ */
+class LARow: public LAArray<LARowItem>
+{
+public:
+  int add( const int key, const int pos, Real * coef );
+};
+
+#endif

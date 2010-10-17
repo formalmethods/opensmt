@@ -18,10 +18,10 @@
  along with OpenSMT. If not, see <http://www.gnu.org/licenses/>.
  *********************************************************************/
 
-#ifndef DELTA_H_
-#define DELTA_H_
+#ifndef DELTA_H
+#define DELTA_H
 
-#include "global.h"
+#include "Global.h"
 
 //
 // Class to keep the delta values and bounds values for the LAVar
@@ -199,20 +199,27 @@ Delta operator/( const Delta &a, const Real &c )
 //
 bool operator<( const Delta &a, const Delta &b )
 {
-  if( a.isPlusInf( ) )
+  if( a.isPlusInf( ) || b.isMinusInf( ) )
     return false;
-  else if( b.isMinusInf( ) )
-    return false;
-  else if( a.isMinusInf( ) )
-    return true;
-  else if( b.isPlusInf( ) )
-    return true;
-  else if( a.R( ) < b.R( ) )
-    return true;
-  else if( a.R( ) == b.R( ) && a.D( ) < b.D( ) )
+  if (a.isMinusInf( ) || b.isPlusInf( ) || a.R( ) < b.R( ) || (a.R( ) == b.R( ) && a.D( ) < b.D( )))
     return true;
   else
     return false;
+//
+//  if( a.isPlusInf( ) )
+//    return false;
+//  else if( b.isMinusInf( ) )
+//    return false;
+//  else if( a.isMinusInf( ) )
+//    return true;
+//  else if( b.isPlusInf( ) )
+//    return true;
+//  else if( a.R( ) < b.R( ) )
+//    return true;
+//  else if( a.R( ) == b.R( ) && a.D( ) < b.D( ) )
+//    return true;
+//  else
+//    return false;
 }
 
 bool operator<=( const Delta &a, const Delta &b )
@@ -236,11 +243,9 @@ bool operator==( const Delta &a, const Delta &b )
    || (a.isPlusInf( ) && b.isMinusInf( ))
    || (b.isPlusInf( ) && a.isMinusInf( )) )
     return false;
-  else if( a.isPlusInf( ) && b.isPlusInf( ) )
-    return true;
-  else if( a.isMinusInf( ) && b.isMinusInf( ) )
-    return true;
-  else if( a.R( ) == b.R( ) && a.D( ) == b.D( ) )
+  else if(( a.isPlusInf( ) && b.isPlusInf( ) )
+      || ( a.isMinusInf( ) && b.isMinusInf( ) )
+      || ( a.R( ) == b.R( ) && a.D( ) == b.D( ) ))
     return true;
   else
     return false;
@@ -397,7 +402,7 @@ Delta& Delta::operator=( const Delta &a )
     }
     infinite = a.infinite;
     positive = a.positive;
-    if( !infinite )
+    if( !( infinite ) )
     {
       r = new Real( a.R( ) );
       d = new Real( a.D( ) );
@@ -421,4 +426,4 @@ Delta::~Delta( )
   }
 }
 
-#endif /*DELTA_H_*/
+#endif

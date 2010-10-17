@@ -1,8 +1,9 @@
 /*********************************************************************
 Author: Roberto Bruttomesso <roberto.bruttomesso@unisi.ch>
       , Edgar Pek           <edgar.pek@lu.unisi.ch>
+      , Aliaksei Tsitovich  <aliaksei.tsitovich@usi.ch>
 
-OpenSMT -- Copyright (C) 2009, Roberto Bruttomesso
+OpenSMT -- Copyright (C) 2008-2010, Roberto Bruttomesso
 
 OpenSMT is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -26,7 +27,7 @@ along with OpenSMT. If not, see <http://www.gnu.org/licenses/>.
 #define DLVERBOSE 0
 
 //
-// Allocates a new graph		
+// Allocates a new graph
 //
 template< class T > void DLSolver<T>::initGraph()
 {
@@ -35,10 +36,10 @@ template< class T > void DLSolver<T>::initGraph()
 //
 // Deallocate graph
 //
-template< class T> DLSolver<T>::~DLSolver( ) 
-{ 
-  delete G; 
-} 
+template< class T> DLSolver<T>::~DLSolver( )
+{
+  delete G;
+}
 //
 // The solver is informed of the existence of
 // atom e. It might be useful for initializing
@@ -74,8 +75,8 @@ template <class T> bool DLSolver<T>::assertLit ( Enode * e, bool reason )
   //
   // If we are doing eager computation / lazy communication
   //
-  DLEdge<T> * deduced_edge = G->getOppositePolarityEdge( e );    
-  if ( true == reason && 0 == LAZY_GENERATION  )
+  DLEdge<T> * deduced_edge = G->getOppositePolarityEdge( e );
+  if ( true == reason && G->isGreedy( )  )
   {
     // Find the shortest path p for the deduced edge
     DLPath & shortest_path = G->getShortestPath( deduced_edge );
@@ -86,11 +87,11 @@ template <class T> bool DLSolver<T>::assertLit ( Enode * e, bool reason )
     return false;
   }
 
-  if ( e->isDeduced( ) 
-    && e->getDeduced( ) == e->getPolarity( ) 
+  if ( e->isDeduced( )
+    && e->getDeduced( ) == e->getPolarity( )
     && e->getDedIndex( ) == id )
     return true;
-  
+
   undo_stack_edges.push_back( e );
   //G->insertDynamic          ( e );
   const bool res = G->checkNegCycle( e, reason );
@@ -100,7 +101,7 @@ template <class T> bool DLSolver<T>::assertLit ( Enode * e, bool reason )
   if ( res )
   {
     assert( false == reason );
-    if ( config.dlconfig.theory_propagation > 0 )
+    if ( config.dl_theory_propagation > 0 )
     {
       G->findHeavyEdges( e );
       sendDeductions( );
@@ -109,7 +110,7 @@ template <class T> bool DLSolver<T>::assertLit ( Enode * e, bool reason )
   }
   //
   // Otherwise retrieve and store negative cycle
-  // 
+  //
   DLVertex<T> * s = G->getNegCycleVertex( );
   DLVertex<T> * u = s;
   DLPath & conflictEdges = G->getConflictEdges( );
@@ -124,6 +125,7 @@ template <class T> bool DLSolver<T>::assertLit ( Enode * e, bool reason )
       lazy_spath.push_back( edge );
   }
   while(s != u);
+
   return false;
 }
 
@@ -132,7 +134,7 @@ template< class T > void DLSolver<T>::pushBacktrackPoint ( )
   //
   // Undo_stack_deduced_edges is used in the lazy_eager schema
   //
-  if ( 0 == LAZY_GENERATION )
+  if ( G->isGreedy( ) )
   {
     backtrack_points.push_back( G->undo_stack_deduced_edges.size( ) );
   }
@@ -152,14 +154,14 @@ template< class T >void DLSolver<T>::popBacktrackPoint ( )
   size_t undo_stack_new_size = backtrack_points.back( );
   backtrack_points.pop_back( );
   backtrackToDynEdgesStackSize( undo_stack_new_size );
-  
-  if ( 0 == LAZY_GENERATION )
+
+  if ( G->isGreedy( ) )
   {
     undo_stack_new_size = backtrack_points.back( );
     backtrack_points.pop_back( );
     backtrackToDeducedEdgesStackSize( undo_stack_new_size );
   }
-	
+
 }
 
 template < class T> bool DLSolver<T>::check( bool complete )
@@ -182,12 +184,16 @@ template < class T> bool DLSolver<T>::check( bool complete )
 template< class T > bool DLSolver<T>::belongsToT( Enode * e )
 {
   assert( e );
+
+  if ( !e->isLeq( ) )
+    return false;
+
   Enode * lhs = e->get1st( );
   Enode * rhs = e->get2nd( );
 
   if ( !lhs->isConstant( ) && !rhs->isConstant( ) )
     return false;
-  
+
   if ( lhs->isConstant( ) )
   {
     Enode * tmp = lhs;
@@ -213,7 +219,15 @@ template< class T > bool DLSolver<T>::belongsToT( Enode * e )
     Enode * const_2 = mon_2->get1st( );
     Enode * var_1 = mon_1->get2nd( );
     Enode * var_2 = mon_2->get2nd( );
-    if ( !var_1->isVar( ) || !var_2->isVar( ) ) return false;
+    if ( config.logic == QF_UFIDL && config.sat_lazy_dtc != 0 )
+    {
+      if ( !var_1->isVar( ) && !var_1->isUf( ) ) return false;
+      if ( !var_2->isVar( ) && !var_2->isUf( ) ) return false;
+    }
+    else
+    {
+      if ( !var_1->isVar( ) || !var_2->isVar( ) ) return false;
+    }
     if ( !const_1->isConstant( ) || !const_2->isConstant( ) ) return false;
     if ( const_1 == one && const_2 == mone ) return true;
     if ( const_2 == one && const_1 == mone ) return true;
@@ -222,10 +236,25 @@ template< class T > bool DLSolver<T>::belongsToT( Enode * e )
   //
   // One variable
   //
+
+  if ( lhs->getArity( ) < 2 )
+  {
+    cerr << "Atom: " << e << endl;
+    assert( false );
+    opensmt_error2( "Malformed term: ", e );
+  }
+
   Enode * con = lhs->get1st( );
   Enode * var = lhs->get2nd( );
   if ( con != one && con != mone ) return false;
-  if ( !var->isVar( ) ) return false;
+  if ( config.logic == QF_UFIDL && config.sat_lazy_dtc != 0 )
+  {
+    if ( !var->isVar( ) && !var->isUf( ) ) return false;
+  }
+  else
+  {
+    if ( !var->isVar( ) ) return false;
+  }
 
   return true;
 }
@@ -249,7 +278,7 @@ template< class T>void DLSolver<T>::backtrackToInactiveEnodesStackSize( size_t s
 {
   // Restore the state at the previous backtrack point
   while ( G->undo_stack_inactive_enodes.size( ) > size )
-  { 
+  {
     Enode * e = G->undo_stack_inactive_enodes.back( );
     G->undo_stack_inactive_enodes.pop_back( );
     G->insertInactive( e );
@@ -285,5 +314,148 @@ template< class T >void DLSolver<T>::sendDeductions ( )
 
 template< class T >void DLSolver<T>::computeModel( )
 {
-  
+  G->computeModel( );
 }
+
+#ifdef PRODUCE_PROOF
+//
+// Compute interpolants for the conflict
+//
+template<class T> Enode * DLSolver<T>::getInterpolants( )
+{
+  DLVertex<T> * s = G->getNegCycleVertex( );
+  DLVertex<T> * u = s;
+  DLPath & conflictEdges = G->getConflictEdges( );
+
+  assert (conflictEdges.size()>1);
+
+  list<Enode *> in_list;
+  // We count interpolants from 1,
+  // hence we set the first nibble
+  // to E=1110 instead of F=1111
+  uint64_t mask = 0xFFFFFFFFFFFFFFFEULL;
+  for( unsigned in = 1; in < egraph.getNofPartitions( ); in++ )
+  {
+    mask &= ~SETBIT( in );
+    // Compute intermediate interpolants
+
+    bool color_A_is_active = false;
+    bool edge_B_is_visited = false;
+    bool edge_A_is_visited = false;
+
+    Enode * i_begin = NULL;
+    Enode * i_end = NULL;
+    Enode * i_begin_first = NULL;
+    Enode * i_end_first = NULL;
+
+    T c;
+    T c_first;
+
+    // iterate over conflict - negative cycle
+    do
+    {
+      DLEdge<T> *edge = conflictEdges[u->id];
+      cgcolor_t color = CG_UNDEF;
+      // Belongs to B
+      if( ( egraph.getIPartitions( edge->c ) & mask ) != 0 )
+	color |= CG_B;
+      // Belongs to A
+      if( ( egraph.getIPartitions( edge->c ) & ~mask ) != 0 )
+	color |= CG_A;
+
+
+      // Update begin of the chord while itarating through A edges
+      if( color == CG_AB || color == CG_A )
+      {
+        edge_A_is_visited = true;
+        // If A path is already going - shift the end of it
+        if( color_A_is_active )
+        {
+          i_end = (edge->u->e!=NULL)?edge->u->e:edge->v->e;
+          c += edge->wt;
+        }
+        // Otherwise start the A path
+        else
+        {
+          color_A_is_active = true;
+          i_end = (edge->u->e!=NULL)?edge->u->e:edge->v->e;
+          i_begin = (edge->v->e!=NULL)?edge->v->e:edge->u->e;
+          c = edge->wt;
+        }
+      }
+
+      // Once B edge is discovered there are 3 options:
+      else if( color == CG_B )
+      {
+        if( color_A_is_active )
+        {
+          // 1) save the first A path to merge it later with the last
+          if (!edge_B_is_visited)
+          {
+              color_A_is_active = false;
+              edge_B_is_visited = true;
+              i_begin_first = i_begin;
+              i_end_first = i_end;
+              c_first=c;
+          }
+          // 2) construct the chord for A path
+          else
+          {
+            color_A_is_active = false;
+            in_list.push_back(egraph.mkLeq( egraph.cons( egraph.mkMinus( egraph.cons( i_end, egraph.cons( i_begin ) ) ),
+            								egraph.cons( egraph.mkNum( c ) ) ) ) );
+          }
+        }
+        // 3) skip the B edge if it is in the middle of B path
+        else
+        {
+          edge_B_is_visited = true;
+        }
+      }
+      // Move to the next edge
+      u = edge->u;
+    }
+    while( s != u );
+
+    // Check if the first of the last A path need to be interpolated
+    if( color_A_is_active || i_end_first!=NULL)
+    {
+      // check if B was in the cycle. If not - interpolant is simply False(?);
+      if(!edge_B_is_visited)
+      {
+        in_list.push_back( egraph.mkFalse() );
+      }
+      else
+      {
+        // if both - merge them
+        if( color_A_is_active && i_end_first!=NULL)
+        {
+          i_end = i_end_first;
+          c+=c_first;
+        }
+
+        // if only first -- update the pointers
+        else if (i_end_first!=NULL)
+        {
+          i_begin = i_begin_first;
+          i_end = i_end_first;
+          c = c_first;
+        }
+        // construct the chord
+        in_list.push_back( egraph.mkLeq( egraph.cons( egraph.mkMinus( egraph.cons( i_end, egraph.cons( i_begin ) ) ),
+										 egraph.cons( egraph.mkNum( c ) ) ) ) );
+      }
+    }
+
+    // Return True for interpolant if only B edges were found in the negative cycle
+    if(edge_B_is_visited && !edge_A_is_visited)
+    {
+      in_list.push_back( egraph.mkTrue() );
+    }
+
+  }
+  interpolants = egraph.cons( in_list );
+  return interpolants;
+}
+
+#endif

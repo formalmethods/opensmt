@@ -86,12 +86,12 @@ private:
 
   Enode *  simplify              ( Enode * );                    // Further simplifications
   Enode *  rewriteMaxArity       ( Enode *
-                                 , Map( int, int ) & );
+                                 , map< int, int > & );
   void     computeIncomingEdges  ( Enode *
-                                 , Map( int, int ) & );          // Computes the list of incoming edges for a node
+                                 , map< int, int > & );          // Computes the list of incoming edges for a node
   Enode *  mergeEnodeArgs        ( Enode *
-                                 , Map( int, Enode * ) &
-                                 , Map( int, int ) & );          // Rewrite terms using maximum arity
+                                 , map< int, Enode * > &
+                                 , map< int, int > & );          // Rewrite terms using maximum arity
 
   Lit                             constTrue;                     // Constant literal set to true
   Lit                             constFalse;                    // Constant literal set to false

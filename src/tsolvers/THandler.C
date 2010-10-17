@@ -45,24 +45,25 @@ Var THandler::enodeToVar( Enode * atm )
   {
     lbool state = l_Undef;
 
-#if DELAY_TATOMS_COMM
     // Store TAtom and give later
     if ( atm->isTAtom( ) )
     {
-      if ( static_cast< int >( atoms_seen.size( ) ) <= atm->getId( ) )
-	atoms_seen.resize( atm->getId( ) + 1, false );
-      if ( atoms_seen[ atm->getId( ) ] == false )
+      // Give to theory solvers right away
+      if ( config.incremental )
+	core_solver.inform( atm );
+      // Accumulate and give to theory solvers later
+      else
       {
-	atoms_seen[ atm->getId( ) ] = true;
-	tatoms_list.push_back( atm );
-	tatoms_give.push_back( true );
+	if ( static_cast< int >( tatoms_seen.size( ) ) <= atm->getId( ) )
+	  tatoms_seen.resize( atm->getId( ) + 1, false );
+	if ( tatoms_seen[ atm->getId( ) ] == false )
+	{
+	  tatoms_seen[ atm->getId( ) ] = true;
+	  tatoms_list.push_back( atm );
+	  tatoms_give.push_back( true );
+	}
       }
     }
-#else
-    // Inform core solver about the existence of this atom
-    if ( atm->isTAtom( ) )
-      state = core_solver.inform( atm );
-#endif
 
     if ( state == l_Undef )
     {
@@ -70,11 +71,22 @@ Var THandler::enodeToVar( Enode * atm )
       // Create a new variable and store the correspondence
 
       // Assign custom polarity if any
-      if ( atm->isTAtom( ) && atm->getPolarity( ) != l_Undef )
+      if ( atm->isTAtom( ) && atm->getDecPolarity( ) != l_Undef )
 	v = solver.newVar( atm->getDecPolarity( ) == l_False );
-      // Assign positive otherwise
       else
-	v = solver.newVar( false );
+      {
+	if ( config.sat_polarity_mode == 3 )
+	  v = solver.newVar( false ); // Positive polarity
+	else if ( config.sat_polarity_mode == 4 )
+	  v = solver.newVar( true );  // Negative polarity
+	else
+	{
+	  assert( (config.sat_polarity_mode == 5 && !atm->isTAtom( ))
+	       || (0 <= config.sat_polarity_mode && config.sat_polarity_mode <= 2 ) );
+	  double random_seed = 91648253;
+	  v = solver.newVar( irand( random_seed, 2 ) );
+	}
+      }
 
       if ( atm->isTAtom( ) )
       {
@@ -132,7 +144,11 @@ Enode * THandler::varToEnode( Var v )
 void THandler::clearVar( Var v )
 {
   assert( var_to_enode[ v ] != NULL );
+  Enode * e = var_to_enode[ v ];
+  assert( e->getId( ) < static_cast< int >( enode_id_to_var.size( ) ) );
+  assert( enode_id_to_var[ e->getId( ) ] == v );
   var_to_enode[ v ] = NULL;
+  enode_id_to_var[ e->getId( ) ] = var_Undef;
 }
 
 bool THandler::assertLits( )
@@ -148,6 +164,7 @@ bool THandler::assertLits( )
     const Var v = var( l );
 
     Enode * e = var_to_enode[ v ];
+    assert( v <= 1 || e );
     stack.push_back( e );
 
     if ( v == var_True || v == var_False )
@@ -165,10 +182,12 @@ bool THandler::assertLits( )
 
     assert( !e->hasPolarity( ) );
     e->setPolarity( (sign( l ) ? l_False : l_True) );
+    assert( e->hasPolarity( ) );
+  
     res = core_solver.assertLit( e );
 
 #ifdef EXTERNAL_TOOL
-    if ( !res ) verifyCallWithExternalTool( res, i );
+    // if ( !res ) verifyCallWithExternalTool( res, i );
 #endif
   }
 
@@ -181,6 +200,7 @@ bool THandler::assertLits( )
 bool THandler::check( bool complete )
 {
   const bool res = core_solver.check( complete );
+
 #if EXTERNAL_TOOL
   if ( complete ) verifyCallWithExternalTool( res, trail.size( ) - 1 );
 #endif
@@ -210,6 +230,7 @@ void THandler::backtrack( )
 	 || e->getPolarity( ) == l_False );
     // Reset polarity
     e->resetPolarity( );
+    assert( !e->hasPolarity( ) );
   }
   checked_trail_size = stack.size( );
 }
@@ -231,6 +252,29 @@ void THandler::getConflict ( vec< Lit > & conflict, int & max_decision_level )
   verifyExplanationWithExternalTool( explanation );
 #endif
 
+#ifdef PRODUCE_PROOF
+  max_decision_level = -1;
+  for ( vector< Enode * >::iterator it = explanation.begin( )
+      ; it != explanation.end( ) 
+      ; ++ it )
+  {
+    Enode * ei  = *it;
+    assert( ei->hasPolarity( ) );
+    assert( ei->getPolarity( ) == l_True
+	 || ei->getPolarity( ) == l_False );
+    bool negate = ei->getPolarity( ) == l_False;
+
+    Var v = enodeToVar( ei );
+#if PEDANTIC_DEBUG
+    assert( isOnTrail( Lit( v, negate ) ) );
+#endif
+    Lit l = Lit( v, !negate );
+    conflict.push( l );
+
+    if ( max_decision_level < level[ v ] )
+      max_decision_level = level[ v ];
+  }
+#else
   max_decision_level = -1;
   while ( !explanation.empty( ) )
   {
@@ -251,7 +295,27 @@ void THandler::getConflict ( vec< Lit > & conflict, int & max_decision_level )
     if ( max_decision_level < level[ v ] )
       max_decision_level = level[ v ];
   }
+#endif
 }
+
+#ifdef PRODUCE_PROOF
+Enode * THandler::getInterpolants( )
+{
+  vector< Enode * > & explanation = core_solver.getConflict( );
+  assert( !explanation.empty( ) );
+  Enode * interp_list = core_solver.getInterpolants( );
+
+#ifdef EXTERNAL_TOOL
+  // Check interpolants correctness
+  verifyInterpolantWithExternalTool( explanation, interp_list );
+#endif
+
+  // Flush explanation
+  explanation.clear( );
+
+  return interp_list;
+}
+#endif
 
 Lit THandler::getDeduction( )
 {
@@ -370,32 +434,25 @@ void THandler::getReason( Lit l, vec< Lit > & reason )
   e->resetPolarity( );
 }
 
-#if DELAY_TATOMS_COMM
 //
 // Inform Theory-Solvers of Theory-Atoms
 //
 void THandler::inform( )
 {
-  //
-  // FIXME: Optimize for incremental solving
-  // by giving only new atoms - maybe by emptying
-  // the tatoms_list vector
-  //
-  for ( size_t i = 0 ; i < tatoms_list.size( ) ; i ++ )
+  for ( ; tatoms_given < tatoms_list.size( ) ; tatoms_given ++ )
   {
-    if ( !tatoms_give[ i ] ) continue;
-    Enode * atm = tatoms_list[ i ];
+    if ( !tatoms_give[ tatoms_given ] ) continue;
+    Enode * atm = tatoms_list[ tatoms_given ];
     assert( atm );
     assert( atm->isTAtom( ) );
     core_solver.inform( atm );
   }
 }
-#endif
 
 #ifdef PEDANTIC_DEBUG
 bool THandler::isOnTrail( Lit l )
 {
-  for ( unsigned i = 0 ; i < trail.size( ) ; i ++ )
+  for ( int i = 0 ; i < trail.size( ) ; i ++ )
     if ( trail[ i ] == l ) return true;
 
   return false;
@@ -406,12 +463,12 @@ bool THandler::isOnTrail( Lit l )
 void THandler::verifyCallWithExternalTool( bool res, size_t trail_size )
 {
   // First stage: print declarations
-  const char * name = "/tmp/verifycall.smt";
+  const char * name = "/tmp/verifycall.smt2";
   std::ofstream dump_out( name );
 
   core_solver.dumpHeaderToFile( dump_out );
 
-  dump_out << ":formula" << endl;
+  dump_out << "(assert" << endl;
   dump_out << "(and" << endl;
   for ( size_t j = 0 ; j <= trail_size ; j ++ )
   {
@@ -420,7 +477,8 @@ void THandler::verifyCallWithExternalTool( bool res, size_t trail_size )
     if ( v == var_True || v == var_False )
       continue;
 
-    Enode * e = var_to_enode[ v ];
+    // Enode * e = var_to_enode[ v ];
+    Enode * e = varToEnode( v );
     assert( e );
 
     if ( !e->isTAtom( ) )
@@ -436,6 +494,8 @@ void THandler::verifyCallWithExternalTool( bool res, size_t trail_size )
     dump_out << endl;
   }
   dump_out << "))" << endl;
+  dump_out << "(check-sat)" << endl;
+  dump_out << "(exit)" << endl;
   dump_out.close( );
 
   // Second stage, check the formula
@@ -466,26 +526,21 @@ void THandler::verifyCallWithExternalTool( bool res, size_t trail_size )
   }
 
   if ( res == false && tool_res == true )
-  {
-    cerr << "tool: sat stack" << endl;
-    exit( 1 );
-  }
+    opensmt_error( "tool says SAT stack, but we say UNSAT" );
+
   if ( res == true && tool_res == false )
-  {
-    cerr << "tool: unsat stack" << endl;
-    exit( 1 );
-  }
+    opensmt_error( "tool says UNSAT stack, but we say SAT" );
 }
 
 void THandler::verifyExplanationWithExternalTool( vector< Enode * > & expl )
 {
   // First stage: print declarations
-  const char * name = "/tmp/verifyexp.smt";
+  const char * name = "/tmp/verifyexp.smt2";
   std::ofstream dump_out( name );
 
   core_solver.dumpHeaderToFile( dump_out );
 
-  dump_out << ":formula" << endl;
+  dump_out << "(assert " << endl;
   dump_out << "(and" << endl;
 
   for ( size_t j = 0 ; j < expl.size( ) ; j ++ )
@@ -504,6 +559,8 @@ void THandler::verifyExplanationWithExternalTool( vector< Enode * > & expl )
   }
 
   dump_out << "))" << endl;
+  dump_out << "(check-sat)" << endl;
+  dump_out << "(exit)" << endl;
   dump_out.close( );
   // Third stage, check the formula
   bool tool_res;
@@ -533,20 +590,152 @@ void THandler::verifyExplanationWithExternalTool( vector< Enode * > & expl )
   }
 
   if ( tool_res == true )
-    error( "external tool says this is not an explanation", "" );
+    opensmt_error( "external tool says this is not an explanation" );
 }
+
+#ifdef PRODUCE_PROOF
+void THandler::verifyInterpolantWithExternalTool( vector< Enode * > & expl
+                                                , Enode * interp_list )
+{
+  uint64_t mask = 0xFFFFFFFFFFFFFFFEULL;
+  for ( unsigned in = 1 ; in < core_solver.getNofPartitions( ) ; in ++ )
+  {
+    Enode * args = interp_list;
+    // Advance in the interpolants list
+    for ( unsigned i = 0 ; i < in - 1 ; i ++ )
+      args = args->getCdr( );
+    Enode * interp = args->getCar( );
+    mask &= ~SETBIT( in );
+    // Check A -> I, i.e., A & !I
+    // First stage: print declarations
+    const char * name = "/tmp/verifyinterp.smt2";
+    std::ofstream dump_out( name );
+    core_solver.dumpHeaderToFile( dump_out );
+    // Print only A atoms
+    dump_out << "(assert " << endl;
+    dump_out << "(and" << endl;
+    for ( size_t j = 0 ; j < expl.size( ) ; j ++ )
+    {
+      Enode * e = expl[ j ];
+      assert( e->isTAtom( ) );
+      assert( e->getPolarity( ) != l_Undef );
+      assert( (core_solver.getIPartitions( e ) &  mask) != 0 
+    	   || (core_solver.getIPartitions( e ) & ~mask) != 0 );
+      if ( (core_solver.getIPartitions( e ) & ~mask) != 0 ) 
+      {
+	bool negated = e->getPolarity( ) == l_False;
+	if ( negated )
+	  dump_out << "(not ";
+	e->print( dump_out );
+	if ( negated )
+	  dump_out << ")";
+	dump_out << endl;
+      }
+    }
+    dump_out << "(not " << interp << ")" << endl;
+    dump_out << "))" << endl;
+    dump_out << "(check-sat)" << endl;
+    dump_out << "(exit)" << endl;
+    dump_out.close( );
+    // Check !
+    bool tool_res;
+    if ( int pid = fork() )
+    {
+      int status;
+      waitpid(pid, &status, 0);
+      switch ( WEXITSTATUS( status ) )
+      {
+	case 0:
+	  tool_res = false;
+	  break;
+	case 1:
+	  tool_res = true;
+	  break;
+	default:
+	  perror( "Tool" );
+	  exit( EXIT_FAILURE );
+      }
+    }
+    else
+    {
+      execlp( "tool_wrapper.sh", "tool_wrapper.sh", name, 0 );
+      perror( "Tool" );
+      exit( 1 );
+    }
+
+    if ( tool_res == true )
+      opensmt_error( "external tool says A -> I does not hold" );
+    // Now check B & I
+    dump_out.open( name );
+    core_solver.dumpHeaderToFile( dump_out );
+    // Print only B atoms
+    dump_out << "(assert " << endl;
+    dump_out << "(and" << endl;
+    for ( size_t j = 0 ; j < expl.size( ) ; j ++ )
+    {
+      Enode * e = expl[ j ];
+      assert( e->isTAtom( ) );
+      assert( e->getPolarity( ) != l_Undef );
+      assert( (core_solver.getIPartitions( e ) &  mask) != 0 
+    	   || (core_solver.getIPartitions( e ) & ~mask) != 0 );
+      if ( (core_solver.getIPartitions( e ) & mask) != 0 ) 
+      {
+	bool negated = e->getPolarity( ) == l_False;
+	if ( negated )
+	  dump_out << "(not ";
+	e->print( dump_out );
+	if ( negated )
+	  dump_out << ")";
+	dump_out << endl;
+      }
+    }
+    dump_out << interp << endl;
+    dump_out << "))" << endl;
+    dump_out << "(check-sat)" << endl;
+    dump_out << "(exit)" << endl;
+    dump_out.close( );
+    // Check !
+    tool_res;
+    if ( int pid = fork() )
+    {
+      int status;
+      waitpid(pid, &status, 0);
+      switch ( WEXITSTATUS( status ) )
+      {
+	case 0:
+	  tool_res = false;
+	  break;
+	case 1:
+	  tool_res = true;
+	  break;
+	default:
+	  perror( "Tool" );
+	  exit( EXIT_FAILURE );
+      }
+    }
+    else
+    {
+      execlp( "tool_wrapper.sh", "tool_wrapper.sh", name, 0 );
+      perror( "Tool" );
+      exit( 1 );
+    }
+    if ( tool_res == true )
+      opensmt_error( "external tool says B & I does hold" );
+  }
+}
+#endif
 
 void THandler::verifyDeductionWithExternalTool( Enode * imp )
 {
   assert( imp->isDeduced( ) );
 
   // First stage: print declarations
-  const char * name = "/tmp/verifydeduction.smt";
+  const char * name = "/tmp/verifydeduction.smt2";
   std::ofstream dump_out( name );
 
   core_solver.dumpHeaderToFile( dump_out );
 
-  dump_out << ":formula" << endl;
+  dump_out << "(assert" << endl;
   dump_out << "(and" << endl;
   for ( int j = 0 ; j < trail.size( ) ; j ++ )
   {
@@ -555,7 +744,8 @@ void THandler::verifyDeductionWithExternalTool( Enode * imp )
     if ( v == var_True || v == var_False )
       continue;
 
-    Enode * e = var_to_enode[ v ];
+    // Enode * e = var_to_enode[ v ];
+    Enode * e = varToEnode( v );
     assert( e );
 
     if ( !e->isTAtom( ) )
@@ -577,6 +767,8 @@ void THandler::verifyDeductionWithExternalTool( Enode * imp )
     dump_out << imp << endl;
 
   dump_out << "))" << endl;
+  dump_out << "(check-sat)" << endl;
+  dump_out << "(exit)" << endl;
   dump_out.close( );
 
   // Second stage, check the formula
@@ -607,9 +799,6 @@ void THandler::verifyDeductionWithExternalTool( Enode * imp )
   }
 
   if ( tool_res )
-  {
-    cerr << "tool: not a valid deduction" << endl;
-    exit( 1 );
-  }
+    opensmt_error( "tool says this is not a valid deduction" );
 }
 #endif

@@ -48,6 +48,7 @@ char * pbuffer;
 ":extrafuns"             { return TK_EXTRAFUNS; }
 ":assumption"            { return TK_ASSUMPTION; }
 ":formula"               { return TK_FORMULA; }
+":interpolate"           { return TK_INTERPOLATE; }
 ":source"                { return TK_SOURCE; }
 ":logic"                 { return TK_LOGIC; }
 ":status"                { return TK_STATUS; }
@@ -61,6 +62,7 @@ char * pbuffer;
 "Array"		 	 { return TK_ARRAY; } 
 "Index"		 	 { return TK_ARRAY_INDEX; }
 "Element"		 { return TK_ARRAY_ELEMENT; }
+"repeat"                 { return TK_REPEAT; }
 "+"                      { return TK_PLUS; }
 "-"                      { return TK_MINUS; }
 "~"                      { return TK_UMINUS; }
@@ -102,7 +104,6 @@ char * pbuffer;
 "zero_extend"            { return TK_ZERO_EXTEND; }
 "rotate_left"            { return TK_ROTATE_LEFT; }
 "rotate_right"           { return TK_ROTATE_RIGHT; }
-"zero_extend"            { return TK_ZERO_EXTEND; }
 "implies"                { return TK_IMPLIES; }
 "and"			 { return TK_AND; }
 "or"			 { return TK_OR; }

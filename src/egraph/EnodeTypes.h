@@ -21,7 +21,8 @@ along with OpenSMT. If not, see <http://www.gnu.org/licenses/>.
 #define ENODE_TYPES_H
 
 #include "SolverTypes.h"
-#include "global.h"
+#include "Global.h"
+#include "Snode.h"
 
 //
 // IMPORTANT: CHANGE THESE VALUES ONLY IF YOU KNOW WHAT YOU ARE DOING !!!
@@ -37,63 +38,64 @@ along with OpenSMT. If not, see <http://www.gnu.org/licenses/>.
 #define ENODE_ID_ENIL	           (0)
 #define ENODE_ID_TRUE              (1)
 #define ENODE_ID_FALSE             (2)
-#define ENODE_ID_PLUS		   (3)
-#define ENODE_ID_MINUS	           (4)
-#define ENODE_ID_UMINUS	           (5)
-#define ENODE_ID_TIMES	           (6)
-#define ENODE_ID_DIV		   (7)
+#define ENODE_ID_NOT               (3)
+#define ENODE_ID_IMPLIES           (4)
+#define ENODE_ID_AND               (5)
+#define ENODE_ID_OR                (6)
+#define ENODE_ID_XOR               (7)
 #define ENODE_ID_EQ	           (8)
-#define ENODE_ID_NEQ	           (9) 
-#define ENODE_ID_LEQ	          (10)
-#define ENODE_ID_GEQ	          (11)
-#define ENODE_ID_LT	          (12)
-#define ENODE_ID_GT	          (13)
-#define ENODE_ID_BVSLT            (14)
-#define ENODE_ID_BVSGT            (15)
-#define ENODE_ID_BVSLE            (16)
-#define ENODE_ID_BVSGE            (17)
-#define ENODE_ID_BVULT            (18)
-#define ENODE_ID_BVUGT            (19)
-#define ENODE_ID_BVULE            (20)
-#define ENODE_ID_BVUGE            (21)
-#define ENODE_ID_CONCAT           (22)
-#define ENODE_ID_DISTINCT         (23)
-#define ENODE_ID_BVAND            (24)
-#define ENODE_ID_BVOR             (25)
-#define ENODE_ID_BVXOR            (26)
-#define ENODE_ID_BVNOT            (27)
-#define ENODE_ID_BVADD            (28)
-#define ENODE_ID_BVSUB            (29)
-#define ENODE_ID_BVMUL            (30)
-#define ENODE_ID_BVNEG            (31)
-#define ENODE_ID_BVLSHR           (32)
-#define ENODE_ID_BVASHR           (33)
-#define ENODE_ID_BVSHL            (34)
-#define ENODE_ID_BVSREM           (35)
-#define ENODE_ID_BVUREM           (36)
-#define ENODE_ID_BVSDIV           (37)
-#define ENODE_ID_BVUDIV           (38)
-#define ENODE_ID_ZERO_EXTEND      (39)
-#define ENODE_ID_IMPLIES          (40)
-#define ENODE_ID_AND              (41)
-#define ENODE_ID_OR               (42)
-#define ENODE_ID_NOT              (43)
-#define ENODE_ID_IFF		  (44)
-#define ENODE_ID_XOR              (45)
-#define ENODE_ID_ITE              (46)
-#define ENODE_ID_IFTHENELSE       (47)
-#define ENODE_ID_CBE              (48)
-#define ENODE_ID_WORD1CAST        (49)
-#define ENODE_ID_BOOLCAST         (50)
-#define ENODE_ID_STORE	          (51)
-#define ENODE_ID_SELECT	          (52)
+#define ENODE_ID_ITE               (9)
+#define ENODE_ID_DISTINCT         (10)
+#define ENODE_ID_PLUS		  (11)
+#define ENODE_ID_MINUS	          (12)
+#define ENODE_ID_UMINUS	          (13)
+#define ENODE_ID_TIMES	          (14)
+#define ENODE_ID_DIV		  (15)
+#define ENODE_ID_LEQ	          (16)
+#define ENODE_ID_GEQ	          (17)
+#define ENODE_ID_LT	          (18)
+#define ENODE_ID_GT	          (19)
+#define ENODE_ID_STORE	          (20)
+#define ENODE_ID_SELECT	          (21)
+#define ENODE_ID_CTINCUR          (22)
+#define ENODE_ID_CTBOUND          (23)
+/*
+#define ENODE_ID_BVSLT            (22)
+#define ENODE_ID_BVSGT            (23)
+#define ENODE_ID_BVSLE            (24)
+#define ENODE_ID_BVSGE            (25)
+#define ENODE_ID_BVULT            (26)
+#define ENODE_ID_BVUGT            (27)
+#define ENODE_ID_BVULE            (28)
+#define ENODE_ID_BVUGE            (29)
+#define ENODE_ID_CONCAT           (30)
+#define ENODE_ID_BVAND            (31)
+#define ENODE_ID_BVOR             (32)
+#define ENODE_ID_BVXOR            (33)
+#define ENODE_ID_BVNOT            (34)
+#define ENODE_ID_BVADD            (35)
+#define ENODE_ID_BVSUB            (36)
+#define ENODE_ID_BVMUL            (37)
+#define ENODE_ID_BVNEG            (38)
+#define ENODE_ID_BVLSHR           (39)
+#define ENODE_ID_BVASHR           (40)
+#define ENODE_ID_BVSHL            (41)
+#define ENODE_ID_BVSREM           (42)
+#define ENODE_ID_BVUREM           (43)
+#define ENODE_ID_BVSDIV           (44)
+#define ENODE_ID_BVUDIV           (45)
+#define ENODE_ID_ZERO_EXTEND      (46)
+#define ENODE_ID_CBE              (47)
+#define ENODE_ID_WORD1CAST        (48)
+#define ENODE_ID_BOOLCAST         (49)
+*/
 //                                
 // IMPORTANT:
 // This must be equal to the last predefined ID
 // it is used to check whether a function symbol
 // is predefined or uninterpreted
 //
-#define ENODE_ID_LAST		  (52)
+#define ENODE_ID_LAST		  (23)
 
 //
 // Properties stored in integers
@@ -102,7 +104,7 @@ along with OpenSMT. If not, see <http://www.gnu.org/licenses/>.
 //   
 // |<- etype ->|<------ arity -------->|<- dtype ->|<------------------ width -------------------->|
 //
-//Enode types
+// Enode types
 enum etype_t 
 { 
    ETYPE_UNDEF   = 0x00000000 // 0000 0000 0000 0000 0000 0000 0000 0000
@@ -111,20 +113,6 @@ enum etype_t
  , ETYPE_LIST    = 0x30000000 // 0011 0000 0000 0000 0000 0000 0000 0000
  , ETYPE_TERM    = 0x40000000 // 0100 0000 0000 0000 0000 0000 0000 0000
  , ETYPE_DEF     = 0x50000000 // 0101 0000 0000 0000 0000 0000 0000 0000
-};
-//Data types
-enum dtype_t 
-{ 
-   DTYPE_UNDEF         = 0x00000000 // 0000 0000 0000 0000 0000 0000 0000 0000
- , DTYPE_BOOL          = 0x00010000 // 0000 0000 0000 0001 0000 0000 0000 0000
- , DTYPE_ARITH         = 0x00020000 // 0000 0000 0000 0010 0000 0000 0000 0000
- , DTYPE_REAL          = 0x00030000 // 0000 0000 0000 0011 0000 0000 0000 0000
- , DTYPE_INT           = 0x00040000 // 0000 0000 0000 0100 0000 0000 0000 0000
- , DTYPE_BITVEC        = 0x00050000 // 0000 0000 0000 0101 0000 0000 0000 0000
- , DTYPE_U             = 0x00060000 // 0000 0000 0000 0110 0000 0000 0000 0000
- , DTYPE_ARRAY         = 0x00070000 // 0000 0000 0000 0111 0000 0000 0000 0000
- , DTYPE_ARRAY_INDEX   = 0x00080000 // 0000 0000 0000 1000 0000 0000 0000 0000	
- , DTYPE_ARRAY_ELEMENT = 0x00090000 // 0000 0000 0000 1001 0000 0000 0000 0000
 };
 
 #define ETYPE_MASK  0xF0000000 // 1111 0000 0000 0000 0000 0000 0000 0000
@@ -160,47 +148,10 @@ typedef uint32_t dist_t;
 //
 struct Elist
 {
-  Elist * link;             // Link to the next element in the list
-  Enode * e;                // Enode that differs from this
+  Elist *  link;            // Link to the next element in the list
+  Enode *  e;               // Enode that differs from this
   Enode * reason;           // Reason for this distinction
 };
-//
-// Reason
-//
-typedef enum { REASON_SLICE, REASON_CONSTANT, REASON_CBE, REASON_DEFAULT } reason_t;
-
-struct Reason
-{
-  Reason( Enode * r )
-    : reason   ( r )
-    , lsb      ( -1 )
-    , msb      ( -1 )
-    , type     ( REASON_DEFAULT )
-  { }
-
-  Reason( reason_t t, Enode * r )
-    : reason   ( r )
-    , lsb      ( -1 )
-    , msb      ( -1 )
-    , type     ( t )
-  {
-    assert( t == REASON_CONSTANT
-	 || t == REASON_CBE );
-  }
-
-  Reason( Enode * r, const int m, const int l )
-    : reason   ( r )
-    , lsb      ( l )
-    , msb      ( m )
-    , type     ( REASON_SLICE )
-  { }
-
-  Enode *        reason;
-  const int      lsb;
-  const int      msb;
-  const reason_t type;
-};
-
 //
 // Data used for terms in congruence only
 //
@@ -208,22 +159,22 @@ struct TermData
 {
   TermData ( Enode * e )
     : value            ( NULL )
+    , exp_reason       ( NULL )
     , exp_parent       ( NULL )
     , exp_root         ( e )
     , exp_class_size   ( 1 )
     , exp_highest_node ( e )
-    , exp_reason       ( NULL )
     , exp_time_stamp   ( 0 )
     , constant         ( NULL )
     , cb               ( e )
   { }
 
   Real *            value;            // The value
+  Enode *           exp_reason;       // Reason for the merge of this and exp_parent
   Enode *           exp_parent;       // Parent in the explanation tree
   Enode *           exp_root;         // Compressed parent in the eq classes of the explanations
   int               exp_class_size;   // Size of the eq class of the explanation
   Enode *           exp_highest_node; // Highest node of the class
-  Reason *          exp_reason;       // Reason for the merge of this and exp_parent
   int               exp_time_stamp;   // Time stamp for NCA
   Enode *           constant;         // Store the constant the node is currently equivalent with
   Enode *           cb;               // Pointer for coarsest base
@@ -294,7 +245,7 @@ struct AtomData
   int     weight_inc;       // Initial weight increase
 };
 //
-// Data for symbols and numnbers
+// Data for symbols and numbers
 //
 struct SymbData
 {
@@ -303,26 +254,24 @@ struct SymbData
   //
   SymbData ( const char *         name_
            , const etype_t        etype_
-	   , const unsigned       dtype_
-           , vector< unsigned > & sorts_ )
+	   , Snode *              sort_ )
       : name  ( NULL )
       , value ( NULL )
       , lsb   ( -1 )
+      , sort  ( sort_ )
   {
-    assert( etype_ == ETYPE_SYMB || args_sorts.empty( ) );
     //
     // Variable
     //
     if ( etype_ == ETYPE_SYMB )
     {
-      args_sorts.assign( sorts_.begin( ), sorts_.end( ) );
       name = new char[ strlen( name_ ) + 1 ];
       strcpy( name, name_ );
     }
     //
     // Number
     //
-    else if ( etype_ == ETYPE_NUMB && (dtype_ & DTYPE_MASK) != DTYPE_BITVEC )
+    else if ( etype_ == ETYPE_NUMB )
     {
 #if USE_GMP
       value = new Real( name_ );
@@ -337,22 +286,6 @@ struct SymbData
       strcpy( name, name_ );
 #endif
     }
-    //
-    // BitVector Number
-    //
-    else 
-    {
-      assert( etype_ == ETYPE_NUMB );
-      assert( (dtype_ & DTYPE_BITVEC) == DTYPE_BITVEC );
-#if USE_GMP
-      value = new Real( name_, 2 );
-#else
-      error( "need GMP for this", "" );
-#endif
-      const int size_name = strlen( name_ ) + 1;
-      name = new char[ size_name ];
-      strcpy( name, name_ );
-    }
   }
 
   ~SymbData ( )
@@ -366,8 +299,7 @@ struct SymbData
   char *             name;
   Real *             value;
   int                lsb;        // lsb for extraction, if -1 not extraction
-  vector< unsigned > args_sorts; // List of sorts of arguments 
-
+  Snode *            sort;
 };
 
 #endif

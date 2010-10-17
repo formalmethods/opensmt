@@ -39,7 +39,7 @@ OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWA
 #ifndef MINISATP_H
 #define MINISATP_H
 
-#include "global.h"
+#include "Global.h"
 #include "Enode.h"
 
 #include <cstdio>

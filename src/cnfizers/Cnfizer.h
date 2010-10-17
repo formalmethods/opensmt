@@ -20,7 +20,7 @@ along with OpenSMT. If not, see <http://www.gnu.org/licenses/>.
 #ifndef CNFIZER_H
 #define CNFIZER_H
 
-#include "global.h"
+#include "Global.h"
 #include "Otl.h"
 #include "SMTSolver.h"
 #include "Egraph.h"
@@ -32,21 +32,30 @@ class Cnfizer
 {
 public:
 
-  Cnfizer( Egraph & egraph_, SMTSolver & solver_, SMTConfig & config_ )
+  Cnfizer( Egraph &    egraph_
+         , SMTSolver & solver_
+	 , SMTConfig & config_
+	 , SStore &    sstore_ )
    : egraph  ( egraph_ )
    , solver  ( solver_ )
    , config  ( config_ )
+   , sstore  ( sstore_ )
   { }
 
   virtual ~Cnfizer( ) { }
 
-  lbool cnfizeAndGiveToSolver ( Enode * );                                   // Main routine
+  lbool cnfizeAndGiveToSolver 
+    ( Enode * 
+#ifdef PRODUCE_PROOF
+    ,  const uint64_t partitions = 0
+#endif
+    );                                   // Main routine
 
 protected:
   
-  virtual bool cnfize	       ( Enode *, Map( enodeid_t, Enode * ) & ) = 0; // Actual cnfization. To be implemented in derived classes
+  virtual bool cnfize	       ( Enode *, map< enodeid_t, Enode * > & ) = 0; // Actual cnfization. To be implemented in derived classes
   bool         deMorganize     ( Enode * ); 		                     // Apply deMorgan rules whenever feasible
-  Enode *      rewriteMaxArity ( Enode *, Map( enodeid_t, int ) & );         // Rewrite terms using maximum arity
+  Enode *      rewriteMaxArity ( Enode *, map< enodeid_t, int > & );         // Rewrite terms using maximum arity
 
   bool  checkCnf                   ( Enode * );			             // Check if formula is in CNF
   bool  checkDeMorgan              ( Enode * );                              // Check if formula can be deMorganized
@@ -61,16 +70,21 @@ protected:
   Egraph &    egraph;                                                        // Reference to Egraph
   SMTSolver & solver;                                                        // Reference to Solver
   SMTConfig & config;                                                        // Reference to Config
+  SStore &    sstore;
+#ifdef PRODUCE_PROOF
+  uint64_t    current_partitions;
+#endif
 
 private:
 
-  void    computeIncomingEdges ( Enode *, Map( enodeid_t, int ) & );         // Computes the list of incoming edges for a node
-  Enode * mergeEnodeArgs       ( Enode *, Map( enodeid_t, Enode * ) &
-                               , Map( enodeid_t, int ) & );                  // Subroutine for rewriteMaxArity
+  void    computeIncomingEdges ( Enode *, map< enodeid_t, int > & );         // Computes the list of incoming edges for a node
+  Enode * mergeEnodeArgs       ( Enode *
+                               , map< enodeid_t, Enode * > &
+                               , map< enodeid_t, int > & );                  // Subroutine for rewriteMaxArity
 
-  bool    checkConj            ( Enode *, Set( enodeid_t ) & );              // Check if a formula is a conjunction
-  bool    checkClause          ( Enode *, Set( enodeid_t ) & );              // Check if a formula is a clause
-  bool    checkPureConj        ( Enode *, Set( enodeid_t ) & );              // Check if a formula is purely a conjuntion
+  bool    checkConj            ( Enode *, set< enodeid_t > & );              // Check if a formula is a conjunction
+  bool    checkClause          ( Enode *, set< enodeid_t > & );              // Check if a formula is a clause
+  bool    checkPureConj        ( Enode *, set< enodeid_t > & );              // Check if a formula is purely a conjuntion
 };
 
 #endif

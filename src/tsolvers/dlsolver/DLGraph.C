@@ -1,8 +1,8 @@
 /*********************************************************************
 Author: Edgar Pek <edgar.pek@lu.unisi.ch>
-      , Roberto Bruttomesso <roberto.bruttomesso@unisi.ch>
+      , Roberto Bruttomesso <roberto.bruttomesso@gmail.com>
 
-OpenSMT -- Copyright (C) 2008, Roberto Bruttomesso
+OpenSMT -- Copyright (C) 2010, Roberto Bruttomesso
 
 OpenSMT is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -43,7 +43,7 @@ template< class T > DLGraph<T>::~DLGraph( )
 // (<= (* (~ 1) x) c)
 // (<= (* 1 x) c)
 //
-template <class T> DLComplEdges<T> DLGraph<T>::getDLEdge(Enode *e)
+template <class T> DLComplEdges<T> DLGraph<T>::getDLEdge( Enode * e )
 {
   if (edgeMap.find(e) == edgeMap.end())
   {
@@ -76,7 +76,7 @@ template <class T> DLComplEdges<T> DLGraph<T>::getDLEdge(Enode *e)
       assert( lhs->get2nd( )->get1st( ) == one || lhs->get2nd( )->get1st( ) == mone );
       x = lhs->get1st( )->get2nd( );
       y = lhs->get2nd( )->get2nd( );
-      tmp_edge_weight = rhs->getCar( )->getValue( );
+      tmp_edge_weight = rhs->getValue( );
       if ( invert )
 	tmp_edge_weight = -tmp_edge_weight;
       //
@@ -97,10 +97,9 @@ template <class T> DLComplEdges<T> DLGraph<T>::getDLEdge(Enode *e)
     {
       assert( lhs->isTimes( ) );
       assert( lhs->get1st( ) == one || lhs->get1st( ) == mone );
-      assert( lhs->get2nd( )->isVar( ) );
       x = lhs->get2nd( );
       y = NULL;
-      tmp_edge_weight = rhs->getCar( )->getValue( );
+      tmp_edge_weight = rhs->getValue( );
       if ( invert )
 	tmp_edge_weight = -tmp_edge_weight;
       if ( ( lhs->get1st( ) == mone && !invert ) 
@@ -136,8 +135,8 @@ template <class T> DLComplEdges<T> DLGraph<T>::getDLEdge(Enode *e)
 
 template<class T> void DLGraph<T>::insertStatic( Enode * c )
 {
-  DLEdge<T> *pos = getDLEdge( c ).pos;
-  DLEdge<T> *neg = getDLEdge( c ).neg;
+  DLEdge<T> * pos = getDLEdge( c ).pos;
+  DLEdge<T> * neg = getDLEdge( c ).neg;
 
   Vcnt = vertexMap.size();
   sAdj.resize( Vcnt );
@@ -156,7 +155,7 @@ template<class T> void DLGraph<T>::insertStatic( Enode * c )
   assert( sEdges.size( ) == Ecnt );
 
   // maintaining the set of inactive edges
-  if ( config.dlconfig.theory_propagation > 0 )
+  if ( config.dl_theory_propagation > 0 )
     insertInactive( c );
 }
 
@@ -181,7 +180,7 @@ template< class T > void DLGraph<T>::deleteActive( Enode * c )
   after_backtrack = true;
   updateDynDegree( e );
 
-  if ( config.dlconfig.theory_propagation > 0 )
+  if ( config.dl_theory_propagation > 0 )
   {
     insertInactive( c );
   }
@@ -212,7 +211,7 @@ template< class T> void DLGraph<T>::insertInactive( Enode * e )
 
 template< class T >void DLGraph<T>::insertImplied( Enode * c )
 {
-  assert( config.dlconfig.theory_propagation > 0 );
+  assert( config.dl_theory_propagation > 0 );
   deleteInactive( c );
 }
 
@@ -223,7 +222,7 @@ template < class T >DLEdge<T> * DLGraph<T>::insertDynamic( Enode * c, bool reaso
   assert( edgeMap.find( c ) != edgeMap.end( ) );
 
   DLComplEdges<T> edges = edgeMap.find( c )->second;
-  DLEdge<T> *e = c->getPolarity ( ) == l_True ? edges.pos : edges.neg;
+  DLEdge<T> * e = c->getPolarity ( ) == l_True ? edges.pos : edges.neg;
   assert( e );
 
   dAdj[ e->u->id ].push_back( e );
@@ -235,7 +234,7 @@ template < class T >DLEdge<T> * DLGraph<T>::insertDynamic( Enode * c, bool reaso
   updateDynDegree( e );
   max_dyn_edges = dEdges.size( ) >  max_dyn_edges ? dEdges.size( ) : max_dyn_edges;
 
-  if ( config.dlconfig.theory_propagation > 0 )
+  if ( config.dl_theory_propagation > 0 )
     deleteInactive( c );
 
   return e;
@@ -266,78 +265,6 @@ template< class T > void DLGraph<T>::deleteInactive( Enode * e )
   assert ( find( hEdges.begin( ), hEdges.end( ), neg ) == hEdges.end( ) );
 }
 
-// dfs implementation
-template< class T > bool DLGraph<T>::dfsVisit( DLEdge<T> * e )
-{
-  cerr << endl << "[dfsVisit] edge " << e << endl;
-  assert( dfs_stack.empty( ) );
-  ///bool found_cycle = false;
-
-  initDfsVisited( );
-  initDfsFinished( );
-
-  //cycle_edges.resize( Vcnt );
-  dfs_stack.push_back( e->u );
-
-  while ( !dfs_stack.empty( ) )
-  {
-    DLVertex<T> * u = dfs_stack.back( );
-    cerr << "popping vertex " << u->e << " from stack." << endl;
-    dfs_stack.pop_back( );
-    setDfsVisited( u );
-    AdjList & adjList = dAdj[ u->id ];
-    typename AdjList::iterator it;
-    for ( it = adjList.begin( ); it != adjList.end( ); ++ it )
-    {
-      //cerr << "checking edge " << *it << endl;
-      DLVertex<T> * v = (*it)->v;
-      conflict_edges[ v->id ] = *it;
-      if ( ! isDfsVisited( v ) )
-      {
-	dfs_stack.push_back( v );
-      }
-      else if ( isDfsFinished( v ) )
-      {
-	//cerr << "edge " << *it << " is a back edge." << endl;
-	//cerr << "u = " << (*it)->u->e << endl;
-	//cerr << "v = " << (*it)->v->e << endl;
-	negCycleVertex = (*it)->v; // TODO: check this
-	cerr << "[dfsVisit] neg Cycle vertex " << negCycleVertex->e << endl;
-	//found_cycle = true;
-	//cerr << "[dfsVisit] found cycle " << endl;
-	dfs_stack.clear( );
-	doneDfsVisited( );
-	doneDfsFinished( );
-	return false;
-      }
-    }
-    setDfsFinished( u );
-  }
-
-  doneDfsVisited( );
-  doneDfsFinished( );
-
-  return true;
-
-/*
-  if ( found_cycle )
-  {
-    DLVertex<T> * s = e->u;
-    ///cerr << "Cycle: " << endl;
-    do
-    {
-      DLEdge<T> * edge = conflict_edges[ s->id ];
-      s = edge->u;
-      //cerr << edge << endl;
-    }
-    while( s != e->u );
-    return false;
-  }
-  else
-    return true;
-   */
-
-}
 // check for a neg cycle by dfs
 template< class T > bool DLGraph<T>::checkNegCycleDFS( Enode *c, bool reason )
 {
@@ -447,45 +374,13 @@ template< class T > bool DLGraph<T>::checkNegCycleDFS( Enode *c, bool reason )
 //
 // Check for a negative cycle in a constraint graph
 //
-template< class T > bool DLGraph<T>::checkNegCycle( Enode *c, bool reason )
+template< class T > bool DLGraph<T>::checkNegCycle( Enode * c, bool reason )
 {
-#if PRINT_CLUSTERS
-  computeNeighb( );
-
-  ofstream out( "clusters.dot" );
-  out << "Graph dump {" << endl;
-
-  for ( size_t i = 0 ; i < enode_to_neighb.size( ) ; i ++ )
-  {
-    if ( enode_to_neighb[ i ].size( ) == 0 )
-      continue;
-    if ( enode_to_neighb[ i ].size( ) >= 3 )
-    {
-      cerr << id_to_enode[ i ] << " >= 3 " << endl;
-      continue;
-    }
-
-    cerr << id_to_enode[ i ] << " <= 3 " << endl;
-
-    for ( set< Enode * >::iterator it = enode_to_neighb[ i ].begin( )
-	; it != enode_to_neighb[ i ].end( )
-	; it ++ )
-    {
-      out << id_to_enode[ i ] << " -- " << *it << ";" << endl;
-    }
-  }
-
-  out << endl << "}" << endl;
-
-  exit( 1 ) ;
-#endif
-
   assert( changed_vertices.empty( ) );
 
-  DLEdge<T> *e = insertDynamic( c, reason );
+  DLEdge<T> * e = insertDynamic( c, reason );
   if ( e == NULL )
     return true;
-
 
   conflict_edges.resize( Vcnt ); // move the initialization!
 
@@ -589,7 +484,9 @@ template< class T > bool DLGraph<T>::checkNegCycle( Enode *c, bool reason )
 	}
       }
     }
-    make_heap( vertex_heap.begin(), vertex_heap.end() , typename DLVertex<T>::gammaGreaterThan() );
+    make_heap( vertex_heap.begin( )
+	     , vertex_heap.end( ) 
+	     , typename DLVertex<T>::gammaGreaterThan( ) );
   }
   doneGamma( ); donePiPrime( );
   changed_vertices.clear( );
@@ -610,7 +507,7 @@ template< class T> void DLGraph<T>::findHeavyEdges( Enode * c )
   DLEdge<T> *e = c->getPolarity ( ) == l_True ? edges.pos : edges.neg;
 
   // TODO: move this in the one-time called init procedure
-  if ( 0 == LAZY_GENERATION )
+  if ( isGreedy( ) )
   {
     if ( Vcnt > (unsigned) bSPT.size() ) bSPT.resize( Vcnt );
     if ( Vcnt > (unsigned) fSPT.size() ) fSPT.resize( Vcnt );
@@ -621,7 +518,7 @@ template< class T> void DLGraph<T>::findHeavyEdges( Enode * c )
   if ( isParallelAndHeavy( e ) )
     return;
 
-  if ( 0 == LAZY_GENERATION )
+  if ( isGreedy( ) )
   {
     updateSPT( e, DL_sssp_forward);
     updateSPT( e, DL_sssp_backward);
@@ -764,7 +661,7 @@ template< class T > void DLGraph<T>::findSSSP( DLVertex<T> * x, DL_sssp_directio
       { // initial distance is +infinity, so just assign computed distance
 
 	v->setDist( direction, dist ); // set the shortest path distance
-	if ( 0 == LAZY_GENERATION )
+	if ( isGreedy( ) )
 	  updateSPT( *it, direction ); // update the shortest path tree
 
 	// handle delta relevancy
@@ -806,7 +703,7 @@ template< class T > void DLGraph<T>::findSSSP( DLVertex<T> * x, DL_sssp_directio
 	  if ( direction == DL_sssp_forward ) updateDxRel( v ); else updateDyRel( v );
 
 	  modifyPBheap( direction, v );
-	  if ( 0 == LAZY_GENERATION )
+	  if ( isGreedy( ) )
 	    updateSPT( *it, direction );
 	  if ( v->getRelevancy( direction ) == true)
 	  {
@@ -888,6 +785,20 @@ template <class T> bool DLGraph<T>::findShortestPath( DLEdge<T> * e )
     }
   }
   return true;
+}
+
+template< class T> void DLGraph<T>::computeModel( )
+{
+  // Iterate through all vertices
+  for ( typename Enode2Vertex::iterator it = vertexMap.begin( )
+      ; it != vertexMap.end( )
+      ; it ++ )
+  {
+    Enode * e = it->first;
+    DLVertex<T> * v = it->second;
+    Real value = -v->pi;
+    e->setValue( value );
+  }
 }
 
 //

@@ -31,6 +31,7 @@ public:
             , const char *
 	    , SMTConfig &
 	    , Egraph & 
+	    , SStore &
 	    , vector< Enode * > &
 	    , vector< Enode * > &
 	    , vector< Enode * > & );

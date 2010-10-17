@@ -1,7 +1,7 @@
 /*********************************************************************
 Author: Roberto Bruttomesso <roberto.bruttomesso@gmail.com>
 
-OpenSMT -- Copyright (C) 2009, Roberto Bruttomesso
+OpenSMT -- Copyright (C) 2008-2010, Roberto Bruttomesso
 
 OpenSMT is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -23,8 +23,6 @@ along with OpenSMT. If not, see <http://www.gnu.org/licenses/>.
 #include "SMTConfig.h"
 #include "Egraph.h"
 #include "TSolver.h"
-
-#define DELAY_TATOMS_COMM 1
 
 class SMTSolver; // Forward declaration
 
@@ -51,6 +49,7 @@ public:
     , checked_trail_size ( 0 )
     , tatoms             ( 0 )
     , batoms             ( 0 )
+    , tatoms_given       ( 0 )
   { 
     // Reserve room for true and false
     var_to_enode   .resize( 65536, NULL );
@@ -60,6 +59,9 @@ public:
   virtual ~THandler ( ) { }
 
   void    getConflict          ( vec< Lit > &, int & ); // Returns theory conflict in terms of literals
+#ifdef PRODUCE_PROOF 
+  Enode * getInterpolants      ( );                     // Fill a vector with interpolants
+#endif
   Lit     getDeduction         ( );			// Returns a literal that is implied by the current state
   Lit     getSuggestion        ( );			// Returns a literal that is suggested by the current state
   void    getReason            ( Lit, vec< Lit > & );   // Returns the explanation for a deduced literal
@@ -76,24 +78,40 @@ public:
 
   double  getAtomsRatio        ( ) { return (double)batoms/((double)tatoms + 1.0); }
 
-#if DELAY_TATOMS_COMM
   void    inform               ( );
 
-  vector< bool > atoms_seen;
-#endif
+  lbool   evaluate             ( Enode * e ) { return core_solver.evaluate( e ); }
 
 private:                                 
+
+  // Returns a random float 0 <= x < 1. Seed must never be 0.
+  static inline double drand(double& seed) 
+  {
+    seed *= 1389796;
+    int q = (int)(seed / 2147483647);
+    seed -= (double)q * 2147483647;
+    return seed / 2147483647; 
+  }
+
+  // Returns a random integer 0 <= x < size. Seed must never be 0.
+  static inline int irand(double& seed, int size) 
+  {
+    return (int)(drand(seed) * size); 
+  }
 
 #ifdef EXTERNAL_TOOL
   void verifyCallWithExternalTool        ( bool, size_t );
   void verifyExplanationWithExternalTool ( vector< Enode * > & );
   void verifyDeductionWithExternalTool   ( Enode * = NULL );
+#ifdef PRODUCE_PROOF
+  void verifyInterpolantWithExternalTool ( vector< Enode * > &, Enode * );
+#endif
 #endif
 
 #ifdef PEDANTIC_DEBUG
   bool  isOnTrail     ( Lit );
 #endif
-                                         
+
   vector< Var >       enode_id_to_var;          // Conversion EnodeID --> Var
   vector< Enode * >   var_to_enode;             // Conversion Var --> EnodeID
                                                
@@ -111,10 +129,10 @@ private:
   int                 tatoms;                   // Tracks theory atoms
   int                 batoms;                   // Tracks boolean atoms
 
-#if DELAY_TATOMS_COMM
+  vector< bool >      tatoms_seen;              // Atoms seen
+  unsigned            tatoms_given;             // Next atom to give
   vector< Enode * >   tatoms_list;              // List of tatoms to communicate later 
   vector< bool >      tatoms_give;              // We might want not to give some atoms
-#endif
 };
 
 #endif

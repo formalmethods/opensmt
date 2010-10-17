@@ -1,7 +1,7 @@
 /*********************************************************************
 Author: Roberto Bruttomesso <roberto.bruttomesso@gmail.com>
 
-OpenSMT -- Copyright (C) 2009 Roberto Bruttomesso
+OpenSMT -- Copyright (C) 2010 Roberto Bruttomesso
 
 OpenSMT is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -18,9 +18,11 @@ along with OpenSMT. If not, see <http://www.gnu.org/licenses/>.
 *********************************************************************/
 
 #include "Egraph.h"
+#include "OpenSMTContext.h"
 #include "SimpSMTSolver.h"
 #include "Tseitin.h"
 #include "ExpandITEs.h"
+#include "ArraySimplify.h"
 #include "BVBooleanize.h"
 #include "TopLevelProp.h"
 #include "DLRescale.h"
@@ -28,24 +30,27 @@ along with OpenSMT. If not, see <http://www.gnu.org/licenses/>.
 
 #include <cstdlib>
 #include <cstdio>
-#include <iostream>
 #include <csignal>
+#include <iostream>
 
 #if defined(__linux__)
 #include <fpu_control.h>
 #endif
 
-void        loadCustomSettings ( SMTConfig & );
-void        printResult        ( const lbool &, const lbool & = l_Undef );
+namespace opensmt {
+
 void        catcher            ( int );
+extern bool stop;
+
+} // namespace opensmt
+
 extern int  smtset_in          ( FILE * );
 extern int  smtparse           ( );
-extern int  ysset_in           ( FILE * );
-extern int  ysparse            ( );
-Egraph *    parser_egraph;
-SMTConfig * parser_config;
-extern bool stop;
-bool        verbose;
+extern int  cnfset_in          ( FILE * );
+extern int  cnfparse           ( );
+extern int  smt2set_in         ( FILE * );
+extern int  smt2parse          ( );
+OpenSMTContext * parser_ctx;
 
 /*****************************************************************************\
  *                                                                           *
@@ -55,79 +60,72 @@ bool        verbose;
 
 int main( int argc, char * argv[] )
 {
+  opensmt::stop = false;
+  // Allocates Command Handler (since SMT-LIB 2.0)
+  OpenSMTContext context( argc, argv );
   // Catch SigTerm, so that it answers even on ctrl-c
-  signal( SIGTERM, catcher );
-  signal( SIGINT , catcher );
-  stop = false;
-
-  // Allocate configuration
-#ifdef STATISTICS
-  SMTConfig config( argc == 1 ? NULL : argv[1] );
-#else
-  SMTConfig config( NULL );
-#endif
-  // Allocates the egraph
-  Egraph egraph( config );
-  // Parse the input formula
-  parser_egraph = &egraph;
-  parser_config = &config;
+  signal( SIGTERM, opensmt::catcher );
+  signal( SIGINT , opensmt::catcher );
+  // Initialize pointer to context for parsing
+  parser_ctx    = &context;
+  const char * filename = argv[ argc - 1 ];
+  assert( filename );
   // Accepts file from stdin if nothing specified
   FILE * fin = NULL;
-
-  if ( argc > 2 )
+  // Print help if required
+  if ( strcmp( filename, "--help" ) == 0
+    || strcmp( filename, "-h" ) == 0 )
   {
-    cerr << "#" << endl
-         << "# Usage: " << endl
-         << "# \t" << argv[0] << " filename.smt" << endl;
-    exit( 1 );
+    context.getConfig( ).printHelp( );
+    return 0;
   }
-
+  // File must be last arg
+  if ( strncmp( filename, "--", 2 ) == 0
+    || strncmp( filename, "-", 1 ) == 0 )
+    opensmt_error( "input file must be last argument" );
+  // Make sure file exists
   if ( argc == 1 )
-  {
     fin = stdin;
-  }
-  else if ( (fin = fopen( argv[ 1 ], "rt" )) == NULL )
-  {
-    error( "can't open file ", argv[ 1 ] );
-  }
+  else if ( (fin = fopen( filename, "rt" )) == NULL )
+    opensmt_error( "can't open file" );
 
   // Parse
-#ifdef SMTCOMP
-  smtset_in( fin );
-  smtparse( );
-#else
   // Parse according to filetype
   if ( fin == stdin )
   {
-    smtset_in( fin );
-    smtparse( );
+    smt2set_in( fin );
+    smt2parse( );
   }
   else
   {
-    const char * extension = strrchr( argv[ 1 ], '.' );
+    const char * extension = strrchr( filename, '.' );
     if ( strcmp( extension, ".smt" ) == 0 )
     {
+      opensmt_error( "SMTLIB 1.2 format is not supported in this version, sorry" );
       smtset_in( fin );
       smtparse( );
     }
-    else if ( strcmp( extension, ".ys" ) == 0 )
+    else if ( strcmp( extension, ".cnf" ) == 0 )
     {
-      ysset_in( fin );
-      ysparse( );
-      config.logic = QF_IDL;
+      context.SetLogic( QF_BOOL );
+      cnfset_in( fin );
+      cnfparse( );
+    }
+    else if ( strcmp( extension, ".smt2" ) == 0 )
+    {
+      smt2set_in( fin );
+      smt2parse( );
     }
     else
     {
-      error( "unknown file extension. Please use .smt or .ys or stdin", "" );
+      opensmt_error2( extension, " extension not recognized. Please use one in { smt2, cnf } or stdin (smtlib2 is assumed)" );
     }
   }
-  
-#endif
+
+  fclose( fin );
 
 #ifndef SMTCOMP
-  bool print_sharp = false;
-  verbose = config.satconfig.verbose;
-  if ( verbose )
+  if ( context.getConfig( ).verbosity > 0 )
   {
     const int len_pack = strlen( PACKAGE_STRING );
     const char * site = "http://verify.inf.usi.ch/opensmt";
@@ -141,10 +139,12 @@ int main( int argc, char * argv[] )
       cerr << " ";
 
     cerr << site << endl
+	 << "# Compiled with gcc " << __VERSION__ << " on " << __DATE__ << endl
          << "# -------------------------------------------------------------------------" << endl
          << "#" << endl;
   }
 #endif
+
   //
   // This trick (copied from Main.C of MiniSAT) is to allow
   // the repeatability of experiments that might be compromised
@@ -153,206 +153,42 @@ int main( int argc, char * argv[] )
 #if defined(__linux__) && !defined( SMTCOMP )
   fpu_control_t oldcw, newcw;
   _FPU_GETCW(oldcw); newcw = (oldcw & ~_FPU_EXTENDED) | _FPU_DOUBLE; _FPU_SETCW(newcw);
-  // reportf("# WARNING: for repeatability, setting FPU to use double precision\n");
-  // print_sharp = true;
 #endif
 
 #ifdef PEDANTIC_DEBUG
-  reportf("# WARNING: pedantic assertion checking enabled (very slow)\n");
-  print_sharp = true;
+  opensmt_warning("pedantic assertion checking enabled (very slow)");
 #endif
 
 #ifdef EXTERNAL_TOOL
-  reportf("# WARNING: external tool checking enabled (very slow)\n");
-  print_sharp = true;
+  opensmt_warning("external tool checking enabled (very slow)");
 #endif
 
 #ifndef OPTIMIZE
-  reportf( "# WARNING: this binary is compiled with optimizations disabled (slow)\n" );
-  print_sharp = true;
+  opensmt_warning( "this binary is compiled with optimizations disabled (slow)" );
 #endif
-
-#ifndef SMTCOMP
-  if ( print_sharp && verbose ) cerr << "#" << endl;
-#endif
-
-#ifdef SMTCOMP
-  loadCustomSettings( config );
-#endif
-
-  assert( config.ufconfig.int_extract_concat == 0
-       || config.logic == QF_BV );
-
-  fclose( fin );
-
-  // Retrieve the formula
-  Enode * formula = egraph.getFormula( );
-
-  if ( formula == NULL )
-    error( "formula undefined", "" );
-
-  if ( config.logic == UNDEF )
-    error( "unable to determine logic", "" );
-
-  // Ackermanize away functional symbols
-  if ( config.logic == QF_UFIDL
-    || config.logic == QF_UFLRA )
-  {
-    Ackermanize ackermanizer( egraph, config );
-    formula = ackermanizer.doit( formula );
-  }
-
-  // Artificially create a boolean
-  // abstraction, if necessary
-  if ( config.logic == QF_BV )
-  {
-    BVBooleanize booleanizer( egraph, config );
-    formula = booleanizer.doit( formula );
-  }
-
-  // Removes ITEs if there is any
-  if ( egraph.hasItes( ) )
-  {
-    ExpandITEs expander( egraph, config );
-    formula = expander.doit( formula );
-  }
-
-  // Top-Level Propagator. It also canonize atoms
-  TopLevelProp propagator( egraph, config );
-  formula = propagator.doit( formula );
-
-  // Convert RDL into IDL, also compute if GMP is needed
-  if ( config.logic == QF_RDL 
-    || config.logic == QF_IDL )
-  {
-    DLRescale rescaler( egraph, config );
-    formula = rescaler.doit( formula );
-  }
-
-  lbool result = l_Undef;
-
-  // Solve only if not simplified already
-  if ( formula->isTrue( ) )
-  {
-    result = l_True;
-    printResult( result, config.status );
-  }
-  else if ( formula->isFalse( ) )
-  {
-    result = l_False;
-    printResult( result, config.status );
-  }
-  else
-  {
-    // Allocates SMTSolver based on MiniSAT
-    SimpSMTSolver solver( egraph, config );
-
-    // Initializes theory solvers
-    egraph.initializeTheorySolvers( &solver );
-
-    // Allocates Tseitin-like cnfizer
-    Tseitin cnfizer( egraph, solver, config );
-
-    // Compute polarities
-    egraph.computePolarities( formula );
-
-    // CNFize the input formula and feed clauses to the solver
-    result = cnfizer.cnfizeAndGiveToSolver( formula );
-
-    // Solve
-    if ( result == l_Undef )
-      result = solver.smtSolve( config.satconfig.preprocess_booleans != 0
-	                     || config.satconfig.preprocess_theory   != 0 );
-
-    // If computation has been stopped, return undef
-    if ( stop ) result = l_Undef;
-
-    // Prints the result and check against status
-    printResult( result, config.status );
-  }
-
-  return 0;
+  // 
+  // Execute accumulated commands
+  // function defined in OpenSMTContext.C
+  //
+  return context.executeCommands( );
 }
 
-void catcher(int sig)
+namespace opensmt {
+
+void catcher( int sig )
 {
   switch (sig)
   {
     case SIGINT:
     case SIGTERM:
-      if ( stop )
+      if ( opensmt::stop )
       {
-#ifndef SMTCOMP
-	if ( verbose )
-	{
-	  reportf("\n# ----------+--------------------------+----------+------------+-----------\n");
-	  reportf("#\n");
-	}
-#endif
-	printResult( l_Undef );
+	parser_ctx->PrintResult( l_Undef );
 	exit( 1 );
       }
-      stop = true;
+      opensmt::stop = true;
       break;
   }
 }
 
-void printResult( const lbool & result, const lbool & config_status )
-{
-#ifndef SMTCOMP
-  fflush( stderr );
-
-  //
-  // For testing purposes we return error if bug is found
-  //
-  if ( config_status != l_Undef
-    && result != l_Undef
-    && result != config_status )
-    cout << "error" << endl;
-  else
-#endif
-  (void)config_status;
-  if ( result == l_True )
-    cout << "sat" << endl;
-  else if ( result == l_False )
-    cout << "unsat" << endl;
-  else if ( result == l_Undef )
-    cout << "unknown" << endl;
-  else
-    error( "unexpected result", "" );
-
-  fflush( stdout );
-
-#ifndef SMTCOMP
-  if ( verbose )
-  {
-    //
-    // Statistics
-    //
-    double   cpu_time = cpuTime();
-    reportf( "#\n" );
-    reportf( "# CPU Time used: %g s\n", cpu_time == 0 ? 0 : cpu_time );
-    uint64_t mem_used = memUsed();
-    reportf( "# Memory used: %.3f MB\n",  mem_used == 0 ? 0 : mem_used / 1048576.0 );
-    reportf( "#\n" );
-  }
-#endif
-}
-
-void loadCustomSettings( SMTConfig & config )
-{
-  if ( config.logic == QF_UF
-    || config.logic == QF_BV )
-  {
-    config.satconfig.preprocess_booleans = 1;
-  }
-  else if ( config.logic == QF_LRA )
-  {
-    config.lraconfig.theory_propagation = 0;
-  }
-  else if ( config.logic == QF_IDL )
-  {
-    config.satconfig.preprocess_booleans = 1;
-    config.satconfig.preprocess_theory = 1;
-  }
-}
+} // namespace opensmt

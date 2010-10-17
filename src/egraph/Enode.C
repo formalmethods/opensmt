@@ -29,8 +29,10 @@ Enode::Enode( )
   , cdr       ( NULL )
   , cong_data ( NULL )
   , atom_data ( NULL )
+  , value     ( NULL )
 { 
   setEtype( ETYPE_LIST );
+  // dynamic = this;
 }
 //
 // Constructor for new Symbols
@@ -38,39 +40,19 @@ Enode::Enode( )
 Enode::Enode( const enodeid_t      id_
 	    , const char *         name_ 
 	    , const etype_t        etype_
-	    , const unsigned       dtype_
-	    , vector< unsigned > & arg_sorts_
+	    , Snode *              sort_
 	    )
   : id         ( id_ )
   , properties ( 0 )
   , car        ( NULL )
   , cdr        ( NULL )
   , atom_data  ( NULL )
+  , value      ( NULL )
 {
   setEtype( etype_ );
-  setDtype( dtype_ );
-  setArity( arg_sorts_.size( ) );
-  symb_data = new SymbData( name_, etype_, dtype_, arg_sorts_ );
-}
-//
-// Constructor for new Numbers
-//
-Enode::Enode( const enodeid_t id_
-	    , const char *    name_ 
-	    , const etype_t   etype_ 
-	    , const unsigned  dtype_ )
-  : id         ( id_ )
-  , properties ( 0 )
-  , car        ( NULL )
-  , cdr        ( NULL )
-  , atom_data  ( NULL )
-{
-  setEtype( etype_ );
-  setDtype( dtype_ );
-  setArity( 0 );
-
-  vector< unsigned > tmp;
-  symb_data = new SymbData( name_, etype_, dtype_, tmp );
+  setArity( sort_->getArity( ) - 1 ); // Sort arity includes return value ...
+  symb_data = new SymbData( name_, etype_, sort_ );
+  // dynamic = this;
 }
 //
 // Constructor for new Terms/Lists
@@ -84,6 +66,8 @@ Enode::Enode( const enodeid_t id_
   , cdr        ( cdr_ )
   , cong_data  ( NULL )
   , atom_data  ( NULL )
+  , value      ( NULL )
+  // , dynamic   ( NULL )
 {
   assert( car );
   assert( cdr );
@@ -113,68 +97,13 @@ Enode::Enode( const enodeid_t id_
     // Set Arity
     //
     setArity( cdr->getArity( ) );
-    //
-    // Set Dtype
-    //
-    //
-    // For arithmetic and ites we don't know whether 
-    // they contain Real, Int, BitVec, ... . We 
-    // determine the type now
-    //
-    if ( isPlus  ( ) 
-      || isMinus ( ) 
-      || isTimes ( ) 
-      || isUminus( )
-      || isDiv   ( ) )
-    {
-      setDtype( get1st( )->getDType( ) );
-    }
-    else if ( isIte( ) )
-    {
-      setDtype( get2nd( )->getDType( ) );
-    }
-    else
-    {
-      setDtype( car->getDType( ) );
-    }
-    //
-    // Set width for bitvectors
-    //
-    if ( isDTypeBitVec( ) )
-    {
-      // Compute width
-      if ( isConcat( ) )
-      {
-	uint32_t width = 0;
-	Enode * arg_list;
-	for ( arg_list = cdr
-	    ; !arg_list->isEnil( ) 
-	    ; arg_list = arg_list->getCdr( ) )
-	{
-	  Enode * arg = arg_list->getCar( );
-	  width += arg->getWidth( );
-	}
-	setWidth( width );
-      }
-      else if ( isIte( ) )
-	setWidth( get2nd( )->getWidth( ) );
-      else if ( isExtract( ) )
-	setWidth( car->getWidth( ) );
-      else if ( isSignExtend( ) )
-	; // Do nothing, we set width in mkSignExtend
-      else if ( isWord1cast( ) )
-	setWidth( 1 );
-      else if ( getArity( ) > 0 )
-	setWidth( get1st( )->getWidth( ) );
-      else
-	setWidth( car->getWidth( ) );
-
-      assert( isSignExtend( ) || getWidth( ) > 0 );
-    }
   }
 
   if ( isTAtom( ) )
-    atom_data = new AtomData;
+    atom_data = new AtomData( );
+
+  if ( car->isNumb( ) )
+    setValue( *(car->symb_data->value) );
 
   assert( isTerm( ) || isList( ) );
 }
@@ -188,6 +117,8 @@ Enode::Enode( const enodeid_t	id_
   , car        ( def_ )
   , cong_data  ( NULL )
   , atom_data  ( NULL )
+  , value      ( NULL )
+  // , dynamic   ( NULL )
 { }
 
 Enode::~Enode ( )
@@ -198,6 +129,17 @@ Enode::~Enode ( )
     delete cong_data;
   if ( atom_data )
     delete atom_data;
+  if ( value )
+    delete value;
+}
+
+Snode * Enode::getLastSort ( )
+{
+  assert( isTerm( ) );
+  if ( isIte( ) )
+    return get2nd( )->getLastSort( );
+  Snode * l = getSort( )->getLast( );
+  return l;
 }
 
 void Enode::addParent ( Enode * p )
@@ -239,6 +181,71 @@ void Enode::addParent ( Enode * p )
   }
 }
 
+void Enode::addParentTail ( Enode * p )
+{
+  if ( isEnil( ) )
+    return;
+
+  cerr << "Adding Parent: " << p << " to " << this << endl;
+
+  assert( p );
+  assert( cong_data );
+  assert( isTerm( ) || isList( ) );
+
+  setParentSize( getParentSize( ) + 1 );
+
+  // If it has no parents, adds p
+  if ( getParent( ) == NULL )
+  {
+    setParent( p );
+
+    if ( isList( ) )
+      p->setSameCdr( p );
+    else
+      p->setSameCar( p );
+  }
+  // Otherwise adds p in the samecar/cdr of the 
+  // parent of this node at the end of the circular list
+  else if ( isList( ) )
+  {
+    // Build or update samecdr circular list
+    assert( getParent( )->getSameCdr( ) != NULL );
+    Enode * q = getParent( );
+    Enode * qstart = q;
+    for ( ;; )
+    {
+      assert( q->isTerm( ) || q->isList( ) );
+      if ( q->getSameCdr( ) == qstart )
+      {
+	q->setSameCdr( p );
+	p->setSameCdr( qstart );
+	break;
+      }
+      // Next element
+      q = q->getSameCdr( );
+    }
+  }
+  else
+  {
+    // Build or update samecar circular list
+    assert( getParent( )->getSameCar( ) != NULL );
+    Enode * q = getParent( );
+    Enode * qstart = q;
+    for ( ;; )
+    {
+      assert( q->isTerm( ) || q->isList( ) );
+      if ( q->getSameCar( ) == qstart )
+      {
+	q->setSameCar( p );
+	p->setSameCar( qstart );
+	break;
+      }
+      // Next element
+      q = q->getSameCar( );
+    }
+  }
+}
+
 void Enode::removeParent ( Enode * p )
 {
   if ( isEnil( ) ) return;
@@ -277,25 +284,17 @@ void Enode::print( ostream & os )
     os << getName( );
   else if ( isNumb( ) )
   {
-    if ( isDTypeBitVec( ) )
-    {
-    // Choose binary or decimal value; binary won't work with most solvers
-#if 0
-      os << "bvbin" << getName();
-#else
-      os << "bv" << getValue( ) << "[" << strlen(getName()) << "]";
-#endif
-    }
+    if ( false ) { }
     else
     {
-      Real r = getValue();
+      Real r = *(symb_data->value);
 #if USE_GMP
       if (r < 0)
       {
 	if (r.get_den() != 1)
-	  os << "(/ " << "(~ " << abs(r.get_num()) <<")" << " " << r.get_den() << ")";
+	  os << "(/ " << "(- " << abs(r.get_num()) << ")" << " " << r.get_den() << ")";
 	else
-	  os << "(~ " << abs(r) <<")";
+	  os << "(- " << abs(r) << ")";
       }
       else
       {
@@ -356,7 +355,7 @@ void Enode::print( ostream & os )
     os << "-";
   }
   else
-    error( "unknown case value", "" );
+    opensmt_error( "unknown case value" );
 }
 
 void Enode::printSig( ostream & os )
@@ -368,4 +367,9 @@ void Enode::printSig( ostream & os )
   Pair( enodeid_t ) sig = getSig( );
   os << "(" << sig.first << ", " << sig.second << ")";
 #endif
+}
+
+string Enode::stripName( string s )
+{
+  return s.substr( 0, s.find( ' ', 0 ) );
 }

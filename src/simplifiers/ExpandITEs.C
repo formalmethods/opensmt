@@ -25,7 +25,7 @@ ExpandITEs::doit( Enode * formula )
   assert( formula );
   list< Enode * > new_clauses;
   vector< Enode * > unprocessed_enodes;
-  egraph.initDupMap( );
+  egraph.initDupMap1( );
 
   unprocessed_enodes.push_back( formula );
   //
@@ -34,10 +34,10 @@ ExpandITEs::doit( Enode * formula )
   while( !unprocessed_enodes.empty( ) )
   {
     Enode * enode = unprocessed_enodes.back( );
-    // 
+    //
     // Skip if the node has already been processed before
     //
-    if ( egraph.valDupMap( enode ) != NULL )
+    if ( egraph.valDupMap1( enode ) != NULL )
     {
       unprocessed_enodes.pop_back( );
       continue;
@@ -45,8 +45,8 @@ ExpandITEs::doit( Enode * formula )
 
     bool unprocessed_children = false;
     Enode * arg_list;
-    for ( arg_list = enode->getCdr( ) ; 
-	  arg_list != egraph.enil ; 
+    for ( arg_list = enode->getCdr( ) ;
+	  arg_list != egraph.enil ;
 	  arg_list = arg_list->getCdr( ) )
     {
       Enode * arg = arg_list->getCar( );
@@ -55,7 +55,7 @@ ExpandITEs::doit( Enode * formula )
       //
       // Push only if it is unprocessed
       //
-      if ( egraph.valDupMap( arg ) == NULL )
+      if ( egraph.valDupMap1( arg ) == NULL )
       {
 	unprocessed_enodes.push_back( arg );
 	unprocessed_children = true;
@@ -67,7 +67,7 @@ ExpandITEs::doit( Enode * formula )
     if ( unprocessed_children )
       continue;
 
-    unprocessed_enodes.pop_back( );                      
+    unprocessed_enodes.pop_back( );
     Enode * result = NULL;
     //
     // At this point, every child has been processed
@@ -79,17 +79,16 @@ ExpandITEs::doit( Enode * formula )
       //
       // Retrieve arguments
       //
-      Enode * i = egraph.valDupMap( enode->get1st( ) );
-      Enode * t = egraph.valDupMap( enode->get2nd( ) );
-      Enode * e = egraph.valDupMap( enode->get3rd( ) );
+      Enode * i = egraph.valDupMap1( enode->get1st( ) );
+      Enode * t = egraph.valDupMap1( enode->get2nd( ) );
+      Enode * e = egraph.valDupMap1( enode->get3rd( ) );
       Enode * not_i = egraph.mkNot( egraph.cons( i ) );
       //
       // Generate variable symbol
       //
       sprintf( def_name, ITE_STR, enode->getId( ) );
-      const unsigned type = enode->getDType( );
-      const unsigned width = enode->getWidth( );
-      egraph.newSymbol( def_name, type | width );  
+      Snode * sort = enode->getLastSort( );
+      egraph.newSymbol( def_name, sort );
       //
       // Generate placeholder
       //
@@ -112,13 +111,13 @@ ExpandITEs::doit( Enode * formula )
     }
 
     assert( result );
-    assert( egraph.valDupMap( enode ) == NULL );
-    egraph.storeDupMap( enode, result );
+    assert( egraph.valDupMap1( enode ) == NULL );
+    egraph.storeDupMap1( enode, result );
   }
 
-  Enode * new_formula = egraph.valDupMap( formula );
+  Enode * new_formula = egraph.valDupMap1( formula );
   assert( new_formula );
-  egraph.doneDupMap( );
+  egraph.doneDupMap1( );
 
   new_clauses.push_back( new_formula );
 

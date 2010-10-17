@@ -20,7 +20,7 @@ along with OpenSMT. If not, see <http://www.gnu.org/licenses/>.
 #ifndef TSEITIN_H
 #define TSEITIN_H
 
-#include "global.h"
+#include "Global.h"
 #include "Otl.h"
 #include "SMTSolver.h"
 #include "Egraph.h"
@@ -30,21 +30,29 @@ class Tseitin : public Cnfizer
 {
 public:
 
-  Tseitin( Egraph & egraph_, SMTSolver & solver_, SMTConfig & config_ )
-    : Cnfizer( egraph_, solver_, config_ )
+  Tseitin( Egraph & egraph_, SMTSolver & solver_, SMTConfig & config_, SStore & sstore_ )
+    : Cnfizer( egraph_, solver_, config_, sstore_ )
   { }
 
   ~Tseitin( ) { }
 
 private:
 
-  bool cnfize           ( Enode *, Map( int, Enode * ) & ); // Do the actual cnfization
-  void cnfizeAnd        ( Enode *, Enode * );               // Cnfize conjunctions
-  void cnfizeOr         ( Enode *, Enode * );               // Cnfize disjunctions
-  void cnfizeIff        ( Enode *, Enode * );               // Cnfize iffs
-  void cnfizeImplies    ( Enode *, Enode * );               // Cnfize implies
-  void cnfizeXor        ( Enode *, Enode * );               // Cnfize xors
-  void cnfizeIfthenelse ( Enode *, Enode * );               // Cnfize if then elses
+  bool cnfize           ( Enode *, map< int, Enode * > & );       // Do the actual cnfization
+#ifdef PRODUCE_PROOF
+  void cnfizeAnd        ( Enode *, Enode *, const uint64_t = 0 ); // Cnfize conjunctions
+  void cnfizeOr         ( Enode *, Enode *, const uint64_t = 0 ); // Cnfize disjunctions
+  void cnfizeIff        ( Enode *, Enode *, const uint64_t = 0 ); // Cnfize iffs
+  void cnfizeImplies    ( Enode *, Enode *, const uint64_t = 0 ); // Cnfize implies
+  void cnfizeXor        ( Enode *, Enode *, const uint64_t = 0 ); // Cnfize xors
+  void cnfizeIfthenelse ( Enode *, Enode *, const uint64_t = 0 ); // Cnfize if then elses
+#else
+  void cnfizeAnd        ( Enode *, Enode * ); // Cnfize conjunctions
+  void cnfizeOr         ( Enode *, Enode * ); // Cnfize disjunctions
+  void cnfizeIff        ( Enode *, Enode * ); // Cnfize iffs
+  void cnfizeXor        ( Enode *, Enode * ); // Cnfize xors
+  void cnfizeIfthenelse ( Enode *, Enode * ); // Cnfize if then elses
+#endif
 };
 
 #endif

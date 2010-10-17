@@ -50,22 +50,22 @@ class SimpSMTSolver : public CoreSMTSolver
     SimpSMTSolver ( Egraph &, SMTConfig & );
     ~SimpSMTSolver( );
 
-//=================================================================================================
-// Added Code
-
-    bool              addSMTClause        ( vector< Enode * > & );
-    inline lbool      smtSolve            ( bool do_simp = true ) { return solve( do_simp, false ); }
-    Enode *           mergeTAtoms         ( Enode *, bool, Enode *, bool, Enode * );
-    void              eliminateTVar       ( Enode * );
-
-#if NEW_SIMPLIFICATIONS
-    void              gatherTVars         ( Enode *, bool, Clause * );
-    void              gaussianElimination ( );
-    void              substituteInClauses ( );
-    bool              dpfm                ( );
-#else
-    void              getDLVars           ( Enode *, bool, Enode **, Enode ** );
+    bool         addSMTClause         ( vector< Enode * > &, uint64_t in = 0 );
+    inline lbool smtSolve             ( bool do_simp = true ) { return solve( do_simp, false ); }
+    Enode *      mergeTAtoms          ( Enode *, bool, Enode *, bool, Enode * );
+    void         eliminateTVar        ( Enode * );
+    void         initialize           ( );
+                                           
+#if NEW_SIMPLIFICATIONS                    
+    void         gatherTVars          ( Enode *, bool, Clause * );
+    void         gaussianElimination  ( );
+    void         substituteInClauses  ( );
+    bool         dpfm                 ( );
+#else                                      
+    void         getDLVars            ( Enode *, bool, Enode **, Enode ** );
 #endif
+
+    void         gatherInterfaceTerms ( Enode * );
 
     set< Clause * >                      to_remove;
     vector< Clause * >                   unary_to_remove;
@@ -82,13 +82,10 @@ class SimpSMTSolver : public CoreSMTSolver
     vector< LAExpression * >             var_to_lae;
 #endif
 
-// Added Code
-//=================================================================================================
-
     // Problem specification:
     //
     Var     newVar    (bool polarity = true, bool dvar = true);
-    bool    addClause (vec<Lit>& ps);
+    bool    addClause (vec<Lit>& ps, uint64_t in = 0);
 
     // Variable mode:
     // 
@@ -96,9 +93,12 @@ class SimpSMTSolver : public CoreSMTSolver
 
     // Solving:
     //
-    bool    solve     (const vec<Lit>& assumps, bool do_simp = true, bool turn_off_simp = false);
-    bool    solve     (bool do_simp = true, bool turn_off_simp = false);
-    bool    eliminate (bool turn_off_elim = false);  // Perform variable elimination based simplification. 
+    lbool   solve     ( const vec< Enode * > &, bool = true   , bool = false );
+    lbool   solve     ( const vec< Enode * > &, const unsigned, bool = true, bool = false );
+    lbool   solve     ( const vec< Lit > &    , bool = true   , bool = false );
+    lbool   solve     ( const vec< Lit > &    , const unsigned, bool = true, bool = false );
+    lbool   solve     ( bool = true, bool = false ); 
+    bool    eliminate ( bool = false);             // Perform variable elimination based simplification. 
 
     // Generate a (possibly simplified) DIMACS file:
     //
@@ -207,7 +207,8 @@ inline vec<Clause*>& SimpSMTSolver::getOccurs(Var x) {
 
 inline bool  SimpSMTSolver::isEliminated (Var v) const { return v < elimtable.size() && elimtable[v].order != 0; }
 inline void  SimpSMTSolver::setFrozen    (Var v, bool b) { if ( !use_simplification ) return; frozen[v] = (char)b; if (b) { updateElimHeap(v); } }
-inline bool  SimpSMTSolver::solve        (bool do_simp, bool turn_off_simp) { vec<Lit> tmp; return solve(tmp, do_simp, turn_off_simp); }
+inline lbool SimpSMTSolver::solve        (bool do_simp, bool turn_off_simp) { vec<Lit> tmp; return solve(tmp, do_simp, turn_off_simp); }
 
 //=================================================================================================
+
 #endif

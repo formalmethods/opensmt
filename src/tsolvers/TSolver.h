@@ -26,6 +26,7 @@ along with OpenSMT. If not, see <http://www.gnu.org/licenses/>.
 
 class SimpSMTSolver;
 class Egraph;
+class SStore;
 
 #ifdef STATISTICS
 struct TSolverStats
@@ -41,8 +42,13 @@ struct TSolverStats
     , deductions_sent   ( 0 )
     , reasons_sent      ( 0 )
     , avg_reas_size     ( 0 )
-    , max_reas_size     ( 0 ) 
+    , max_reas_size     ( 0 )
     , min_reas_size     ( 32767 )
+    , sod_done          ( 0 )
+    , sod_sent          ( 0 )
+    , avg_sod_size      ( 0 )
+    , max_sod_size      ( 0 )
+    , min_sod_size      ( 32767 )
   { }
 
   // Statistics for theory solvers
@@ -118,13 +124,16 @@ public:
 
   virtual ~TSolver ( ) { }
 
-  virtual lbool               inform              ( Enode * )               = 0; // Inform the solver about the existence of a theory atom
-  virtual bool                assertLit           ( Enode *, bool = false ) = 0; // Assert a theory literal
-  virtual void                pushBacktrackPoint  ( )                       = 0; // Push a backtrack point
-  virtual void                popBacktrackPoint   ( )                       = 0; // Backtrack to last saved point
-  virtual bool                check               ( bool )                  = 0; // Check satisfiability
-
-  inline const string &       getName             ( ) { return name; }           // The name of the solver
+  virtual lbool               inform              ( Enode * )               = 0;  // Inform the solver about the existence of a theory atom
+  virtual bool                assertLit           ( Enode *, bool = false ) = 0;  // Assert a theory literal
+  virtual void                pushBacktrackPoint  ( )                       = 0;  // Push a backtrack point
+  virtual void                popBacktrackPoint   ( )                       = 0;  // Backtrack to last saved point
+  virtual bool                check               ( bool )                  = 0;  // Check satisfiability
+  inline const string &       getName             ( ) { return name; }            // The name of the solver
+  virtual lbool               evaluate            ( Enode * ) { return l_Undef; } // Evaluate the expression in the current state
+#ifdef PRODUCE_PROOF
+  virtual Enode *             getInterpolants     ( ) { return interpolants; }
+#endif
 
 protected:
 
@@ -132,6 +141,7 @@ protected:
   const string                name;             // Name of the solver
   SMTConfig &                 config;           // Reference to configuration
   vector< size_t >            backtrack_points; // Keeps track of backtrack points
+  Enode *                     interpolants;     // Store interpolants
 };
 
 class OrdinaryTSolver : public TSolver
@@ -141,12 +151,14 @@ public:
   OrdinaryTSolver ( const int           i
                   , const char *        n
 		  , SMTConfig &         c
-		  , Egraph &            e 
+		  , Egraph &            e
+		  , SStore &            t
 		  , vector< Enode * > & x
 		  , vector< Enode * > & d
 		  , vector< Enode * > & s )
     : TSolver     ( i, n, c )
     , egraph      ( e )
+    , sstore      ( t )
     , explanation ( x )
     , deductions  ( d )
     , suggestions ( s )
@@ -161,6 +173,7 @@ public:
 protected:
 
   Egraph &            egraph;      // Reference to egraph
+  SStore &            sstore;      // Reference to sstore
   vector< Enode * > & explanation; // Stores the explanation
   vector< Enode * > & deductions;  // List of deductions
   vector< Enode * > & suggestions; // List of suggestions for decisions
@@ -178,14 +191,14 @@ public:
     , solver          ( NULL )
   { }
 
-  virtual ~CoreTSolver ( ) 
+  virtual ~CoreTSolver ( )
   { }
 
-  virtual vector< Enode * > & getConflict   ( bool = false ) = 0; // Return conflict
-  virtual Enode *             getDeduction  ( )              = 0; // Return an implied node based on the current state
-  inline void                 setSolver     ( SimpSMTSolver * s ) { assert( s ); assert( solver == NULL ); solver = s; }
-  virtual void                splitOnDemand ( vector< Enode * > &
-                                            , const int )    = 0; // For splitting on demand
+  virtual vector< Enode * > & getConflict    ( bool = false ) = 0; // Return conflict
+  virtual Enode *             getDeduction   ( )              = 0; // Return an implied node based on the current state
+  inline void                 setSolver      ( SimpSMTSolver * s ) { assert( s ); assert( solver == NULL ); solver = s; }
+  virtual void                splitOnDemand  ( vector< Enode * > &
+                                             , const int )    = 0; // For splitting on demand
 
 protected:
 

@@ -1,7 +1,7 @@
 /*********************************************************************
 Author: Roberto Bruttomesso <roberto.bruttomesso@gmail.com>
 
-OpenSMT -- Copyright (C) 2009, Roberto Bruttomesso
+OpenSMT -- Copyright (C) 2010, Roberto Bruttomesso
 
 OpenSMT is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -18,41 +18,52 @@ along with OpenSMT. If not, see <http://www.gnu.org/licenses/>.
 *********************************************************************/
 
 #include "Egraph.h"
+#include "Enode.h"
 #include "LA.h"
+// DO NOT REMOVE THIS COMMENT !!
+// IT IS USED BY CREATE_THEORY.SH SCRIPT !!
+// NEW_THEORY_HEADER
 #include "EmptySolver.h"
 #include "BVSolver.h"
 #include "LRASolver.h"
-#include "OSolver.h"
 #include "DLSolver.h"
-// TODO: check this - added to support compiling templates
+#include "CostSolver.h"
+// Added to support compiling templates
 #include "DLSolver.C"
 #include "SimpSMTSolver.h"
+
+#define VERBOSE 0
 
 //
 // Inform the solver about the existence of node e
 //
 lbool Egraph::inform( Enode * e )
 {
-  if ( config.ufconfig.disable && config.logic == QF_UF )
-    error( "EUF solver is disabled. Enable it in the configure file.", "" );
-
+  assert( e );
   assert( theoryInitialized );
-  lbool status;
 
-  Map( enodeid_t, lbool )::iterator it = informed.find( e->getId( ) );
+  lbool status;
+  map< enodeid_t, lbool >::iterator it = informed.find( e->getId( ) );
 
   if ( it == informed.end( ) )
   {
     if ( e->getId( ) >= (enodeid_t)id_to_belong_mask.size( ) )
       id_to_belong_mask.resize( e->getId( ) + 1, 0 );
 
-    assert( id_to_belong_mask[ e->getId( ) ] == 0 );
-
-    if ( !config.ufconfig.disable )
+    // If congruence is running enode is initialized by
+    // the appropriate routine initializeCongInc on demand
+    // only if necessary
+    if ( !congruence_running )
       initializeCong( e );
 
-    bool unassigned_atom = config.logic != QF_UF;
-    for ( unsigned i = 1 ; i < tsolvers.size( ) && status == l_Undef ; i ++ )
+    assert( id_to_belong_mask[ e->getId( ) ] == 0 );
+    bool unassigned_atom = config.logic != QF_UF
+                        && config.logic != QF_UFIDL
+                        && config.logic != QF_UFLRA
+                        && config.logic != QF_AX
+                        && config.logic != QF_AUFBV;
+
+    for ( unsigned i = 1 ; i < tsolvers.size( ) && status == l_Undef ; ++ i )
     {
       if ( tsolvers[ i ]->belongsToT( e ) )
       {
@@ -63,7 +74,7 @@ lbool Egraph::inform( Enode * e )
     }
 
     if ( unassigned_atom )
-      error( e, " cannot be handled by any TSolver. Did you disable some solver in the configure file ?" );
+      opensmt_error2( e, " cannot be handled by any TSolver. Did you disable some solver in the configure file ?" );
 
     informed[ e->getId( ) ] = status;
   }
@@ -80,24 +91,30 @@ lbool Egraph::inform( Enode * e )
 //
 void Egraph::initializeCong( Enode * e )
 {
+#ifdef PEDANTIC_DEBUG
+  assert( checkInvariants( ) );
+#endif
+
+  assert( e );
   // Skip what is not term or list
   assert ( e->isTerm( ) || e->isList( ) );
   // Skip enil
   if ( e->isEnil( ) )
     return;
-  if ( e->isTerm( ) &&
-     ( e->isTrue( ) || e->isFalse( ) ) )
+  // Skip true and false
+  if ( e->isTerm( ) && ( e->isTrue( ) || e->isFalse( ) ) )
     return;
-
   // Skip already initialized nodes
   if ( initialized.find( e->getId( ) ) != initialized.end( ) )
     return;
-
   // Process arguments first
   if ( e->isList( ) )
     initializeCong( e->getCar( ) );
   initializeCong( e->getCdr( ) );
-  // Allocate congruence data
+  // Precondition
+  assert( e->getCar( ) == e->getCar( )->getRoot( ) );
+  assert( e->getCdr( ) == e->getCdr( )->getRoot( ) );
+  assert( !e->hasCongData( ) );
   e->allocCongData( );
   // Set constant for constants
   if ( e->isConstant( ) )
@@ -106,15 +123,44 @@ void Egraph::initializeCong( Enode * e )
   if ( e->isList( ) )
     e->getCar( )->addParent( e );
   e->getCdr( )->addParent( e );
-
   // Node initialized
   initialized.insert( e->getId( ) );
-
   // Insert in SigTab
-  insertSigTab( e );
-  // Set CB for concatenations
-  if ( config.ufconfig.int_extract_concat && e->isTerm( ) && e->isConcat( ) )
-    e->setCb( mkCbe( e->getCdr( ) ) );
+  if ( config.incremental )
+  {
+    undo_stack_term.push_back( e );
+    undo_stack_oper.push_back( INITCONG );
+
+    Enode * prev = lookupSigTab( e );
+    assert( prev != e );
+    assert( prev == NULL || prev == prev->getCgPtr( ) );
+    if ( prev == NULL )
+      insertSigTab( e );
+    else
+    {
+      // Set congruence pointer to maintain
+      // invariant of signature table
+      e->setCgPtr( prev );
+      // Add to pending
+      pending.push_back( e );
+      pending.push_back( prev );
+      // Merge
+      const bool res = mergeLoop( NULL );
+      if ( !res )
+	opensmt_error( "unexpected result" );
+    }
+  }
+  else
+  {
+    assert( lookupSigTab( e ) == NULL );
+    insertSigTab( e );
+    assert( lookupSigTab( e ) == e );
+  }
+
+#ifdef PEDANTIC_DEBUG
+  assert( checkParents( e ) );
+  assert( checkInvariants( ) );
+#endif
 }
 
 //
@@ -122,12 +168,18 @@ void Egraph::initializeCong( Enode * e )
 //
 bool Egraph::assertLit_ ( Enode * e )
 {
-  //
-  // Enable undoable conses if CBE computation is requested
-  //
-  if ( !enable_undo
-    && config.ufconfig.int_extract_concat )
-    enable_undo = true;
+#if VERBOSE
+  cerr << "========= Asserting: " 
+       << e 
+       << " " 
+       << e->getId( ) 
+       << " | "
+       << e->getCar( )->getId( )
+       << ", "
+       << e->getCdr( )->getId( )
+       << " ==================" 
+       << endl;
+#endif
 
   assert( theoryInitialized );
   assert( e->isTAtom( ) );
@@ -136,17 +188,26 @@ bool Egraph::assertLit_ ( Enode * e )
   assert( e->getPolarity( ) == l_False
        || e->getPolarity( ) == l_True );
 
+  bool n = e->getPolarity( ) == l_False;
+
+  // cerr << "Asserting: " << (n?"!":" ") << e << endl;
+
   // e is asserted with the same polarity that
   // we deduced: we don't add it to the congruence
   if ( e->isDeduced( )
-    && e->getPolarity( ) == e->getDeduced( ) )
+      && e->getPolarity( ) == e->getDeduced( ) )
     return true;
 
   bool res = true;
-  bool n = e->getPolarity( ) == l_False;
+  Enode * s = e;
+  //
+  // Make sure the received node has been
+  // initialized
+  //
+  if ( config.incremental 
+    && initialized.find( e->getId( ) ) == initialized.end( ) )
+    initializeCongInc( e );
 
-  // Explanation must be empty
-  assert( explanation.empty( ) );
   // Assert positive or negative equality
   if ( e->isEq( ) )
   {
@@ -158,53 +219,39 @@ bool Egraph::assertLit_ ( Enode * e )
     // If the polarity of the equality is negative
     if ( n )
     {
-      // First of all, assert the negated equality
-      if ( config.ufconfig.int_extract_concat )
-	res = assertBv( lhs, rhs, e, true );
-      else
-	res = assertNEq( lhs, rhs, new Reason( e ) );
+      res = assertNEq( lhs, rhs, s );
 
       // Also, assert that e is equivalent to false
       // to trigger theory-deductions automatically
       if ( res )
       {
-	res = assertEq( e, mkFalse( ), new Reason( e ) );
+	res = assertEq( e, mkFalse( ), s );
 	assert( res );
       }
     }
     // Otherwise the polarity of the equality is positive
     else
     {
-      if ( config.ufconfig.int_extract_concat )
-	res = assertBv( lhs, rhs, e, false );
-      else
-	res = assertEq( lhs, rhs, new Reason( e ) );
+      res = assertEq( lhs, rhs, s );
 
       // Also, assert that e is equivalent to true
       // to trigger theory-deductions automatically
       if ( res )
       {
-	res = assertEq( e, mkTrue( ), new Reason( e ) );
+	res = assertEq( e, mkTrue( ), s );
 	assert( res );
       }
     }
   }
   // Assert an explicit strict inequality which are
   // (partially) interpreted as negated equalities
-  else if ( n &&
-	  ( e->isLeq  ( )
-         || e->isBvsle( )
-	 || e->isBvule( ) ) )
+  else if ( n && ( e->isLeq( )) )
   {
     // Has arity 2
     assert( e->getArity( ) == 2 );
     Enode * lhs = e->get1st( );
     Enode * rhs = e->get2nd( );
-    // Special handling for BVs
-    if ( config.ufconfig.int_extract_concat )
-      res = assertBv( lhs, rhs, e, true );
-    else
-      res = assertNEq( lhs, rhs, new Reason( e ) );
+    res = assertNEq( lhs, rhs, s );
     //
     // Also, assert that e is equivalent to false
     // Notice that it may trigger a conflict, for instance
@@ -222,30 +269,35 @@ bool Egraph::assertLit_ ( Enode * e )
     // same for uninterpreted predicates
     //
     if ( res )
-      res = assertEq( e, mkFalse( ), new Reason( e ) );
+      res = assertEq( e, mkFalse( ), s );
   }
   // Assert Distinction
   else if ( e->isDistinct( ) )
   {
     if ( n && config.logic == QF_UF )
-      error( "can't handle distincts with negative polarity in QF_UF", "" );
+      opensmt_error2( "can't handle distincts with negative polarity in QF_UF", "" );
 
     if ( !n )
-      res = assertDist( e );
+      res = assertDist( e, s );
   }
   // Considers <= as uninterpreted if pushed positively
   else if ( e->isUp   ( )
-         || e->isLeq  ( )
-	 || e->isBvsle( )
-	 || e->isBvule( ) )
+         || e->isLeq  ( ))
   {
     if ( n )
-      res = assertEq( e, mkFalse( ), new Reason( e ) );
+      res = assertEq( e, mkFalse( ), s );
     else
-      res = assertEq( e, mkTrue( ), new Reason( e ) );
+      res = assertEq( e, mkTrue( ), s );
+  }
+  else if ( e->isCostIncur() || e->isCostBound() )
+  {
+    if ( n )
+      res = assertEq( e, mkFalse( ), s );
+    else
+      res = assertEq( e, mkTrue( ), s );
   }
   else
-    error( "can't handle ", e );
+    opensmt_error2( "can't handle ", e );
 
   // Cleanup the eq-classes generated during expExplain
   if ( !res )
@@ -259,21 +311,69 @@ bool Egraph::assertLit_ ( Enode * e )
   else       tsolvers_stats[ 0 ]->uns_calls ++;
 #endif
 
-  // Save assert on stack (useful for pop)
-  undo_stack_term.push_back( e );
-  undo_stack_oper.push_back( ASSERT );
-
   assert( !res || explanation.empty( ) );
   assert( exp_cleanup.empty( ) );
+
+#ifdef PRODUCE_PROOF
+  if ( !res
+      && config.produce_inter > 0
+      && config.logic != QF_AX )
+  {
+    list< Enode * > in_list;
+    // We count interpolants from 1,
+    // hence we set the first nibble
+    // to E=1110 instead of F=1111
+    uint64_t mask = 0xFFFFFFFFFFFFFFFEULL;
+    for ( unsigned in = 1 ; in < getNofPartitions( ) ; in ++ )
+    {
+      mask &= ~SETBIT( in );
+      // Compute intermediate interpolants
+      in_list.push_front( cgraph.getInterpolant( mask ) );
+    }
+    interpolants = cons( in_list );
+    cgraph.clear( );
+  }
+#endif
+
+  if ( !res )
+  {
+#if VERBOSE
+    cerr << "Conflict is: " << endl;
+    for ( size_t i = 0 ; i < explanation.size( ) ; i ++ )
+    {
+      // assert( isStatic( explanation[ i ] ) );
+      cerr << " "
+	<< (explanation[ i ]->getPolarity( ) == l_False?"!":" ")
+	<< explanation[ i ]
+	<< endl;
+    }
+#endif
+  }
 
   return res;
 }
 
 bool Egraph::assertLit( Enode * e, bool reason )
 {
+  if ( config.verbosity > 3 )
+    cerr << "# Egraph::Asserting Literal: " 
+         << ( e->getPolarity( ) == l_True ? "     " : "(not " )
+         << e
+         << ( e->getPolarity( ) == l_True ? "" : ")" )
+         << endl;
+
+  congruence_running = true;
+#ifndef SMTCOMP
+  model_computed = false;
+#endif
+  // Node may be new. Inform solvers
+  if ( config.incremental )
+    inform( e );
+
+  // Runtime translation
   suggestions.clear( );
 
-  bool res = config.ufconfig.disable ? true : assertLit_( e );
+  bool res = config.uf_disable ? true : assertLit_( e );
 
   if ( res )
   {
@@ -286,7 +386,7 @@ bool Egraph::assertLit( Enode * e, bool reason )
       TSolverStats & ts = *tsolvers_stats[ i ];
 #endif
 
-      // Skip solver if this atom does not belong to T 
+      // Skip solver if this atom does not belong to T
       if ( (id_to_belong_mask[ e->getId( ) ] & SETBIT( i )) == 0)
 	continue;
 
@@ -295,15 +395,15 @@ bool Egraph::assertLit( Enode * e, bool reason )
 #endif
 
       res = t.assertLit( e, reason );
-      if ( !res ) 
+      if ( !res )
 	conf_index = i;
 #ifdef STATISTICS
-      if ( res ) 
+      if ( res )
       {
 	ts.sat_calls ++;
 	ts.deductions_done += deductions.size( ) - deductions_old;
       }
-      else       
+      else
 	ts.uns_calls ++;
 #endif
     }
@@ -318,48 +418,6 @@ bool Egraph::assertLit( Enode * e, bool reason )
 bool Egraph::check( bool complete )
 {
   bool res = true;
-  //
-  // Check consistency of negated equalities
-  // w.r.t. the current state of the cbes
-  // It is currently done in a very dumb and
-  // possibly expensive way, but apparently it
-  // is still faster than bit-blasting
-  //
-#define CHECK_NE_IN_COMPLETE_CALL 0
-#if CHECK_NE_IN_COMPLETE_CALL
-  if ( complete && config.ufconfig.int_extract_concat )
-  {
-    initDup2( );
-    for ( unsigned i = 0 ; i < neq_stored.size( ) && res ; i ++ )
-    {
-      Enode * lhs = neq_stored[ i ]->get1st( );
-      Enode * rhs = neq_stored[ i ]->get2nd( );
-      if ( !isDup2( lhs ) && lhs->getCb( )->isCbe( ) )
-      {
-	Enode * cbe_lhs = cbe( lhs );
-	res = assertEq( cbe_lhs, lhs, new Reason( REASON_CBE, lhs ) );
-	storeDup2( lhs );
-      }
-      if ( res && !isDup2( rhs ) && rhs->getCb( )->isCbe( ) )
-      {
-	Enode * cbe_rhs = cbe( rhs );
-	res = assertEq( cbe_rhs, rhs, new Reason( REASON_CBE, rhs ) );
-	storeDup2( rhs );
-      }
-    }
-    doneDup2( );
-
-    if ( !res )
-    {
-      conf_index = 0;
-      expCleanup( );
-    }
-#ifdef STATISTICS
-    if ( res ) tsolvers_stats[ 0 ].sat_calls ++;
-    else       tsolvers_stats[ 0 ].uns_calls ++;
-#endif
-  }
-#endif
 
   // Assert literal in the other theories
   for ( unsigned i = 1 ; i < tsolvers.size( ) && res ; i ++ )
@@ -377,12 +435,12 @@ bool Egraph::check( bool complete )
     if ( !res ) conf_index = i;
 
 #ifdef STATISTICS
-    if ( res ) 
+    if ( res )
     {
       ts.sat_calls ++;
       ts.deductions_done += deductions.size( ) - deductions_old;
     }
-    else       
+    else
       ts.uns_calls ++;
 #endif
   }
@@ -398,6 +456,7 @@ bool Egraph::check( bool complete )
 //
 void Egraph::pushBacktrackPoint( )
 {
+  // Save solver state if required
   assert( undo_stack_oper.size( ) == undo_stack_term.size( ) );
   backtrack_points.push_back( undo_stack_term.size( ) );
   // Push ordinary theories
@@ -487,7 +546,7 @@ Enode * Egraph::getSuggestion( )
     return e;
   }
 
-  // We have already returned all 
+  // We have already returned all
   // the possible suggestions
   return NULL;
 }
@@ -498,6 +557,7 @@ Enode * Egraph::getSuggestion( )
 vector< Enode * > & Egraph::getConflict( bool deduction )
 {
   assert( 0 <= conf_index && conf_index < (int)tsolvers.size( ) );
+  (void)deduction;
 #ifdef STATISTICS
   TSolverStats & ts = *tsolvers_stats[ conf_index ];
   if ( deduction )
@@ -522,14 +582,19 @@ vector< Enode * > & Egraph::getConflict( bool deduction )
   return explanation;
 }
 
+#ifdef PRODUCE_PROOF
+Enode * Egraph::getInterpolants( )
+{
+  assert( config.produce_inter );
+  assert( 0 <= conf_index && conf_index < (int)tsolvers.size( ) );
+  if ( conf_index == 0 ) return interpolants;
+  return tsolvers[ conf_index ]->getInterpolants( );
+}
+#endif
+
 void Egraph::initializeTheorySolvers( SimpSMTSolver * s )
 {
   setSolver( s );
-  // Enable undoable cons - New terms are
-  // always created w.r.t. the current 
-  // status of the congruence closure
-  enable_undo = config.incremental;
-
   assert( !theoryInitialized );
   theoryInitialized = true;
 
@@ -546,67 +611,62 @@ void Egraph::initializeTheorySolvers( SimpSMTSolver * s )
   if ( config.logic == EMPTY )
   {
     cerr << "# WARNING: Empty solver activated" << endl;
-    tsolvers      .push_back( new EmptySolver( tsolvers.size( ), "Empty Solver", config, *this, explanation, deductions, suggestions ) );
+    tsolvers      .push_back( new EmptySolver( tsolvers.size( ), "Empty Solver", config, *this, sort_store, explanation, deductions, suggestions ) );
 #ifdef STATISTICS
     tsolvers_stats.push_back( new TSolverStats( ) );
 #endif
   }
   else if ( config.logic == QF_BV )
   {
-    if ( !config.bvconfig.disable )
+    if ( !config.bv_disable )
     {
-      tsolvers      .push_back( new BVSolver( tsolvers.size( ), "BV Solver", config, *this, explanation, deductions, suggestions ) );
+      tsolvers      .push_back( new BVSolver( tsolvers.size( ), "BV Solver", config, *this, sort_store, explanation, deductions, suggestions ) );
 #ifdef STATISTICS
       tsolvers_stats.push_back( new TSolverStats( ) );
 #endif
     }
   }
-  else if ( config.logic == QF_O )
+  else if ( config.logic == QF_RDL
+         || config.logic == QF_IDL
+         || config.logic == QF_UFIDL )
   {
-    if ( !config.oconfig.disable )
-    {
-      tsolvers.push_back( new OSolver( tsolvers.size( ), "O Solver", config, *this, explanation, deductions, suggestions ) );
-#ifdef STATISTICS
-      tsolvers_stats.push_back( new TSolverStats( ) );
-#endif
-    }
-  }
-  else if ( config.logic == QF_RDL 
-         || config.logic == QF_IDL 
-	 || config.logic == QF_UFIDL )
-  {
-#if 0
-    if ( !config.oconfig.disable )
-    {
-      tsolvers.push_back( new OSolver( tsolvers.size( ), "O Solver", config, *this, explanation, deductions, suggestions ) );
-#ifdef STATISTICS
-      tsolvers_stats.push_back( new TSolverStats( ) );
-#endif
-    }
-#else
-    if ( !config.dlconfig.disable )
+    if ( !config.dl_disable )
     {
       if ( getUseGmp( ) )
-        tsolvers    .push_back( new DLSolver<Real>( tsolvers.size( ), "DL Solver", config, *this, explanation, deductions, suggestions ) );
+	tsolvers    .push_back( new DLSolver<Real>( tsolvers.size( ), "DL Solver", config, *this, sort_store, explanation, deductions, suggestions ) );
       else
-        tsolvers    .push_back( new DLSolver<long>( tsolvers.size( ), "DL Solver", config, *this, explanation, deductions, suggestions ) );
+	tsolvers    .push_back( new DLSolver<long>( tsolvers.size( ), "DL Solver", config, *this, sort_store, explanation, deductions, suggestions ) );
 #ifdef STATISTICS
       tsolvers_stats.push_back( new TSolverStats( ) );
 #endif
     }
-#endif
   }
   else if ( config.logic == QF_LRA
          || config.logic == QF_UFLRA )
   {
-    if ( !config.lraconfig.disable )
+    if ( !config.lra_disable )
     {
-      tsolvers      .push_back( new LRASolver( tsolvers.size( ), "LRA Solver", config, *this, explanation, deductions, suggestions ) );
+      tsolvers      .push_back( new LRASolver( tsolvers.size( ), "LRA Solver", config, *this, sort_store, explanation, deductions, suggestions ) );
 #ifdef STATISTICS
       tsolvers_stats.push_back( new TSolverStats( ) );
 #endif
     }
   }
+  else if ( config.logic == QF_CT )
+  {
+    // Allocating a cost solver (we always do this, unless in QF_UF)
+    tsolvers.push_back( new CostSolver( tsolvers.size( ), "Cost Solver", config, *this, sort_store, explanation, deductions, suggestions ) );
+#ifdef STATISTICS
+    tsolvers_stats.push_back( new TSolverStats( ) );
+#endif
+  }
+  else if ( config.logic == QF_AX )
+    ; // Do nothing
+  else if ( config.logic == QF_BOOL )
+    ; // Do nothing
+  // DO NOT REMOVE THIS COMMENT !!
+  // IT IS USED BY CREATE_THEORY.SH SCRIPT !!
+  // NEW_THEORY_INIT
   else
   {
 #ifndef SMTCOMP
@@ -619,23 +679,104 @@ void Egraph::initializeTheorySolvers( SimpSMTSolver * s )
 #endif
 }
 
+#ifndef SMTCOMP
+void Egraph::computeModel( )
+{
+  model_computed = true;
+  //
+  // Compute models in tsolvers
+  //
+  for( unsigned i = 1 ; i < tsolvers.size( ) ; i ++ )
+    tsolvers[ i ]->computeModel( );
+  //
+  // Compute values for variables removed
+  // during preprocessing, starting from
+  // the last
+  //
+  for ( int i = top_level_substs.size( ) - 1 ; i >= 0 ; i -- )
+  {
+    Enode * var = top_level_substs[i].first;
+    Enode * term = top_level_substs[i].second;
+    Real r;
+    // Compute value for term
+    evaluateTerm( term, r );
+    // Set value for variable
+    var->setValue( r );
+  }
+}
+
+void Egraph::printModel( ostream & os )
+{
+  assert( config.produce_models );
+  computeModel( );
+  //
+  // Print values
+  //
+  for( set< Enode * >::iterator it = variables.begin( )
+      ; it != variables.end( )
+      ; it ++ )
+  {
+    // Retrieve enode
+    Enode * v = *it;
+    // Print depending on type
+    if ( v->hasSortBool( ) )
+      continue;
+    else if ( v->hasSortInt( )
+	   || v->hasSortReal( ) )
+    {
+      os << "(= " << v << " ";
+      if ( v->hasValue( ) )
+	os << v->getValue( );
+      else
+	os << "?";
+      os << ")";
+    }
+    else if ( config.logic == QF_UF )
+    {
+      os << "(= " << v << " " << v->getRoot( ) << ")";
+    }
+    else if ( config.logic == QF_CT )
+    {
+      os << "(= " << v << " " << v->getValue( ) << ")";
+    }
+    else
+    {
+      opensmt_error2( "model printing unsupported for this variable: ", v );
+    }
+
+    os << endl;
+  }
+}
+#endif
+
 //===========================================================================
 // Private Routines for Core Theory Solver
 
 //
 // Assert an equality between nodes x and y
 //
-bool Egraph::assertEq ( Enode * x, Enode * y, Reason * r )
+bool Egraph::assertEq ( Enode * x, Enode * y, Enode * r )
 {
   assert( x->isTerm( ) );
   assert( y->isTerm( ) );
   assert( pending.empty( ) );
-  assert( x->isAtom( ) || config.logic != QF_BV   || x->getWidth( ) == y->getWidth( ) );
+  assert( x->isAtom( )
+       || config.logic != QF_BV
+       || x->getWidth( ) == y->getWidth( ) );
 
-  expPushNewReason( r );
   pending.push_back( x );
   pending.push_back( y );
 
+  const bool res = mergeLoop( r );
+
+  return res;
+}
+
+//
+// Merge what is in pending and propagate to parents
+//
+bool Egraph::mergeLoop( Enode * r )
+{
   bool congruence_pending = false;
 
   while ( !pending.empty( ) )
@@ -683,7 +824,6 @@ bool Egraph::assertEq ( Enode * x, Enode * y, Reason * r )
     // constants, otherwise we have a proper reason
     Enode * reason_1 = NULL;
     Enode * reason_2 = NULL;
-
     //
     // Different constants
     //
@@ -692,6 +832,14 @@ bool Egraph::assertEq ( Enode * x, Enode * y, Reason * r )
       assert( p->getRoot( )->getConstant( ) != NULL );
       assert( q->getRoot( )->getConstant( ) != NULL );
       assert( p->getRoot( )->getConstant( ) != q->getRoot( )->getConstant( ) );
+#ifdef PRODUCE_PROOF
+      if ( config.produce_inter > 0 )
+      {
+	cgraph.setConf( p->getRoot( )->getConstant( )
+	              , q->getRoot( )->getConstant( )
+	              , NULL );
+      }
+#endif
       //
       // We need explaining
       //
@@ -726,17 +874,22 @@ bool Egraph::assertEq ( Enode * x, Enode * y, Reason * r )
       }
       assert( reason_1 != NULL );
       assert( reason_2 != NULL );
-      expExplain( reason_1, reason_2 );
+      expExplain( reason_1, reason_2, reason );
     }
     else
     {
       // The reason is a negated equality
       assert( reason->isEq( )
 	   || reason->isLeq( )
-	   || reason->isBvsle( )
-	   || reason->isBvule( ) );
+	   );
 
-      explanation.push_back( reason );
+      if ( config.incremental )
+      {
+	Enode * s = reason;
+	explanation.push_back( s );
+      }
+      else
+	explanation.push_back( reason );
 
       reason_1 = reason->get1st( );
       reason_2 = reason->get2nd( );
@@ -744,12 +897,12 @@ bool Egraph::assertEq ( Enode * x, Enode * y, Reason * r )
       assert( reason_1 != NULL );
       assert( reason_2 != NULL );
 
-      expExplain( reason_1, reason_2 );
-    }
-
-#if PEDANTIC_DEBUG
-    assert( checkExplanation( ) );
+#if VERBOSE
+      cerr << "Reason is neg equality: " << reason << endl;
 #endif
+
+      expExplain( reason_1, reason_2, reason );
+    }
 
     // Clear remaining pendings
     pending.clear( );
@@ -766,20 +919,19 @@ bool Egraph::assertEq ( Enode * x, Enode * y, Reason * r )
 //
 // Assert an inequality between nodes x and y
 //
-bool Egraph::assertNEq ( Enode * x, Enode * y, Reason * r )
+bool Egraph::assertNEq ( Enode * x, Enode * y, Enode * r )
 {
-  expPushNewReason( r );
   Enode * p = x->getRoot( );
   Enode * q = y->getRoot( );
 
   // They can't be different if the nodes are in the same class
   if ( p == q )
   {
-    // The first reason is !r
-    explanation.push_back( r->reason );
-    expExplain( x, y );
-#if PEDANTIC_DEBUG
-    assert( checkExplanation( ) );
+    explanation.push_back( r );
+    expExplain( x, y, r );
+
+#ifdef PEDANTIC_DEBUG
+    assert( checkExp( ) );
 #endif
     return false;
   }
@@ -799,7 +951,7 @@ bool Egraph::assertNEq ( Enode * x, Enode * y, Reason * r )
   // Create new distinction in q
   Elist * pdist = new Elist;
   pdist->e = p;
-  pdist->reason = r->reason;
+  pdist->reason = r;
   // If there is no node in forbid list
   if ( q->getForbid( ) == NULL )
   {
@@ -821,7 +973,7 @@ bool Egraph::assertNEq ( Enode * x, Enode * y, Reason * r )
   // Create new distinction in p
   Elist * qdist = new Elist;
   qdist->e = q;
-  qdist->reason = r->reason;
+  qdist->reason = r;
   if ( p->getForbid( ) == NULL )
   {
     p->setForbid( qdist );
@@ -842,32 +994,31 @@ bool Egraph::assertNEq ( Enode * x, Enode * y, Reason * r )
   return true;
 }
 
-bool Egraph::assertDist( Enode * r )
+bool Egraph::assertDist( Enode * d, Enode * r )
 {
   // Retrieve distinction number
-  size_t index = r->getDistIndex( );
+  size_t index = d->getDistIndex( );
   // While asserting, check that no two nodes are congruent
-  Map( enodeid_t, Enode * ) root_to_enode;
+  map< enodeid_t, Enode * > root_to_enode;
   // Nodes changed
   vector< Enode * > nodes_changed;
   // Assign distinction flag to all arguments
-  Enode * list = r->getCdr( );
+  Enode * list = d->getCdr( );
   while ( list != enil )
   {
     Enode * e = list->getCar( );
 
-    pair< Map( enodeid_t, Enode * )::iterator, bool > elem = root_to_enode.insert( make_pair( e->getRoot( )->getId( ), e ) );
+    pair< map< enodeid_t, Enode * >::iterator, bool > elem = root_to_enode.insert( make_pair( e->getRoot( )->getId( ), e ) );
     // Two equivalent nodes in the same distinction. Conflict
     if ( !elem.second )
     {
-      // The distinction is of course part of the explanation
       explanation.push_back( r );
       // Extract the other node with the same root
       Enode * p = (*elem.first).second;
       // Check condition
       assert( p->getRoot( ) == e->getRoot( ) );
       // Retrieve explanation
-      expExplain( e, p );
+      expExplain( e, p, r );
       // Revert changes, as the current context is inconsistent
       while( !nodes_changed.empty( ) )
       {
@@ -887,8 +1038,7 @@ bool Egraph::assertDist( Enode * r )
   // Distinction pushed without conflict
   assert( undo_stack_oper.size( ) == undo_stack_term.size( ) );
   undo_stack_oper.push_back( DIST );
-  undo_stack_term.push_back( r );
-
+  undo_stack_term.push_back( d );
   return true;
 }
 
@@ -897,6 +1047,9 @@ bool Egraph::assertDist( Enode * r )
 //
 void Egraph::backtrackToStackSize ( size_t size )
 {
+  // Make sure explanation is cleared
+  // (might be empty, though, if boolean backtracking happens)
+  explanation.clear( );
   //
   // Restore state at previous backtrack point
   //
@@ -914,6 +1067,92 @@ void Egraph::backtrackToStackSize ( size_t size )
       if ( e->isTerm( ) )
 	expRemoveExplanation( );
     }
+    else if ( last_action == INITCONG )
+    {
+      assert( config.incremental );
+#if VERBOSE
+      cerr << "UNDO: BEG INITCONG " << e << endl;
+#endif
+      Enode * car = e->getCar( );
+      Enode * cdr = e->getCdr( );
+      assert( car );
+      assert( cdr );
+
+      if ( e->getCgPtr( ) == e )
+      {
+	assert( lookupSigTab( e ) == e );
+	// Remove from sig_tab
+	removeSigTab( e );
+      }
+      else
+      {
+	assert( lookupSigTab( e ) != e );
+	e->setCgPtr( e );
+      }
+
+      assert( initialized.find( e->getId( ) ) != initialized.end( ) );
+      // Remove from initialized nodes
+      initialized.erase( e->getId( ) );
+      assert( initialized.find( e->getId( ) ) == initialized.end( ) );
+      // Remove parents info
+      if ( e->isList( ) )
+	car->removeParent( e );
+      cdr->removeParent( e );
+
+      // Deallocate congruence data
+      assert( e->hasCongData( ) );
+      e->deallocCongData( );
+      assert( !e->hasCongData( ) );
+    }
+    else if ( last_action == FAKE_MERGE )
+    {
+#if VERBOSE
+      cerr << "UNDO: BEGIN FAKE MERGE " << e << endl;
+#endif
+      assert( initialized.find( e->getId( ) ) != initialized.end( ) );
+      initialized.erase( e->getId( ) );
+      assert( initialized.find( e->getId( ) ) == initialized.end( ) );
+      assert( e->hasCongData( ) );
+      e->deallocCongData( );
+      assert( !e->hasCongData( ) );
+    }
+    else if ( last_action == FAKE_INSERT )
+    {
+#if VERBOSE
+      cerr << "UNDO: BEGIN FAKE INSERT " << e << endl;
+#endif
+      assert( e->isTerm( ) || e->isList( ) );
+      Enode * car = e->getCar( );
+      Enode * cdr = e->getCdr( );
+      assert( car );
+      assert( cdr );
+
+      // Node must be there if its a congruence 
+      // root and it has to be removed
+      if ( e->getCgPtr( ) == e )
+      {
+	assert( lookupSigTab( e ) == e );
+	removeSigTab( e );
+      }
+      // Otherwise sets it back to itself
+      else
+      {
+	assert( lookupSigTab( e ) != e );
+	e->setCgPtr( e );
+      }
+
+      // Remove Parent info
+      if ( e->isList( ) )
+	car->removeParent( e );
+      cdr->removeParent( e );
+      // Remove initialization
+      assert( initialized.find( e->getId( ) ) != initialized.end( ) );
+      initialized.erase( e->getId( ) );
+      // Dealloc cong data
+      assert( e->hasCongData( ) );
+      e->deallocCongData( );
+      assert( !e->hasCongData( ) );
+    }
     else if ( last_action == DISEQ )
       undoDisequality( e );
     else if ( last_action == DIST )
@@ -924,60 +1163,90 @@ void Egraph::backtrackToStackSize ( size_t size )
       removeNumber( e );
     else if ( last_action == CONS )
       undoCons( e );
-    else if ( last_action == ASSERT )
-      ;// Do nothing
-    else if ( last_action == CBETSTORE )
-      cbeUndoStore( e );
-    else if ( last_action == CBENEQSTORE )
-    {
-      assert( e == NULL );
-      neq_stored.pop_back( );
-    }
-    else if ( last_action == SPLIT )
-    {
-      //
-      // Clear terms from cb
-      //
-      for ( Enode * list = e->getCb( )->getCdr( )
-	  ; !list->isEnil( )
-	  ; list = list->getCdr( ) )
-      {
-	Enode * arg = list->getCar( );
-	cbeRemoveFromCb( arg );
-      }
-      //
-      // Reinitialize cb
-      //
-      assert( !e->isConcat( ) );
-      e->setCb( e );
-    }
-    else if ( last_action == REASON )
-    {
-      assert( e == NULL );
-      expDeleteLastReason( );
-    }
+    else if ( last_action == INSERT_STORE )
+      removeStore( e );
     else
-      error( "unknown action ", "" );
+      opensmt_error( "unknown action" );
   }
 
   assert( undo_stack_term.size( ) == undo_stack_oper.size( ) );
 }
 
-void Egraph::splitOnDemand( vector< Enode * > & c, const int id )
+bool Egraph::checkDupClause( Enode * c1, Enode * c2 )
 {
+  assert( c1 );
+  assert( c2 );
+  // Swap let cl3 be the lowest clause
+  if ( c1->getId( ) > c2->getId( ) )
+  {
+    Enode * tmp = c1;
+    c1 = c2;
+    c2 = tmp;
+  }
+
+#ifdef BUILD_64
+  enodeid_pair_t sig = encode( c1->getId( ), c2->getId( ) );
+#else
+  Pair( enodeid_t ) sig = make_pair( c1->getId( ), c2->getId( ) );
+#endif
+
+  const bool res = clauses_sent.insert( sig ).second == false;
+  return res;
+}
+
+void Egraph::splitOnDemand( vector< Enode * > & c, const int
+#ifdef STATISTICS
+    id 
+#endif
+    )
+{
+  assert( config.incremental );
+  // Assume that we split only of size 2
+  assert( c.size( ) == 2 );
+  if ( checkDupClause( c[ 0 ], c[ 1 ] ) ) return;
 #ifdef STATISTICS
   assert( id >= 0 );
   assert( id < static_cast< int >( tsolvers_stats.size( ) ) );
   TSolverStats & ts = *tsolvers_stats[ id ];
   if ( (long)c.size( ) > ts.max_sod_size )
-      ts.max_sod_size = c.size( );
+    ts.max_sod_size = c.size( );
   if ( (long)c.size( ) < ts.min_sod_size )
     ts.min_sod_size = c.size( );
   ts.sod_sent ++;
   ts.sod_done ++;
   ts.avg_sod_size += c.size( );
 #endif
-  solver->addSMTClause( c );
+
+#ifdef PRODUCE_PROOF
+  assert( config.produce_inter == 0 || getIPartitions( c[ 0 ] ) != 0 );
+  assert( config.produce_inter == 0 || getIPartitions( c[ 1 ] ) != 0 );
+#endif
+
+  solver->addSMTAxiomClause( c );
+}
+
+void Egraph::splitOnDemand( Enode * c, const int
+#ifdef STATISTICS
+    id 
+#endif
+    )
+{
+  assert( c );
+
+#ifdef STATISTICS
+  assert( id >= 0 );
+  assert( id < static_cast< int >( tsolvers_stats.size( ) ) );
+  TSolverStats & ts = *tsolvers_stats[ id ];
+  if ( ts.max_sod_size < 1 )
+    ts.max_sod_size = 1;
+  if ( ts.min_sod_size > 1 )
+    ts.min_sod_size = 1;
+  ts.sod_sent ++;
+  ts.sod_done ++;
+  ts.avg_sod_size ++;
+#endif
+
+  solver->addNewAtom( c );
 }
 
 //=============================================================================
@@ -985,12 +1254,22 @@ void Egraph::splitOnDemand( vector< Enode * > & c, const int id )
 
 //
 // Merge the class of x with the class of y
+// x will become the representant
 //
 void Egraph::merge ( Enode * x, Enode * y )
 {
+#ifdef PEDANTIC_DEBUG
+  assert( checkParents( x ) );
+  assert( checkParents( y ) );
+  assert( checkInvariants( ) );
+#endif
+
   assert( !x->isConstant( ) || !y->isConstant( ) );
   assert( !x->isConstant( ) || x->getSize( ) == 1 );
   assert( !y->isConstant( ) || y->getSize( ) == 1 );
+  assert( x->getRoot( ) != y->getRoot( ) );
+  assert( x == x->getRoot( ) );
+  assert( y == y->getRoot( ) );
 
   // Swap x,y if y has a larger eq class
   if ( x->getSize( ) < y->getSize( )
@@ -1036,8 +1315,6 @@ void Egraph::merge ( Enode * x, Enode * y )
     assert ( p->isTerm( ) || p->isList( ) );
     // If p is a congruence root
     if ( p == p->getCgPtr( ) )
-      // removeSigTab( p );
-      // p->isList( ) ? sig_tab_list.erase( p ) : sig_tab_term.erase( p );
       sig_tab.erase( p );
     // Next element
     p = scdr ? p->getSameCdr( ) : p->getSameCar( ) ;
@@ -1051,7 +1328,7 @@ void Egraph::merge ( Enode * x, Enode * y )
   // could be partially embedded into the next
   // cycle. However, for the sake of simplicity
   // we prefer to separate the two contexts
-  if ( config.ufconfig.theory_propagation > 0 )
+  if ( config.uf_theory_propagation > 0 )
     deduce( x, y );
 
   // Perform the union of the two equivalence classes
@@ -1073,6 +1350,7 @@ void Egraph::merge ( Enode * x, Enode * y )
   y->setNext( tmp );
   // Update size of the congruence class
   x->setSize( x->getSize( ) + y->getSize( ) );
+
   // Preserve signatures of larger parent set
   if ( x->getParentSize( ) < y->getParentSize( ) )
   {
@@ -1080,6 +1358,7 @@ void Egraph::merge ( Enode * x, Enode * y )
     x->setCid( y->getCid( ) );
     y->setCid( tmp );
   }
+
   // Insert new signatures and propagate congruences
   p = w->getParent( );
   for ( ; p != NULL ; )
@@ -1088,6 +1367,7 @@ void Egraph::merge ( Enode * x, Enode * y )
     if ( p == p->getCgPtr( ) )
     {
       Enode * q = sig_tab.insert( p );
+      // Signature already present
       if ( q != p )
       {
 	p->setCgPtr( q );
@@ -1101,6 +1381,7 @@ void Egraph::merge ( Enode * x, Enode * y )
     if ( p == pstart )
       p = NULL;
   }
+
   // Merge parent lists
   if ( y->getParent( ) != NULL )
   {
@@ -1113,14 +1394,14 @@ void Egraph::merge ( Enode * x, Enode * y )
       if ( x->isList( ) )
       {
 	Enode * tmp = x->getParent( )->getSameCdr( );
-        x->getParent( )->setSameCdr( y->getParent( )->getSameCdr( ) );
-        y->getParent( )->setSameCdr( tmp );
+	x->getParent( )->setSameCdr( y->getParent( )->getSameCdr( ) );
+	y->getParent( )->setSameCdr( tmp );
       }
       else
       {
 	Enode * tmp = x->getParent( )->getSameCar( );
-        x->getParent( )->setSameCar( y->getParent( )->getSameCar( ) );
-        y->getParent( )->setSameCar( tmp );
+	x->getParent( )->setSameCar( y->getParent( )->getSameCar( ) );
+	y->getParent( )->setSameCar( tmp );
       }
     }
   }
@@ -1144,6 +1425,12 @@ void Egraph::merge ( Enode * x, Enode * y )
   assert( undo_stack_oper.size( ) == undo_stack_term.size( ) );
   undo_stack_oper.push_back( MERGE );
   undo_stack_term.push_back( y );
+
+#ifdef PEDANTIC_DEBUG
+  assert( checkParents( x ) );
+  assert( checkParents( y ) );
+  assert( checkInvariants( ) );
+#endif
 }
 
 //
@@ -1181,11 +1468,15 @@ void Egraph::deduce( Enode * x, Enode * y )
   {
     // We deduce only things that aren't currently assigned or
     // that we previously deduced on this branch
-    // if ( v->getPolarity( ) == l_Undef && v->getDeduced( ) == l_Undef )
-    if ( !v->hasPolarity( ) && !v->isDeduced( ) )
+    Enode * sv = v;
+    if ( !sv->hasPolarity( )
+      && !sv->isDeduced( ) 
+      // Also when incrementality is used, node should be explicitly informed
+      && ( config.incremental == 0 || informed.find( sv->getId( ) ) != informed.end( ) )
+      )
     {
-      v->setDeduced( deduced_polarity, id );
-      deductions.push_back( v );
+      sv->setDeduced( deduced_polarity, id );
+      deductions.push_back( sv );
 #ifdef STATISTICS
       tsolvers_stats[ 0 ]->deductions_done ++;
 #endif
@@ -1195,7 +1486,7 @@ void Egraph::deduce( Enode * x, Enode * y )
       break;
   }
 
-#if PEDANTIC_DEBUG
+#ifdef PEDANTIC_DEBUG
   assert( checkInvariants( ) );
 #endif
 }
@@ -1213,32 +1504,38 @@ void Egraph::undoMerge( Enode * y )
   Enode * x = y->getRoot( );
   assert( x );
 
+#if VERBOSE
+  cerr << "UM: Undoing merge of " << y << " and " << x << endl;
+#endif
+
   // Undoes the merge of the parent lists
   x->setParentSize( x->getParentSize( ) - y->getParentSize( ) );
   // Restore the correct parents
   if ( y->getParent( ) != NULL )
   {
-    // If the parent are equal, that means that
+    // If the parents are equal, that means that
     // y's parent has been assigned to x
     if ( x->getParent( ) == y->getParent( ) )
       x->setParent( NULL );
     // Unsplice the parent lists
     else
     {
+      assert( x->getParent( ) );
       if ( x->isList( ) )
       {
 	Enode * tmp = x->getParent( )->getSameCdr( );
-        x->getParent( )->setSameCdr( y->getParent( )->getSameCdr( ) );
-        y->getParent( )->setSameCdr( tmp );
+	x->getParent( )->setSameCdr( y->getParent( )->getSameCdr( ) );
+	y->getParent( )->setSameCdr( tmp );
       }
       else
       {
 	Enode * tmp = x->getParent( )->getSameCar( );
-        x->getParent( )->setSameCar( y->getParent( )->getSameCar( ) );
-        y->getParent( )->setSameCar( tmp );
+	x->getParent( )->setSameCar( y->getParent( )->getSameCar( ) );
+	y->getParent( )->setSameCar( tmp );
       }
     }
   }
+
   // Assign w to the smallest parent class
   Enode * w = x->getParentSize( ) < y->getParentSize( ) ? x : y ;
   // Undoes the insertion of the modified signatures
@@ -1246,16 +1543,14 @@ void Egraph::undoMerge( Enode * y )
   const Enode * pstart = p;
   // w might be NULL, i.e. it may not have fathers
   const bool scdr = w == NULL ? false : w->isList( );
+
   for ( ; p != NULL ; )
   {
     assert( p->isTerm( ) || p->isList( ) );
-
     // If p is a congruence root
     if ( p == p->getCgPtr( ) )
     {
       assert( lookupSigTab( p ) != NULL );
-      // removeSigTab( p );
-      // p->isList( ) ? sig_tab_list.erase( p ) : sig_tab_term.erase( p );
       sig_tab.erase( p );
     }
     // Next element
@@ -1297,8 +1592,8 @@ void Egraph::undoMerge( Enode * y )
     Enode * cg = p->getCgPtr( );
     // If p is a congruence root
     if ( p == cg
-      || p->getCar( )->getRoot( ) != cg->getCar( )->getRoot( )
-      || p->getCdr( )->getRoot( ) != cg->getCdr( )->getRoot( ) )
+	|| p->getCar( )->getRoot( ) != cg->getCar( )->getRoot( )
+	|| p->getCdr( )->getRoot( ) != cg->getCdr( )->getRoot( ) )
     {
       Enode * res = sig_tab.insert( p );
       (void)res;
@@ -1348,7 +1643,9 @@ void Egraph::undoMerge( Enode * y )
   // TODO: unmerge for ordinary theories
   //
 
-#if PEDANTIC_DEBUG
+#ifdef PEDANTIC_DEBUG
+  assert( checkParents( y ) );
+  assert( checkParents( x ) );
   assert( checkInvariants( ) );
 #endif
 }
@@ -1397,7 +1694,7 @@ void Egraph::undoDisequality ( Enode * x )
     yfirst->link = xdist->link;
   delete xdist;
 
-#if PEDANTIC_DEBUG
+#ifdef PEDANTIC_DEBUG
   assert( checkInvariants( ) );
 #endif
 }
@@ -1420,7 +1717,7 @@ void Egraph::undoDistinction ( Enode * r )
     list = list->getCdr( );
   }
 
-#if PEDANTIC_DEBUG
+#ifdef PEDANTIC_DEBUG
   assert( checkInvariants( ) );
 #endif
 }
@@ -1437,9 +1734,9 @@ bool Egraph::unmergable ( Enode * x, Enode * y, Enode ** r )
   // Check if they have different constants. It is sufficient
   // to check that they both have a constant. It is not
   // possible that the constant is the same. In fact if it was
-  // the same, they would be in the same class, bu they are not
+  // the same, they would be in the same class, but they are not
   if ( p->getConstant( ) != NULL && q->getConstant( ) != NULL ) return true;
-  // Check if they are part of the same distinction
+  // Check if they are part of the same distinction (general distinction)
   dist_t intersection = ( p->getDistClasses( ) & q->getDistClasses( ) );
   if ( intersection )
   {
@@ -1451,11 +1748,11 @@ bool Egraph::unmergable ( Enode * x, Enode * y, Enode ** r )
       intersection = intersection >> 1;
       index ++;
     }
-    (*r) = indexToDist( index );
+    (*r) = indexToDistReas( index );
     assert( (*r) != NULL );
     return true;
   }
-  // Check forbid lists
+  // Check forbid lists (binary distinction)
   const Elist * pstart = p->getForbid( );
   const Elist * qstart = q->getForbid( );
   // If at least one is empty, they can merge
@@ -1484,553 +1781,234 @@ bool Egraph::unmergable ( Enode * x, Enode * y, Enode ** r )
   return false;
 }
 
-//=============================================================================
-// Explanation Routines: details about these routines are in paper
 //
-// Robert Nieuwenhuis and Albert Oliveras
-// "Proof Producing Congruence Closure"
-
+// Creates the dynamic version of the enode
 //
-// Store explanation for an eq merge
-//
-void Egraph::expStoreExplanation ( Enode * x, Enode * y, Reason * reason )
+void Egraph::initializeCongInc( Enode * top )
 {
-  assert( x->isTerm( ) );
-  assert( y->isTerm( ) );
-  // They must be different because the merge hasn't occured yet
-  assert( x->getRoot( ) != y->getRoot( ) );
-  // The main observation here is that the explanation tree, altough
-  // differently oriented, has the same size as the equivalence tree
-  // (actually we don't keep the equivalence tree, because we use
-  // the quick-find approach, but here we just need the size). So we
-  // can use x->getRoot( )->getSize( ) to know the size of the class of a node
-  // x and therefore be sure that the explanation tree is kept
-  // balanced (which is a requirement to keep the O(nlogn) bound
+  assert( top );
+  assert( initialized.find( top->getId( ) ) == initialized.end( ) );
 
-  // Make sure that x is the node with the larger number of edges to switch
-  if ( x->getRoot( )->getSize( ) < y->getRoot( )->getSize( ) )
+  vector< Enode * > unprocessed_enodes;
+  unprocessed_enodes.push_back( top );
+
+  while ( !unprocessed_enodes.empty( ) )
   {
-    Enode * tmp = x;
-    x = y;
-    y = tmp;
-  }
-
-  // Reroot the explanation tree on y. It has an amortized cost of logn
-  expReRootOn( y );
-  y->setExpParent( x );
-  y->setExpReason( reason );
-
-  // Store both nodes. Because of rerooting operations
-  // we don't know whether x --> y or x <-- y at the moment of
-  // backtracking. So we just save reason and check both parts
-  exp_undo_stack.push_back( x );
-  exp_undo_stack.push_back( y );
-
-#if PEDANTIC_DEBUG
-  assert( checkExplanationTree( x ) );
-  assert( checkExplanationTree( y ) );
-#endif
-}
-
-//
-// Subroutine of explainStoreExplanation
-// Re-root the tree containing x, in such a way that
-// the new root is x itself
-//
-void Egraph::expReRootOn ( Enode * x )
-{
-  Enode * p = x;
-  Enode * parent = p->getExpParent( );
-  Reason * reason = p->getExpReason( );
-  x->setExpParent( NULL );
-  x->setExpReason( NULL );
-
-  while( parent != NULL )
-  {
-    // Save grandparent
-    Enode * grandparent = parent->getExpParent( );
-
-    // Save reason
-    Reason * saved_reason = reason;
-    reason = parent->getExpReason( );
-
-    // Reverse edge & reason
-    parent->setExpParent( p );
-    parent->setExpReason( saved_reason );
-
-#if PEDANTIC_DEBUG
-    assert( checkExplanationTree( parent ) );
-#endif
-
-    // Move the two pointers
-    p = parent;
-    parent = grandparent;
-  }
-}
-
-void Egraph::expExplain ( )
-{
-  while ( !exp_pending.empty( ) )
-  {
-    assert( exp_pending.size( ) % 2 == 0 );
-
-    Enode * p = exp_pending.back( ); exp_pending.pop_back( );
-    Enode * q = exp_pending.back( ); exp_pending.pop_back( );
-
-    if ( p == q ) continue;
-
-#if PEDANTIC_DEBUG
-    assert( checkExplanationTree( p ) );
-    assert( checkExplanationTree( q ) );
-#endif
-
-    Enode * w = expNCA( p, q );
-    assert( w );
-
-    expExplainAlongPath( p, w );
-    expExplainAlongPath( q, w );
-  }
-}
-
-//
-// Produce an explanation between nodes x and y
-// Wrapper for expExplain
-//
-void Egraph::expExplain ( Enode * x, Enode * y )
-{
-  exp_pending.push_back( x );
-  exp_pending.push_back( y );
-
-  initDup1( );
-  expExplain( );
-  doneDup1( );
-}
-
-void Egraph::expCleanup ( )
-{
-  // Destroy the eq classes of the explanation
-  while ( !exp_cleanup.empty( ) )
-  {
-    Enode * x = exp_cleanup.back( );
-    x->setExpRoot( x );
-    x->setExpHighestNode( x );
-    exp_cleanup.pop_back( );
-  }
-}
-
-//
-// Subrouine of explain
-// A step of explanation for x and y
-//
-void Egraph::expExplainAlongPath ( Enode * x, Enode * y )
-{
-  Enode * v  = expHighestNode( x );
-  Enode * to = expHighestNode( y );
-
-  while ( v != to )
-  {
-    Enode * p = v->getExpParent( );
-    assert( p != NULL );
-    Reason * r = v->getExpReason( );
-
-    if ( r != NULL && r->type != REASON_DEFAULT )
+    Enode * e = unprocessed_enodes.back( );
+    assert( e );
+    
+    if ( initialized.find( e->getId( ) ) != initialized.end( ) )
     {
-      assert( config.ufconfig.int_extract_concat );
-
-      if ( r->type == REASON_CONSTANT )
-      {
-	assert( r->reason->isTerm( ) );
-	assert( r->reason->getConstant( ) != NULL );
-	assert( p->isConstant( ) || v->isConstant( ) );
-	assert( p->isExtract ( ) || v->isExtract ( ) );
-
-	Enode * arg = p->isExtract( ) ? p->get1st( ) : v->get1st( );
-	exp_pending.push_back( r->reason );
-	exp_pending.push_back( r->reason->getConstant( ) );
-	if ( !r->reason->isExtract( ) )
-	{
-	  assert( r->reason->getWidth( ) == arg->getWidth( ) );
-	  assert( r->reason->getRoot( ) == arg->getRoot( ) );
-	  exp_pending.push_back( r->reason );
-	  exp_pending.push_back( arg );
-	}
-	else
-	{
-	  assert( r->reason->get1st( )->getWidth( ) == arg->getWidth( ) );
-	  assert( r->reason->get1st( )->getRoot( ) == arg->getRoot( ) );
-	  exp_pending.push_back( r->reason->get1st( ) );
-	  exp_pending.push_back( arg );
-	}
-      }
-      else if ( r->type == REASON_SLICE )
-      {
-	Enode * reason = r->reason;
-	if( reason->isEq( ) )
-	{
-	  Enode * lhs = reason->get1st( );
-	  Enode * rhs = reason->get2nd( );
-	  if ( !isDup1( reason ) )
-	  {
-	    explanation.push_back( reason );
-	    storeDup1( reason );
-	  }
-	  cbeExplainSlice( r->msb, r->lsb, lhs );
-	  cbeExplainSlice( r->msb, r->lsb, rhs );
-	}
-	else
-	{
-	  cbeExplainSlice( r->msb, r->lsb, reason );
-	}
-      }
-      else if ( r->type == REASON_CBE )
-      {
-	Enode * reason = r->reason;
-	assert( reason->isTerm( ) );
-	cbeExplainCb( reason );
-      }
-      else
-	assert( false );
+      unprocessed_enodes.pop_back( );
+      continue;
     }
-    // If it is not a congruence edge
-    else if ( r != NULL )
+
+    bool unprocessed_children = false;
+    if ( e->getCar( )->isTerm( ) 
+      && initialized.find( e->getCar( )->getId( ) ) == initialized.end( ) )
     {
-      if ( !isDup1( r->reason ) )
-      {
-	assert( r->reason->isTerm( ) );
-	explanation.push_back( r->reason );
-	storeDup1( r->reason );
-      }
+      unprocessed_enodes.push_back( e->getCar( ) );
+      unprocessed_children = true;
     }
-    // Otherwise it is a congruence edge
-    // This means that the edge is linking nodes
-    // like (v)f(a1,...,an) (p)f(b1,...,bn), and that
-    // a1,...,an = b1,...bn. For each pair ai,bi
-    // we have therefore to compute the reasons
+    if ( !e->getCdr( )->isEnil( ) 
+      && initialized.find( e->getCdr( )->getId( ) ) == initialized.end( ) )
+    {
+      unprocessed_enodes.push_back( e->getCdr( ) );
+      unprocessed_children = true;
+    }
+
+    if ( unprocessed_children )
+      continue;
+
+    unprocessed_enodes.pop_back( );
+    // 
+    // Initialization happens here
+    //
+    assert( e->isTerm( ) || e->isList( ) );
+    assert( !e->isEnil( ) );
+    assert( !e->isTerm( ) || !e->isTrue( ) );
+    assert( !e->isTerm( ) || !e->isFalse( ) );
+    // If it's safe to initialize
+    if ( e->getCar( ) == e->getCar( )->getRoot( ) 
+      && e->getCdr( ) == e->getCdr( )->getRoot( ) )
+      initializeCong( e );
+    // Otherwise specialized initialization
+    // with fake merges
+    else
+      initializeAndMerge( e );
+  }
+
+  assert( initialized.find( top->getId( ) ) != initialized.end( ) );
+}
+
+void Egraph::initializeAndMerge( Enode * e )
+{
+#if VERBOSE
+  cerr << endl;
+  cerr << "IM: BEGIN INITIALIZING: " << e << endl;
+#endif
+
+  assert( e->getCar( ) != e->getCar( )->getRoot( )
+       || e->getCdr( ) != e->getCdr( )->getRoot( ) );
+  assert( !e->hasCongData( ) );
+  e->allocCongData( );
+  // Node initialized
+  initialized.insert( e->getId( ) );
+
+  // Now we need to adjust data structures as 
+  // either car != car->root or cdr != cdr->root
+
+  Enode * eq = cons( e->getCar( )->getRoot( )
+                   , e->getCdr( )->getRoot( ) );
+
+  // In any case the two terms must be different
+  assert( eq != e );
+  undo_stack_term.push_back( e );
+  undo_stack_oper.push_back( FAKE_MERGE );
+
+#if VERBOSE
+  cerr << "IM: Term: " << e << " is actually equiv to " << eq << endl;
+#endif
+
+  if ( initialized.insert( eq->getId( ) ).second )
+  {
+    assert( !eq->hasCongData( ) );
+    eq->allocCongData( );
+
+    if ( eq->isList( ) )
+      eq->getCar( )->addParent( eq );
+    eq->getCdr( )->addParent( eq );
+
+    undo_stack_term.push_back( eq );
+    undo_stack_oper.push_back( FAKE_INSERT );
+    // Now we need to adjust the signature table
+    // it is possible that the signature of eq is
+    // already used
+    Enode * prev = lookupSigTab( eq );
+    assert( prev != eq );
+    assert( prev == NULL || prev == prev->getCgPtr( ) );
+
+    // Just insert if signature was not there
+    if ( prev == NULL )
+      insertSigTab( eq );
+    // Otherwise prev is the congruence root. This m
+    // eans that eq will not be stored inside sig_tab
+    // However we need to equate the two, as it
+    // is done in normal merge procedure
     else
     {
-      assert( v->getCar( ) == p->getCar( ) );
-      assert( v->getArity( ) == p->getArity( ) );
-      expEnqueueArguments( v, p );
-    }
-
-    expUnion( v, p );
-    v = expHighestNode( p );
-  }
-}
-
-void Egraph::expEnqueueArguments( Enode * x, Enode * y )
-{
-  assert( x->isTerm( ) );
-  assert( y->isTerm( ) );
-  assert( x->getArity( ) == y->getArity( ) );
-  // No explanation needed if they are the same
-  if ( x == y )
-    return;
-
-  // Simple explanation if they are arity 0 terms
-  if ( x->getArity( ) == 0 )
-  {
-    exp_pending.push_back( x );
-    exp_pending.push_back( y );
-    return;
-  }
-  // Otherwise they are the same function symbol
-  // Recursively enqueue the explanations for the args
-  assert( x->getCar( ) == y->getCar( ) );
-  Enode * xptr = x->getCdr( );
-  Enode * yptr = y->getCdr( );
-  while ( !xptr->isEnil( ) )
-  {
-    exp_pending.push_back( xptr->getCar( ) );
-    exp_pending.push_back( yptr->getCar( ) );
-    xptr = xptr->getCdr( );
-    yptr = yptr->getCdr( );
-  }
-  assert( yptr->isEnil( ) );
-}
-
-void Egraph::expUnion ( Enode * x, Enode * y )
-{
-  // Unions are always between a node and its parent
-  assert( x->getExpParent( ) == y );
-  // Retrieve the representant for the explanation class for x and y
-  Enode * x_exp_root = expFind( x );
-  Enode * y_exp_root = expFind( y );
-
-#if PEDANTIC_DEBUG
-  assert( checkReachable( x, x_exp_root ) );
-  assert( checkReachable( y, y_exp_root ) );
-#endif
-
-  // No need to merge elements of the same class
-  if ( x_exp_root == y_exp_root )
-    return;
-  // Save highest node. It is always the node of the parent,
-  // as it is closest to the root of the explanation tree
-  x_exp_root->setExpRoot( y_exp_root );
-  x_exp_root->setExpClassSize( x_exp_root->getExpClassSize( ) + y_exp_root->getExpClassSize( ) );
-  // Keep track of this union
-  exp_cleanup.push_back( x_exp_root );
-  exp_cleanup.push_back( y_exp_root );
-
-#if PEDANTIC_DEBUG
-  assert( checkReachable( x, x_exp_root ) );
-  assert( checkReachable( y, y_exp_root ) );
-#endif
-}
-
-//
-// Find the representant of x's equivalence class
-// and meanwhile do path compression
-//
-Enode * Egraph::expFind ( Enode * x )
-{
-  // If x is the root, return x
-  if ( x->getExpRoot( ) == x )
-    return x;
-
-  // Recursively find the representant
-  Enode * exp_root = expFind( x->getExpRoot( ) );
-  // Path compression
-  if ( exp_root != x->getExpRoot( ) )
-  {
-    x->setExpRoot( exp_root );
-    exp_cleanup.push_back( x );
-  }
-
-  return exp_root;
-}
-
-Enode * Egraph::expHighestNode ( Enode * x )
-{
-  Enode * x_exp_root = expFind( x );
-  return x_exp_root;
-}
-
-Enode * Egraph::expNCA ( Enode * x, Enode * y )
-{
-  // Increase time stamp
-  time_stamp ++;
-
-  Enode * h_x = expHighestNode( x );
-  Enode * h_y = expHighestNode( y );
-
-#if PEDANTIC_DEBUG
-  assert( checkReachable( x, h_x ) );
-  assert( checkReachable( y, h_y ) );
-#endif
-
-  while ( h_x != h_y )
-  {
-    if ( h_x != NULL )
-    {
-      // We reached a node already marked by h_y
-      if ( h_x->getExpTimeStamp( ) == time_stamp )
-	return h_x;
-      // Mark the node and move to the next
-      if ( h_x->getExpParent( ) != h_x )
-      {
-	h_x->setExpTimeStamp( time_stamp );
-	h_x = h_x->getExpParent( );
-      }
-    }
-    if ( h_y != NULL )
-    {
-      // We reached a node already marked by h_x
-      if ( h_y->getExpTimeStamp( ) == time_stamp )
-	return h_y;
-      // Mark the node and move to the next
-      if ( h_y->getExpParent( ) != h_y )
-      {
-	h_y->setExpTimeStamp( time_stamp );
-	h_y = h_y->getExpParent( );
-      }
+      // Set congruence pointer to maintain
+      // invariant of signature table
+      eq->setCgPtr( prev );
+      // Add to pending
+      pending.push_back( eq );
+      pending.push_back( prev );
+      // Merge
+      const bool res = mergeLoop( NULL );
+      if ( !res )
+	opensmt_error( "unexpected result" );
     }
   }
-  // Since h_x == h_y, we return h_x
-  return h_x;
-}
-
-//
-// Undoes the effect of expStoreExplanation
-//
-void Egraph::expRemoveExplanation( )
-{
-  assert( exp_undo_stack.size( ) >= 2 );
-
-  Enode * x = exp_undo_stack.back( );
-  exp_undo_stack.pop_back( );
-  Enode * y = exp_undo_stack.back( );
-  exp_undo_stack.pop_back( );
-
-  assert( x );
-  assert( y );
-  assert( !x->isEnil( ) );
-  assert( !y->isEnil( ) );
-
-  // We observe that we don't need to undo the rerooting
-  // of the explanation trees, because it doesn't affect
-  // correctness. We just have to reroot y on itself
-  assert( x->getExpParent( ) == y || y->getExpParent( ) == x );
-  if ( x->getExpParent( ) == y )
-  {
-    x->setExpParent( NULL );
-    x->setExpReason( NULL );
-  }
+#if VERBOSE
   else
-  {
-    //if ( y->getExpReason( ) != NULL ) delete y->getExpReason( );
-    y->setExpParent( NULL );
-    y->setExpReason( NULL );
-  }
-}
-
-void
-Egraph::expPushNewReason( Reason * r )
-{
-  assert( r );
-  undo_stack_term.push_back( NULL );
-  undo_stack_oper.push_back( REASON );
-  reasons.push_back( r );
-}
-
-void
-Egraph::expDeleteLastReason( )
-{
-  assert( !reasons.empty( ) );
-  Reason * r = reasons.back( );
-  assert( r );
-  delete r;
-  reasons.pop_back( );
-}
-
-//=============================================================================
-// Debugging Routines
-
-void Egraph::printExplanation( ostream & os )
-{
-  os << "# Conflict: ";
-  for ( unsigned i = 0 ; i < explanation.size( ) ; i ++ )
-  {
-    if ( i > 0 )
-      os << ", ";
-
-    assert( explanation[ i ]->hasPolarity( ) );
-    if ( explanation[ i ]->getPolarity( ) == l_False )
-      os << "!";
-
-    explanation[ i ]->print( os );
-  }
-  os << endl;
-}
-
-void Egraph::printExplanationTree( ostream & os, Enode * x )
-{
-  while ( x != NULL )
-  {
-    os << x;
-    if ( x->getExpParent( ) != NULL )
-      os << " --[";
-    if ( x->getExpReason( ) != NULL )
-      os << x->getExpReason( );
-    if ( x->getExpParent( ) != NULL )
-      os << "]--> ";
-    x = x->getExpParent( );
-  }
-}
-
-void Egraph::printExplanationTreeDotty( ostream & os, Enode * x )
-{
-  os << "digraph expl" << endl;
-  os << "{" << endl;
-
-  while ( x != NULL )
-  {
-    os << x;
-    if ( x->getExpParent( ) != NULL )
-      os << " -> ";
-    x = x->getExpParent( );
-  }
-
-  os << endl << "}" << endl;
-}
-
-void Egraph::printDistinctionList( ostream & os, Enode * x )
-{
-  Elist * l = x->getForbid( );
-
-  if ( l == NULL )
-    return;
-
-  string sep = "";
-  do
-  {
-    os << sep;
-    sep = ", ";
-    l->e->print( os );
-    l = l->link;
-  }
-  while( l != x->getForbid( ) );
-}
+    cerr << "IM: No need to add: " << eq << endl;
+#endif
 
 #ifdef PEDANTIC_DEBUG
-bool Egraph::checkExplanation ( )
-{
-  assert( explanation.size( ) > 1 );
-  // Check for duplicated literals in conflict
-  set< enodeid_t > visited;
-  for ( unsigned i = 0 ; i < explanation.size( ) ; i ++ )
-  {
-    if ( visited.find( explanation[ i ]->getId( ) ) != visited.end( ) )
-    {
-      cerr << "Error: explanation " << explanation[ i ] << " is present twice" << endl;
-      return false;
-    }
-    visited.insert( explanation[ i ]->getId( ) );
-  }
-
-  return true;
-}
-
-bool Egraph::checkExplanationTree ( Enode * x )
-{
-  assert( x );
-  set< Reason * > visited;
-
-  while ( x->getExpParent( ) != NULL )
-  {
-    if ( x->getExpReason( ) != NULL )
-    {
-      if ( visited.find( x->getExpReason( ) ) != visited.end( ) )
-      {
-	cerr << "Error: explanation is present twice" << endl;
-	return false;
-      }
-      visited.insert( x->getExpReason( ) );
-    }
-    x = x->getExpParent( );
-  }
-
-  return true;
-}
-
-bool Egraph::checkReachable( Enode * x, Enode * h_x )
-{
-  Enode * orig = x;
-
-  if ( x == h_x )
-    return true;
-
-  while ( x->getExpParent( ) != h_x )
-  {
-    x = x->getExpParent( );
-    if ( x == NULL )
-    {
-      cerr << h_x << " is unreachable from " << orig << endl;
-      return false;
-    }
-  }
-
-  return true;
-}
+  assert( !e->isList( ) 
+       || checkParents( e->getCar( ) ) );
+  assert( e->getCdr( )->isEnil( ) 
+       || checkParents( e->getCdr( ) ) );
 #endif
+
+  // Now we need to merge x and eq, since they are equivalent
+  pending.push_back( e );
+  pending.push_back( eq );
+  const bool res = mergeLoop( NULL );
+  if ( !res )
+    opensmt_error( "unexpected result" );
+
+#ifdef PEDANTIC_DEBUG
+  assert( checkParents( e ) );
+  assert( checkParents( eq ) );
+  assert( checkInvariants( ) );
+#endif
+
+#if VERBOSE
+  cerr << "IM: END INITIALING: " << e << endl;
+#endif
+}
+
+//
+// Creates a new enode modulo equivalence
+//
+Enode * Egraph::uCons( Enode * car, Enode * cdr )
+{
+  assert( false );
+  assert( config.incremental );
+  assert( !config.uf_disable );
+  assert( car );
+  assert( cdr );
+  assert( car->isTerm( ) || car->isSymb( ) || car->isNumb( ) );
+  assert( cdr->isList( ) );
+  // Move to roots
+  car = car->getRoot( );
+  cdr = cdr->getRoot( );
+  Enode * e = NULL;
+  // Create and insert a new enode if necessary
+  e = insertSigTab( id_to_enode.size( ), car, cdr );
+  assert( e );
+  // The node was there already. Return it
+  if ( (enodeid_t)id_to_enode.size( ) != e->getId( ) )
+    return e;
+  assert( e->getCar( ) == e->getCar( )->getRoot( ) );
+  assert( e->getCdr( ) == e->getCdr( )->getRoot( ) );
+  // We keep the created enode
+  id_to_enode.push_back( e );
+  // Initialize its congruence data structures
+  assert( initialized.find( e->getId( ) ) == initialized.end( ) );
+  assert( !e->hasCongData( ) );
+  e->allocCongData( );
+  // Set constant for constants
+  if ( e->isConstant( ) )
+    e->setConstant( e );
+  // Add parents relationships
+  if ( e->isList( ) )
+    e->getCar( )->addParent( e );
+  e->getCdr( )->addParent( e );
+  // Node initialized
+  initialized.insert( e->getId( ) );
+  // Insert in SigTab
+  insertSigTab( e );
+  // Save backtrack info
+  undo_stack_term.push_back( e );
+  undo_stack_oper.push_back( CONS );
+  assert( undo_stack_oper.size( ) == undo_stack_term.size( ) );
+  return e;
+}
+
+void Egraph::undoCons( Enode * e )
+{
+  assert( config.incremental );
+  assert( e );
+  assert( e->isTerm( ) || e->isList( ) );
+  Enode * car = e->getCar( );
+  Enode * cdr = e->getCdr( );
+  assert( car );
+  assert( cdr );
+  // Node must be there
+  assert( lookupSigTab( e ) == e );
+  // Remove from sig_tab
+  removeSigTab( e );
+  // Remove Parent info
+  if ( car->isList( ) )
+    car->removeParent( e );
+  if ( !cdr->isEnil( ) )
+    cdr->removeParent( e );
+  // Remove initialization
+  initialized.erase( e->getId( ) );
+  // Get rid of the correspondence
+  id_to_enode[ e->getId( ) ] = NULL;
+  // Erase the enode
+  delete e;
+}

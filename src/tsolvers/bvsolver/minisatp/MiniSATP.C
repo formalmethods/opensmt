@@ -843,7 +843,7 @@ MiniSATP::popBacktrackPoint ( )
     }
     else
     {
-      error( "unknown undo operation in BitBlaster", op );
+      opensmt_error2( "unknown undo operation in BitBlaster", op );
     }
 
     undo_stack_oper.pop_back( );
