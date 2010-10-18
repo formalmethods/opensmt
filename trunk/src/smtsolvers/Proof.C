@@ -530,6 +530,8 @@ void CoreSMTSolver::printProof( ostream & out )
 
 void CoreSMTSolver::printInter( ostream & )
 {
+  assert( config.produce_inter != 0 );
+
   ProofGraph graph( config
                   , *this
                   , theory_handler
@@ -540,10 +542,7 @@ void CoreSMTSolver::printInter( ostream & )
                   , NULL
                   , nVars( ) );
 
-  // Enable flag
-  config.produce_inter=1;
-
-  graph.handleProof();
+  graph.handleProof( );
 
   // Compute interpolants
   vector< Enode * > sequence_of_interpolants;

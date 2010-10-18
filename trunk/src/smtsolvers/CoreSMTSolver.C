@@ -380,10 +380,6 @@ void CoreSMTSolver::removeClause(Clause& c)
   // If ref is not 0, we keep it and remove later
   if ( !proof.deleted( &c ) )
     pleaves.push( &c );
-#endif
-
-#ifdef PRODUCE_PROOF
-  // It is freed in proof.deleted if necessary
 #else
   free(&c);
 #endif
@@ -466,6 +462,7 @@ void CoreSMTSolver::addSMTAxiomClause( vector< Enode * > & smt_clause )
   }
 #ifdef PRODUCE_PROOF
   proof.addRoot( ct, CLA_THEORY );
+  assert( config.produce_inter != 0 );
   if ( config.incremental )
   {
     undo_stack_oper.push_back( NEWPROOF );
@@ -768,8 +765,7 @@ void CoreSMTSolver::analyze(Clause* confl, vec<Lit>& out_learnt, int& out_btleve
 	undo_stack_oper.push_back( NEWPROOF );
 	undo_stack_elem.push_back( (void *)ct );
       }
-      if ( config.produce_inter > 0 
-	&& config.logic != QF_AX )
+      if ( config.produce_inter > 0 )
       {
 	clause_to_in[ ct ] = theory_handler->getInterpolants( );
 	if ( config.incremental )
@@ -971,8 +967,7 @@ bool CoreSMTSolver::litRedundant(Lit p, uint32_t abstract_levels)
 	  undo_stack_oper.push_back( NEWPROOF );
 	  undo_stack_elem.push_back( (void *)ct );
 	}
-	if ( config.produce_inter > 0
-	  && config.logic != QF_AX )
+	if ( config.produce_inter > 0 )
 	{
 	  clause_to_in[ ct ] = theory_handler->getInterpolants( );
 	  if ( config.incremental )

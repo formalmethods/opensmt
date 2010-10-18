@@ -95,12 +95,14 @@ ProofGraph::buildProofGraph( Proof & proof
 	//Strange case clause with link
 	if(chaincla.size()>0)
 	{
-	  /*					cout << "Clause with link, type " << proofder.type << endl;
-						solver.printSMTClause(cout,*currClause);
-						cout << endl;
-						cout << "Link, type " << (*(clause_to_proof_der[chaincla[0]])).type << endl;
-						solver.printSMTClause(cout,*(chaincla[0]));
-						cout << endl;*/
+	  solver.setInterpolant( currClause, solver.getInterpolants( chaincla[0] ) ); 
+	  // cout << "Clause with link, type " << proofder.type << endl;
+	  // solver.printSMTClause(cout,*currClause);
+	  // cout << endl;
+	  // cout << "Link, type " << (*(clause_to_proof_der[chaincla[0]])).type << endl;
+	  // solver.printSMTClause(cout,*(chaincla[0]));
+	  // cout << chaincla[0] << endl;
+	  // cout << endl;
 	  //q.push_back(chaincla[0]);
 	  //continue;
 	}
@@ -127,20 +129,17 @@ ProofGraph::buildProofGraph( Proof & proof
 	if(ctype==CLA_ORIG)
 	{
 	  graph[clauseToIDMap[currClause]]->type=CLAORIG;
-#ifdef PRODUCE_PROOF
 	  //Determine partition mask in case of interpolation
 	  if(produceInterpolants()>0)
 	  {
 	    graph[clauseToIDMap[currClause]]->partition_mask = solver.getIPartitions(currClause);
 	    // cout << "Associating mask " << graph[clauseToIDMap[currClause]]->partition_mask << " to clause "; printClause(graph[clauseToIDMap[currClause]]);
 	  }
-#endif
 	}
 	//Theory clause
 	else if (ctype==CLA_THEORY)
 	{
 	  graph[clauseToIDMap[currClause]]->type=CLALEMMA;
-#ifdef PRODUCE_PROOF
 	  //Determine list of partial interpolants in case of theory lemma
 	  if(produceInterpolants()>0)
 	  {
@@ -149,7 +148,6 @@ ProofGraph::buildProofGraph( Proof & proof
 	    assert(partial_interp_list);
 	    graph[clauseToIDMap[currClause]]->partial_interp = partial_interp_list;
 	  }
-#endif
 	}
 	//TODO: how to distinguish between green and red???
 

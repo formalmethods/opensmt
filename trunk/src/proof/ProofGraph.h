@@ -182,6 +182,7 @@ private:
 	void checkClauseDuplicates();
 	void getGraphInfo();
 	void printClause(ProofNode*);
+	void printSMTClause(ProofNode*);
 	void printBits(uint64_t);
 	void topolSorting(vector<clauseid_t>&);
 

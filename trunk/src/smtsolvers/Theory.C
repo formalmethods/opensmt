@@ -118,8 +118,7 @@ int CoreSMTSolver::checkTheory( bool complete )
       undo_stack_oper.push_back( NEWPROOF );
       undo_stack_elem.push_back( (void *)confl );
     }
-    if ( config.produce_inter > 0
-      && config.logic != QF_AX )
+    if ( config.produce_inter > 0 )
     {
       clause_to_in[ confl ] = theory_handler->getInterpolants( );
       if ( config.incremental )
@@ -207,8 +206,7 @@ int CoreSMTSolver::checkTheory( bool complete )
     undo_stack_oper.push_back( NEWPROOF );
     undo_stack_elem.push_back( (void *)confl );
   }
-  if ( config.produce_inter > 0
-    && config.logic != QF_AX )
+  if ( config.produce_inter > 0 )
   {
     clause_to_in[ confl ] = theory_handler->getInterpolants( );
     if ( config.incremental )
