@@ -199,24 +199,23 @@ AC_SUBST(CXXFLAGS)
 AC_SUBST(AM_LDFLAGS)
 
 # Setup comilation/linking flags for library checks
-OLDCPPFLAGS=$CPPFLAGS
-CPPFLAGS=$CXXFLAGS
-OLDLDFLAGS=$LDFLAGS
-LDFLAGS="$LDFLAGS $AM_LDFLAGS"
-
+# OLDCPPFLAGS=$CPPFLAGS
+# CPPFLAGS=$CXXFLAGS
+# OLDLDFLAGS=$LDFLAGS
+# LDFLAGS="$LDFLAGS $AM_LDFLAGS"
+#
 # Check for GMP header
-GMP_HEADER_FOUND=1
-AC_CHECK_HEADERS(gmp.h,
-		 ,
-		 [AC_MSG_ERROR([ The GMP header gmp.h was not found.])])
-
+# GMP_HEADER_FOUND=1
+# AC_CHECK_HEADERS(gmp.h,
+# 		 ,
+# 		 [AC_MSG_ERROR([ The GMP header gmp.h was not found.])])
+#
 # Check for GMP library
-AC_CHECK_LIB(gmp, __gmpz_init, ,[AC_MSG_ERROR([GMP library not found])])
-
+# AC_CHECK_LIB(gmp, __gmpz_init, ,[AC_MSG_ERROR([GMP library not found])])
+#
 # Restore original flags
-CPPFLAGS=$OLDCPPFLAGS
-LDFLAGS=$OLDLDFLAGS
-
+# CPPFLAGS=$OLDCPPFLAGS
+# LDFLAGS=$OLDLDFLAGS
 
 #
 # List of directories to include
