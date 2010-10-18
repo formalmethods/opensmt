@@ -635,10 +635,18 @@ void OpenSMTContext::GetProof( )
 void OpenSMTContext::GetInterpolants( )
 {
 #ifdef PRODUCE_PROOF
-  if ( state == l_False )
+  if ( config.produce_inter == 0 )
+  {
+    opensmt_warning( "Skipping command (get-interpolants) as (produce-interpolants) is not set" );
+  }
+  else if ( state == l_False )
+  {
     solver.printInter( config.getRegularOut( ) );
+  }
   else
+  {
     opensmt_warning( "Skipping command (get-interpolants) as formula is not unsat" );
+  }
 #else
   opensmt_warning( "Skipping command (get-interpolants): you need a version of opensmt compiled with --enable-proof" );
 #endif

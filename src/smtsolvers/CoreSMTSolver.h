@@ -313,8 +313,9 @@ public:
 	void   printInter              ( ostream & );   // Print interpolants
 	void   getMixedAtoms           ( set< Var > & );
 	void   checkPartitions         ( );
-	inline uint64_t getIPartitions ( Clause * c ) { assert( clause_to_partition.find( c ) != clause_to_partition.end( ) ); return clause_to_partition[ c ]; }
-	inline Enode *  getInterpolants( Clause * c ) { assert( clause_to_in.find( c ) != clause_to_in.end( ) ); return clause_to_in[ c ]; }
+	inline uint64_t getIPartitions ( Clause * c )            { assert( clause_to_partition.find( c ) != clause_to_partition.end( ) ); return clause_to_partition[ c ]; }
+	inline Enode *  getInterpolants( Clause * c )            { assert( clause_to_in.find( c ) != clause_to_in.end( ) ); return clause_to_in[ c ]; }
+	inline void     setInterpolant ( Clause * c, Enode * e ) { clause_to_in[ c ] = e; }
 #endif
 
 protected:
@@ -525,20 +526,20 @@ inline bool     CoreSMTSolver::okay          () const                     { retu
 
 static inline void logLit(FILE* f, Lit l)
 {
-	fprintf(f, "%sx%d", sign(l) ? "~" : "", var(l)+1);
+  fprintf(f, "%sx%d", sign(l) ? "~" : "", var(l)+1);
 }
 
 static inline void logLits(FILE* f, const vec<Lit>& ls)
 {
-	fprintf(f, "[ ");
-	if (ls.size() > 0){
-		logLit(f, ls[0]);
-		for (int i = 1; i < ls.size(); i++){
-			fprintf(f, ", ");
-			logLit(f, ls[i]);
-		}
-	}
-	fprintf(f, "] ");
+  fprintf(f, "[ ");
+  if (ls.size() > 0){
+    logLit(f, ls[0]);
+    for (int i = 1; i < ls.size(); i++){
+      fprintf(f, ", ");
+      logLit(f, ls[i]);
+    }
+  }
+  fprintf(f, "] ");
 }
 
 static inline const char* showBool(bool b) { return b ? "true" : "false"; }
@@ -550,17 +551,17 @@ static inline void check(bool expr) { (void)expr; assert(expr); }
 
 inline void CoreSMTSolver::printLit(Lit l)
 {
-	reportf("%s%d:%c:%d", sign(l) ? "-" : " ", var(l), value(l) == l_True ? '1' : (value(l) == l_False ? '0' : 'X'), level[var(l)]);
+  reportf("%s%d:%c:%d", sign(l) ? "-" : " ", var(l), value(l) == l_True ? '1' : (value(l) == l_False ? '0' : 'X'), level[var(l)]);
 }
 
 
 template<class C>
 inline void CoreSMTSolver::printClause(const C& c)
 {
-	for (int i = 0; i < c.size(); i++){
-		printLit(c[i]);
-		fprintf(stderr, " ");
-	}
+  for (int i = 0; i < c.size(); i++){
+    printLit(c[i]);
+    fprintf(stderr, " ");
+  }
 }
 
 //=================================================================================================
@@ -569,95 +570,95 @@ inline void CoreSMTSolver::printClause(const C& c)
 template<class C>
 inline void CoreSMTSolver::printSMTClause( ostream & os, const C& c )
 {
-	if ( c.size( ) == 0 ) os << "-";
-	if ( c.size( ) > 1 ) os << "(or ";
-	for (int i = 0; i < c.size(); i++)
-	{
-		Var v = var(c[i]);
-		if ( v <= 1 ) continue;
-		Enode * e = theory_handler->varToEnode( v );
-		os << (sign(c[i])?"(not ":"") << e << (sign(c[i])?") ":" ");
-	}
-	if ( c.size( ) > 1 ) os << ")";
+  if ( c.size( ) == 0 ) os << "-";
+  if ( c.size( ) > 1 ) os << "(or ";
+  for (int i = 0; i < c.size(); i++)
+  {
+    Var v = var(c[i]);
+    if ( v <= 1 ) continue;
+    Enode * e = theory_handler->varToEnode( v );
+    os << (sign(c[i])?"(not ":"") << e << (sign(c[i])?") ":" ");
+  }
+  if ( c.size( ) > 1 ) os << ")";
 }
 
 inline void CoreSMTSolver::printSMTClause( ostream & os, vec< Lit > & c, bool ids )
 {
-	if ( c.size( ) == 0 ) os << "-";
-	if ( c.size( ) > 1 ) os << "(or ";
-	for (int i = 0; i < c.size(); i++)
-	{
-		Var v = var(c[i]);
-		if ( v <= 1 ) continue;
-		if ( ids )
-			os << (sign(c[i])?"-":" ") << v << " ";
-		else
-		{
-			Enode * e = theory_handler->varToEnode( v );
-			os << (sign(c[i])?"(not ":"") << e << (sign(c[i])?") ":" ");
-		}
-	}
-	if ( c.size( ) > 1 ) os << ")";
+  if ( c.size( ) == 0 ) os << "-";
+  if ( c.size( ) > 1 ) os << "(or ";
+  for (int i = 0; i < c.size(); i++)
+  {
+    Var v = var(c[i]);
+    if ( v <= 1 ) continue;
+    if ( ids )
+      os << (sign(c[i])?"-":" ") << v << " ";
+    else
+    {
+      Enode * e = theory_handler->varToEnode( v );
+      os << (sign(c[i])?"(not ":"") << e << (sign(c[i])?") ":" ");
+    }
+  }
+  if ( c.size( ) > 1 ) os << ")";
 }
 
 inline void CoreSMTSolver::printSMTClause( ostream & os, vector< Lit > & c, bool ids )
 {
-	if ( c.size( ) == 0 ) os << "-";
-	if ( c.size( ) > 1 ) os << "(or ";
-	for (size_t i = 0; i < c.size(); i++)
-	{
-		Var v = var(c[i]);
-		if ( v <= 1 ) continue;
-		if ( ids )
-			os << (sign(c[i])?"-":" ") << v << " ";
-		else
-		{
-			Enode * e = theory_handler->varToEnode( v );
-			os << (sign(c[i])?"(not ":"") << e << (sign(c[i])?") ":" ");
-		}
-	}
-	if ( c.size( ) > 1 ) os << ")";
+  if ( c.size( ) == 0 ) os << "-";
+  if ( c.size( ) > 1 ) os << "(or ";
+  for (size_t i = 0; i < c.size(); i++)
+  {
+    Var v = var(c[i]);
+    if ( v <= 1 ) continue;
+    if ( ids )
+      os << (sign(c[i])?"-":" ") << v << " ";
+    else
+    {
+      Enode * e = theory_handler->varToEnode( v );
+      os << (sign(c[i])?"(not ":"") << e << (sign(c[i])?") ":" ");
+    }
+  }
+  if ( c.size( ) > 1 ) os << ")";
 }
 
 inline void CoreSMTSolver::printSMTLit( ostream & os, const Lit l )
 {
-	Var v = var( l );
-	if ( v == 0 ) os << "true";
-	else if ( v == 1 ) os << "false";
-	else
-	{
-		Enode * e = theory_handler->varToEnode( v );
-		os << (sign(l)?"(not ":" ") << e << (sign(l)?") ":" ");
-	}
+  Var v = var( l );
+  if ( v == 0 ) os << "true";
+  else if ( v == 1 ) os << "false";
+  else
+  {
+    Enode * e = theory_handler->varToEnode( v );
+    os << (sign(l)?"(not ":" ") << e << (sign(l)?") ":" ");
+  }
 }
 
 #ifdef PRODUCE_PROOF
 inline void CoreSMTSolver::printRestrictedSMTClause( ostream & os, vec< Lit > & c, uint64_t mask )
 {
-	assert( c.size( ) > 0 );
-	int nof_lits = 0;
-	stringstream s;
-	for ( int i = 0 ; i < c.size( ) ; i++ )
-	{
-		Var v = var(c[i]);
-		if ( v <= 1 ) continue;
-		Enode * e = theory_handler->varToEnode( v );
-		if ( (egraph.getIPartitions( e ) & mask) != 0 )
-		{
-			s << (sign(c[i])?"(not ":"") << e << (sign(c[i])?") ":" ");
-			nof_lits ++;
-		}
-	}
-	if ( nof_lits == 0 )
-		os << "false";
-	else if ( nof_lits == c.size( ) )
-		os << "true";
-	else
-	{
-		if ( nof_lits > 1 ) os << "(or ";
-		os << s.str( );
-		if ( nof_lits > 1 ) os << ")";
-	}
+  assert( c.size( ) > 0 );
+  int nof_lits = 0;
+  stringstream s;
+  for ( int i = 0 ; i < c.size( ) ; i++ )
+  {
+    Var v = var(c[i]);
+    if ( v <= 1 ) continue;
+    Enode * e = theory_handler->varToEnode( v );
+    if ( (egraph.getIPartitions( e ) & mask) != 0 )
+    {
+      s << (sign(c[i])?"(not ":"") << e << (sign(c[i])?") ":" ");
+      nof_lits ++;
+    }
+  }
+  if ( nof_lits == 0 )
+    os << "false";
+  else if ( nof_lits == c.size( ) )
+    os << "true";
+  else
+  {
+    if ( nof_lits > 1 ) os << "(or ";
+    os << s.str( );
+    if ( nof_lits > 1 ) os << ")";
+  }
 }
 
 inline Enode * CoreSMTSolver::mkRestrictedSMTClause( vec< Lit > & c, uint64_t mask )

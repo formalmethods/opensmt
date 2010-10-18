@@ -94,6 +94,25 @@ void ProofGraph::printClause(ProofNode* n)
   cout << endl;
 }
 
+void ProofGraph::printSMTClause(ProofNode* n)
+{
+	assert(n!=NULL);
+	vector<Lit>& c=n->clause;
+	cout << n->id << ": ";
+
+	if ( c.size( ) == 0 ) cout << "-";
+	if ( c.size( ) > 1 ) cout << "(or ";
+	for (int i = 0; i < c.size(); i++)
+	{
+		Var v = var(c[i]);
+		if ( v <= 1 ) continue;
+		Enode * e = thandler->varToEnode( v );
+		cout << (sign(c[i])?"(not ":"") << e << (sign(c[i])?") ":" ");
+	}
+	if ( c.size( ) > 1 ) cout << ")";
+	cout << endl;
+}
+
 //TODO update
 //Prints global info
 void ProofGraph::printStatus()
