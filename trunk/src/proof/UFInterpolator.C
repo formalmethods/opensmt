@@ -389,12 +389,37 @@ Enode * CGraph::getInterpolant( const uint64_t mask )
     // Compute largest subpath of c1 -- c2
     // with B-colorable endpoints
     path_t pi_1, pi_2, theta;
+#if 0
     if ( !getSubpaths( pi, pi_1, theta, pi_2 ) )
     {
       result = egraph.mkFalse( );
     }
     else
     {
+#else
+    if ( !getSubpaths( pi, pi_1, theta, pi_2 ) )
+    {
+      // Compute B( pi_1 ) U B( pi_2 )
+      vector< path_t > b_paths;
+      B( pi_1, b_paths );
+      B( pi_2, b_paths );
+
+      for ( unsigned i = 0 ; i < b_paths.size( ) ; i ++ )
+	conj.push_back( I( b_paths[ i ] ) );
+      // Finally compute implication
+      list< Enode * > conj_impl;
+      for ( unsigned i = 0 ; i < b_paths.size( ) ; i ++ )
+	conj_impl.push_back( egraph.mkEq( egraph.cons( b_paths[ i ].first->e
+		           , egraph.cons( b_paths[ i ].second->e ) ) ) );
+      Enode * implicant = egraph.mkAnd( egraph.cons( conj_impl ) );
+      Enode * implicated = egraph.mkFalse( );
+      conj.push_back( egraph.mkImplies( egraph.cons( implicant
+	            , egraph.cons( implicated ) ) ) );
+      result = egraph.mkAnd( egraph.cons( conj ) );
+    }
+    else
+    {
+#endif
       // Compute I( theta )
       conj.push_back( I( theta ) );
       // Compute B( pi_1 ) U B( pi_2 )
@@ -450,51 +475,10 @@ bool CGraph::getSubpaths( const path_t & pi
 
   // Sorted list of edges from x
   vector< CEdge * > sorted_edges;
-#if 0
-  // Retrieve edges from y
-  vector< CEdge * > tmp;
-  // Load edges from x
-  while ( x->next != NULL && x->next->target != y )
-  {
-    sorted_edges.push_back( x->next );
-    x = x->next->target;
-  }
-  // If y was reached, fine, otherwise check path from y
-  if ( x->next == NULL || x->next->target != y )
-  {
-    while ( y->next != NULL && y->next->target != x )
-    {
-      tmp.push_back( y->next );
-      y = y->next->target;
-    }
-    // If reached from y, then forget about x, and
-    // restore x itself
-    if ( y->next != NULL && y->next->target == x )
-    {
-      sorted_edges.clear( );
-      x = pi.first;
-    }
-  }
-
-  const size_t x_path_length = sorted_edges.size( );
-
-  // The two paths must collide
-  assert( !tmp.empty( ) || sorted_edges.back( )->target == y );
-  assert( !sorted_edges.empty( ) || tmp.back( )->target == x );
-  assert( sorted_edges.empty( ) 
-       || tmp.empty( ) 
-       || sorted_edges.back( )->target == tmp.back( )->target );
-
-  // Now load edges from y in the correct order
-  while ( !tmp.empty( ) )
-  {
-    sorted_edges.push_back( tmp.back( ) );
-    tmp.pop_back( );
-  }
-#endif
   const size_t x_path_length = getSortedEdges( x, y, sorted_edges );
   // Decide maximal B path
   unsigned largest_path_length = 0;
+
   for ( size_t i = 0 ; i < sorted_edges.size( ) ; ) 
   {
     // Skip A-path
@@ -526,9 +510,15 @@ bool CGraph::getSubpaths( const path_t & pi
     }
     assert( path_length != 0 || s == t );
   }
-  // No path found
+  // No path found: arbitrary split
   if ( largest_path_length == 0 )
+  {
+    pi_1.first = pi.first;
+    pi_1.second = pi.first;
+    pi_2.first = pi.first;
+    pi_2.second = pi.second;
     return false;
+  }
 
   // Set pi_1 theta pi_2
   pi_1.first = pi.first;
@@ -536,7 +526,6 @@ bool CGraph::getSubpaths( const path_t & pi
   pi_2.first = theta.second;
   pi_2.second = pi.second; 
 
-  // Path found
   return true;
 }
 

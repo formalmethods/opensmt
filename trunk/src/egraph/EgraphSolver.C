@@ -316,8 +316,7 @@ bool Egraph::assertLit_ ( Enode * e )
 
 #ifdef PRODUCE_PROOF
   if ( !res
-      && config.produce_inter > 0
-      && config.logic != QF_AX )
+      && config.produce_inter > 0 )
   {
     list< Enode * > in_list;
     // We count interpolants from 1,
@@ -341,10 +340,12 @@ bool Egraph::assertLit_ ( Enode * e )
     cerr << "Conflict is: " << endl;
     for ( size_t i = 0 ; i < explanation.size( ) ; i ++ )
     {
-      // assert( isStatic( explanation[ i ] ) );
       cerr << " "
 	<< (explanation[ i ]->getPolarity( ) == l_False?"!":" ")
 	<< explanation[ i ]
+#ifdef PRODUCE_PROOF
+	<< getIPartitions( explanation[ i ] )
+#endif
 	<< endl;
     }
 #endif

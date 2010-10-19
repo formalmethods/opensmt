@@ -141,8 +141,7 @@ void Egraph::expExplain ( Enode * x, Enode * y, Enode *
   exp_pending.push_back( y );
 
 #ifdef PRODUCE_PROOF
-  if ( config.produce_inter > 0 
-    && config.logic != QF_AX )
+  if ( config.produce_inter > 0 )
     cgraph.setConf( x, y, r );
 #endif
 
