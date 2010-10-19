@@ -480,12 +480,6 @@ inline void CoreSMTSolver::checkPartitions( )
     if ( egraph.getIPartitions( e ) % 2 == 1 )
       mixed ++;
   }
-
-  if ( config.verbosity > 0 )
-  {
-    cerr << "# There are " << mixed << " AB-mixed predicates" << endl;
-    cerr << "#" << endl;
-  }
 }
 #endif
 

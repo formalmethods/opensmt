@@ -632,6 +632,7 @@ void THandler::verifyInterpolantWithExternalTool( vector< Enode * > & expl
 	dump_out << endl;
       }
     }
+
     dump_out << "(not " << interp << ")" << endl;
     dump_out << "))" << endl;
     dump_out << "(check-sat)" << endl;

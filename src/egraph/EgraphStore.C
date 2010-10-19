@@ -2764,7 +2764,7 @@ void Egraph::dumpFormulaToFile( ostream & dump_out, Enode * formula )
   unprocessed_enodes.push_back( formula );
   // Open assert and let
   dump_out << "(assert" << endl;
-  dump_out << "(let (" << endl; 
+  dump_out << "(let ("; 
   //
   // Visit the DAG of the formula from the leaves to the root
   //
@@ -2839,8 +2839,7 @@ void Egraph::dumpFormulaToFile( ostream & dump_out, Enode * formula )
   // Formula
   dump_out << enode_to_def[ formula->getId( ) ] << endl;
   // Close let
-  dump_out << ")" << endl;
+  dump_out << ")";
   // Closes assert
   dump_out << ")" << endl;
-  dump_out << endl;
 }

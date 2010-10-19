@@ -551,7 +551,10 @@ void CoreSMTSolver::printInter( ostream & )
   graph.produceSequenceInterpolants( sequence_of_interpolants, symm );
   ostream & out = config.getRegularOut( );
   for( size_t i = 0 ; i < sequence_of_interpolants.size( ) ; i ++ )
-    out << sequence_of_interpolants[ i ] << endl;
+  {
+    egraph.dumpFormulaToFile( out, sequence_of_interpolants[ i ] );
+    // out << sequence_of_interpolants[ i ] << endl;
+  }
 }
 
 void CoreSMTSolver::mixedVarDecActivity( )
