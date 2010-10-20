@@ -290,7 +290,15 @@ skip_theory_preproc:
   do_simp &= use_simplification;
 
 #ifdef PRODUCE_PROOF
-  if ( do_simp ) opensmt_error( "can't simplify and produce proof. Disable preprocessing in configure" );
+  if ( config.produce_proofs > 0 
+    || config.produce_inter > 0 )
+  {
+    if ( do_simp ) 
+    {
+      opensmt_warning( "disabling SATElite preprocessing to track proof" );
+      do_simp = false;
+    }
+  }
 #endif
 
   if (do_simp)

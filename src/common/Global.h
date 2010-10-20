@@ -204,7 +204,7 @@ static inline uint64_t memUsed()
 static inline uint64_t memUsed() {return 0; }
 #endif
 
-#define CNF_STR "CNF_%d"
+#define CNF_STR "CNF_%d_%d"
 #define ITE_STR "ITE_%d"
 #define SPL_STR "SPL_%d"
 #define UNC_STR "UNC_%d"

@@ -68,6 +68,15 @@ SMTConfig::initializeConfig( )
   lra_gaussian_elim            = 1;
   lra_integer_solver           = 0;
   lra_check_on_assert          = 0;
+  // Proof parameters
+  proof_reduce                 = 0;
+  proof_ratio_red_solv         = 0;
+  proof_red_time               = 0;
+  proof_red_trans              = 0;
+  proof_reorder_pivots         = 0;
+  proof_remove_mixed           = 0;
+  proof_use_sym_inter          = 1;
+  proof_check_inter            = 0;
 }
 
 void SMTConfig::parseConfig ( char * f )
@@ -141,7 +150,8 @@ void SMTConfig::parseConfig ( char * f )
       else if ( sscanf( buf, "proof_red_trans %d\n"          , &(proof_red_trans))              == 1 );
       else if ( sscanf( buf, "proof_reorder_pivots %d\n"     , &(proof_reorder_pivots))         == 1 );
       else if ( sscanf( buf, "proof_remove_mixed %d\n"       , &(proof_remove_mixed))           == 1 );
-      else if ( sscanf( buf, "proof_dump_rnd_inter %d\n"     , &(proof_dump_rnd_inter))         == 1 );
+      else if ( sscanf( buf, "proof_use_sym_inter %d\n"      , &(proof_use_sym_inter))          == 1 );
+      else if ( sscanf( buf, "proof_check_inter %d\n"        , &(proof_check_inter))            == 1 );
       // EUF SOLVER CONFIGURATION
       else if ( sscanf( buf, "uf_disable %d\n"               , &(uf_disable))                   == 1 );
       else if ( sscanf( buf, "uf_theory_propagation %d\n"    , &(uf_theory_propagation))        == 1 );
@@ -245,7 +255,8 @@ void SMTConfig::printConfig ( ostream & out )
   out << "proof_red_trans "          << proof_red_trans << endl;
   out << "proof_reorder_pivots "     << proof_reorder_pivots << endl;
   out << "proof_remove_mixed "       << proof_remove_mixed << endl;
-  out << "proof_dump_rnd_inter "     << proof_dump_rnd_inter << endl;
+  out << "proof_use_sym_inter "      << proof_use_sym_inter << endl;
+  out << "proof_check_inter "        << proof_check_inter << endl;
   out << "#" << endl;
   out << "# EUF SOLVER CONFIGURATION" << endl;
   out << "#" << endl;

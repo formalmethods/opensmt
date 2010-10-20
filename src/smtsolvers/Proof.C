@@ -19,7 +19,10 @@ along with OpenSMT. If not, see <http://www.gnu.org/licenses/>.
 
 #ifndef SMTCOMP
 
+#ifdef PRODUCE_PROOF
 #include "Proof.h"
+#include <sys/wait.h>
+#endif
 
 void CoreSMTSolver::dumpRndInter( )
 {
@@ -442,6 +445,7 @@ void Proof::print( ostream & out, CoreSMTSolver & s, THandler & t )
   out << ")" << endl;
   out << ")" << endl;
 }
+#endif
 
 //=============================================================================
 // The following functions are declared in CoreSMTSolver.h
@@ -507,8 +511,7 @@ void CoreSMTSolver::getMixedAtoms( set< Var > & mixed )
   while( !unprocessed_clauses.empty( ) );
 }
 
-
-
+#ifdef PRODUCE_PROOF
 void CoreSMTSolver::printProof( ostream & out )
 {
   proof.print( out, *this, *theory_handler );
@@ -547,15 +550,152 @@ void CoreSMTSolver::printInter( ostream & )
   // Compute interpolants
   vector< Enode * > sequence_of_interpolants;
   // Choose symmetric or McMillan's
-  const bool symm = true;
-  graph.produceSequenceInterpolants( sequence_of_interpolants, symm );
+  graph.produceSequenceInterpolants( sequence_of_interpolants, config.proof_use_sym_inter );
   ostream & out = config.getRegularOut( );
   for( size_t i = 0 ; i < sequence_of_interpolants.size( ) ; i ++ )
   {
     egraph.dumpFormulaToFile( out, sequence_of_interpolants[ i ] );
     // out << sequence_of_interpolants[ i ] << endl;
   }
+
+  if ( config.proof_check_inter > 0 )
+  {
+    if ( config.verbosity > 1 )
+      cerr << "# Certifying interpolant ... ";
+    verifyInterpolantWithExternalTool( sequence_of_interpolants );
+    if ( config.verbosity > 1 )
+      cerr << "OK" << endl;
+  }
 }
+
+void CoreSMTSolver::verifyInterpolantWithExternalTool( vector< Enode * > & interpolants )
+{
+  uint64_t mask = 0xFFFFFFFFFFFFFFFEULL;
+  for ( unsigned in = 1 ; in < egraph.getNofPartitions( ) ; in ++ )
+  {
+    Enode * interp = interpolants[ in ];
+    mask &= ~SETBIT( in );
+    // Check A -> I, i.e., A & !I
+    // First stage: print declarations
+    const char * name = "/tmp/verifyinterp.smt2";
+    ofstream dump_out( name );
+    egraph.dumpHeaderToFile( dump_out );
+    // Print only A atoms
+    dump_out << "(assert " << endl;
+    dump_out << "(and" << endl;
+    for ( int i = 0 ; i < clauses.size( ) ; i ++ )
+    {
+      assert( (getIPartitions( clauses[ i ] ) &  mask) != 0 
+    	   || (getIPartitions( clauses[ i ] ) & ~mask) != 0 );
+      if ( (getIPartitions( clauses[ i ] ) & ~mask) != 0 )
+      {
+	printSMTClause( dump_out, *clauses[ i ] );
+	dump_out << endl;
+      }
+    }
+    for ( size_t i = 0 ; i < units_and_partition.size( ) ; i ++ )
+    {
+      assert( (units_and_partition[ i ].second &  mask) != 0 
+    	   || (units_and_partition[ i ].second & ~mask) != 0 );
+      if ( (units_and_partition[ i ].second & ~mask) != 0 )
+      {
+	printSMTClause( dump_out, *(units_and_partition[ i ].first) );
+	dump_out << endl;
+      }
+    }
+    dump_out << "))" << endl;
+    egraph.dumpFormulaToFile( dump_out, interp, true );
+    dump_out << "(check-sat)" << endl;
+    dump_out << "(exit)" << endl;
+    dump_out.close( );
+    // Check !
+    bool tool_res;
+    if ( int pid = fork() )
+    {
+      int status;
+      waitpid(pid, &status, 0);
+      switch ( WEXITSTATUS( status ) )
+      {
+	case 0:
+	  tool_res = false;
+	  break;
+	case 1:
+	  tool_res = true;
+	  break;
+	default:
+	  perror( "Tool" );
+	  exit( EXIT_FAILURE );
+      }
+    }
+    else
+    {
+      execlp( "tool_wrapper.sh", "tool_wrapper.sh", name, 0 );
+      perror( "Tool" );
+      exit( 1 );
+    }
+
+    if ( tool_res == true )
+      opensmt_error( "external tool says A -> I does not hold" );
+    // Now check B & I
+    dump_out.open( name );
+    egraph.dumpHeaderToFile( dump_out );
+    // Print only B atoms
+    dump_out << "(assert " << endl;
+    dump_out << "(and" << endl;
+    for ( int i = 0 ; i < clauses.size( ) ; i ++ )
+    {
+      assert( (getIPartitions( clauses[ i ] ) &  mask) != 0 
+    	   || (getIPartitions( clauses[ i ] ) & ~mask) != 0 );
+      if ( (getIPartitions( clauses[ i ] ) & mask) != 0 )
+      {
+	printSMTClause( dump_out, *clauses[ i ] );
+	dump_out << endl;
+      }
+    }
+    for ( size_t i = 0 ; i < units_and_partition.size( ) ; i ++ )
+    {
+      assert( (units_and_partition[ i ].second &  mask) != 0 
+    	   || (units_and_partition[ i ].second & ~mask) != 0 );
+      if ( (units_and_partition[ i ].second & mask) != 0 )
+      {
+	printSMTClause( dump_out, *(units_and_partition[ i ].first) );
+	dump_out << endl;
+      }
+    }
+    dump_out << "))" << endl;
+    egraph.dumpFormulaToFile( dump_out, interp );
+    dump_out << "(check-sat)" << endl;
+    dump_out << "(exit)" << endl;
+    dump_out.close( );
+    // Check !
+    if ( int pid = fork() )
+    {
+      int status;
+      waitpid(pid, &status, 0);
+      switch ( WEXITSTATUS( status ) )
+      {
+	case 0:
+	  tool_res = false;
+	  break;
+	case 1:
+	  tool_res = true;
+	  break;
+	default:
+	  perror( "Tool" );
+	  exit( EXIT_FAILURE );
+      }
+    }
+    else
+    {
+      execlp( "tool_wrapper.sh", "tool_wrapper.sh", name, 0 );
+      perror( "Tool" );
+      exit( 1 );
+    }
+    if ( tool_res == true )
+      opensmt_error( "external tool says B & I does hold" );
+  }
+}
+#endif
 
 void CoreSMTSolver::mixedVarDecActivity( )
 {
@@ -574,7 +714,5 @@ void CoreSMTSolver::mixedVarDecActivity( )
     }
   }
 }
-
-#endif
 
 #endif
