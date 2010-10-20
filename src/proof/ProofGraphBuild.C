@@ -91,7 +91,8 @@ ProofGraph::buildProofGraph( Proof & proof
 	//Strange case clause with link
 	if(chaincla.size()>0)
 	{
-	  solver.setInterpolant( currClause, solver.getInterpolants( chaincla[0] ) ); 
+	  if(produceInterpolants()>0)
+	    solver.setInterpolant( currClause, solver.getInterpolants( chaincla[0] ) ); 
 	  // cout << "Clause with link, type " << proofder.type << endl;
 	  // solver.printSMTClause(cout,*currClause);
 	  // cout << endl;

@@ -126,7 +126,6 @@ private:
     solver->print( out );
     return out;
   }
-
 };
 
 #endif

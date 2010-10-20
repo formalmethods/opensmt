@@ -101,6 +101,12 @@ int CoreSMTSolver::checkTheory( bool complete )
 
   theory_handler->getConflict( conflicting, max_decision_level );
 
+#if PRODUCE_PROOF
+  Enode * interp = NULL;
+  if ( config.produce_inter > 0 )
+    interp = theory_handler->getInterpolants( );
+#endif
+
   assert( max_decision_level <= decisionLevel( ) );
   cancelUntil( max_decision_level );
 
@@ -120,7 +126,8 @@ int CoreSMTSolver::checkTheory( bool complete )
     }
     if ( config.produce_inter > 0 )
     {
-      clause_to_in[ confl ] = theory_handler->getInterpolants( );
+      assert( interp );
+      clause_to_in[ confl ] = interp;
       if ( config.incremental )
       {
 	undo_stack_oper.push_back( NEWINTER );
@@ -147,7 +154,7 @@ int CoreSMTSolver::checkTheory( bool complete )
 #ifdef PRODUCE_PROOF
   // Do not store theory lemma
   if ( conflicting.size( ) > config.sat_learn_up_to_size
-      || conflicting.size( ) == 1 ) // That might happen in bit-vector theories
+    || conflicting.size( ) == 1 ) // That might happen in bit-vector theories
   {
     confl = Clause_new( conflicting );
   }
@@ -208,7 +215,8 @@ int CoreSMTSolver::checkTheory( bool complete )
   }
   if ( config.produce_inter > 0 )
   {
-    clause_to_in[ confl ] = theory_handler->getInterpolants( );
+    assert( interp );
+    clause_to_in[ confl ] = interp;
     if ( config.incremental )
     {
       undo_stack_oper.push_back( NEWINTER );
