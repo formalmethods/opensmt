@@ -302,7 +302,7 @@ public:
   void    computePolarities ( Enode * );
 
   void dumpHeaderToFile  ( ostream & );
-  void dumpFormulaToFile ( ostream &, Enode * );
+  void dumpFormulaToFile ( ostream &, Enode *, bool = false );
   void dumpToFile        ( const char *, Enode * );
 
   //===========================================================================

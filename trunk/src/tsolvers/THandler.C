@@ -23,6 +23,9 @@ along with OpenSMT. If not, see <http://www.gnu.org/licenses/>.
 #ifdef EXTERNAL_TOOL
 #include <sys/wait.h>
 #endif
+#ifdef PRODUCE_PROOF
+#include <sys/wait.h>
+#endif
 
 //
 // Return the MiniSAT Variable corresponding to
@@ -201,7 +204,7 @@ bool THandler::check( bool complete )
 {
   const bool res = core_solver.check( complete );
 
-#if EXTERNAL_TOOL
+#ifdef EXTERNAL_TOOL
   if ( complete ) verifyCallWithExternalTool( res, trail.size( ) - 1 );
 #endif
   return res;
@@ -248,7 +251,7 @@ void THandler::getConflict ( vec< Lit > & conflict, int & max_decision_level )
   vector< Enode * > & explanation = core_solver.getConflict( );
   assert( !explanation.empty( ) );
 
-#if EXTERNAL_TOOL
+#ifdef EXTERNAL_TOOL
   verifyExplanationWithExternalTool( explanation );
 #endif
 
@@ -305,10 +308,9 @@ Enode * THandler::getInterpolants( )
   assert( !explanation.empty( ) );
   Enode * interp_list = core_solver.getInterpolants( );
 
-#ifdef EXTERNAL_TOOL
   // Check interpolants correctness
-  verifyInterpolantWithExternalTool( explanation, interp_list );
-#endif
+  if ( config.proof_check_inter > 1 )
+    verifyInterpolantWithExternalTool( explanation, interp_list );
 
   // Flush explanation
   explanation.clear( );
@@ -324,7 +326,7 @@ Lit THandler::getDeduction( )
   if ( e == NULL )
     return lit_Undef;
 
-#if EXTERNAL_TOOL
+#ifdef EXTERNAL_TOOL
   verifyDeductionWithExternalTool( e );
 #endif
 
@@ -387,7 +389,7 @@ void THandler::getReason( Lit l, vec< Lit > & reason )
   // Get Explanation
   vector< Enode * > & explanation = core_solver.getConflict( true );
 
-#if EXTERNAL_TOOL
+#ifdef EXTERNAL_TOOL
   verifyExplanationWithExternalTool( explanation );
 #endif
 
@@ -593,6 +595,84 @@ void THandler::verifyExplanationWithExternalTool( vector< Enode * > & expl )
     opensmt_error( "external tool says this is not an explanation" );
 }
 
+void THandler::verifyDeductionWithExternalTool( Enode * imp )
+{
+  assert( imp->isDeduced( ) );
+
+  // First stage: print declarations
+  const char * name = "/tmp/verifydeduction.smt2";
+  std::ofstream dump_out( name );
+
+  core_solver.dumpHeaderToFile( dump_out );
+
+  dump_out << "(assert" << endl;
+  dump_out << "(and" << endl;
+  for ( int j = 0 ; j < trail.size( ) ; j ++ )
+  {
+    Var v = var( trail[ j ] );
+
+    if ( v == var_True || v == var_False )
+      continue;
+
+    // Enode * e = var_to_enode[ v ];
+    Enode * e = varToEnode( v );
+    assert( e );
+
+    if ( !e->isTAtom( ) )
+      continue;
+
+    bool negated = sign( trail[ j ] );
+    if ( negated )
+      dump_out << "(not ";
+    e->print( dump_out );
+    if ( negated )
+      dump_out << ")";
+
+    dump_out << endl;
+  }
+
+  if ( imp->getDeduced( ) == l_True )
+    dump_out << "(not " << imp << ")" << endl;
+  else
+    dump_out << imp << endl;
+
+  dump_out << "))" << endl;
+  dump_out << "(check-sat)" << endl;
+  dump_out << "(exit)" << endl;
+  dump_out.close( );
+
+  // Second stage, check the formula
+  bool tool_res;
+
+  if ( int pid = fork() )
+  {
+    int status;
+    waitpid(pid, &status, 0);
+    switch ( WEXITSTATUS( status ) )
+    {
+      case 0:
+	tool_res = false;
+	break;
+      case 1:
+	tool_res = true;
+	break;
+      default:
+	perror( "Tool" );
+	exit( EXIT_FAILURE );
+    }
+  }
+  else
+  {
+    execlp( "tool_wrapper.sh", "tool_wrapper.sh", name, 0 );
+    perror( "Tool" );
+    exit( EXIT_FAILURE );
+  }
+
+  if ( tool_res )
+    opensmt_error( "tool says this is not a valid deduction" );
+}
+#endif
+
 #ifdef PRODUCE_PROOF
 void THandler::verifyInterpolantWithExternalTool( vector< Enode * > & expl
                                                 , Enode * interp_list )
@@ -726,80 +806,3 @@ void THandler::verifyInterpolantWithExternalTool( vector< Enode * > & expl
 }
 #endif
 
-void THandler::verifyDeductionWithExternalTool( Enode * imp )
-{
-  assert( imp->isDeduced( ) );
-
-  // First stage: print declarations
-  const char * name = "/tmp/verifydeduction.smt2";
-  std::ofstream dump_out( name );
-
-  core_solver.dumpHeaderToFile( dump_out );
-
-  dump_out << "(assert" << endl;
-  dump_out << "(and" << endl;
-  for ( int j = 0 ; j < trail.size( ) ; j ++ )
-  {
-    Var v = var( trail[ j ] );
-
-    if ( v == var_True || v == var_False )
-      continue;
-
-    // Enode * e = var_to_enode[ v ];
-    Enode * e = varToEnode( v );
-    assert( e );
-
-    if ( !e->isTAtom( ) )
-      continue;
-
-    bool negated = sign( trail[ j ] );
-    if ( negated )
-      dump_out << "(not ";
-    e->print( dump_out );
-    if ( negated )
-      dump_out << ")";
-
-    dump_out << endl;
-  }
-
-  if ( imp->getDeduced( ) == l_True )
-    dump_out << "(not " << imp << ")" << endl;
-  else
-    dump_out << imp << endl;
-
-  dump_out << "))" << endl;
-  dump_out << "(check-sat)" << endl;
-  dump_out << "(exit)" << endl;
-  dump_out.close( );
-
-  // Second stage, check the formula
-  bool tool_res;
-
-  if ( int pid = fork() )
-  {
-    int status;
-    waitpid(pid, &status, 0);
-    switch ( WEXITSTATUS( status ) )
-    {
-      case 0:
-	tool_res = false;
-	break;
-      case 1:
-	tool_res = true;
-	break;
-      default:
-	perror( "Tool" );
-	exit( EXIT_FAILURE );
-    }
-  }
-  else
-  {
-    execlp( "tool_wrapper.sh", "tool_wrapper.sh", name, 0 );
-    perror( "Tool" );
-    exit( EXIT_FAILURE );
-  }
-
-  if ( tool_res )
-    opensmt_error( "tool says this is not a valid deduction" );
-}
-#endif

@@ -313,6 +313,7 @@ public:
 	void   printInter              ( ostream & );   // Print interpolants
 	void   getMixedAtoms           ( set< Var > & );
 	void   checkPartitions         ( );
+	void   verifyInterpolantWithExternalTool ( vector< Enode * > & );
 	inline uint64_t getIPartitions ( Clause * c )            { assert( clause_to_partition.find( c ) != clause_to_partition.end( ) ); return clause_to_partition[ c ]; }
 	inline Enode *  getInterpolants( Clause * c )            { assert( clause_to_in.find( c ) != clause_to_in.end( ) ); return clause_to_in[ c ]; }
 	inline void     setInterpolant ( Clause * c, Enode * e ) { clause_to_in[ c ] = e; }
@@ -359,11 +360,12 @@ protected:
 	//
 	Proof *             proof_;                   // (Pointer to) Proof store
 	Proof &             proof;                    // Proof store
-	vec< Clause * >      pleaves;                  // Store clauses that are still involved in the proof
-	vec< Clause * >      tleaves;                  // Store theory clauses to be removed
+	vec< Clause * >     pleaves;                  // Store clauses that are still involved in the proof
+	vec< Clause * >     tleaves;                  // Store theory clauses to be removed
 	// TODO: Maybe change to vectors
-	map< Clause *, Enode * >  clause_to_in;        // Clause id to interpolant (for theory clauses)
-	map< Clause *, uint64_t > clause_to_partition; // Clause id to interpolant partition
+	map< Clause *, Enode * >              clause_to_in;        // Clause id to interpolant (for theory clauses)
+	vector< pair< Clause *, uint64_t > >  units_and_partition; // Unit clauses and their partitions
+	map< Clause *, uint64_t >             clause_to_partition; // Clause id to interpolant partition
 #endif
 	//
 	// Data structures for DTC

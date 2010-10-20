@@ -71,7 +71,7 @@ TopLevelProp::doit( Enode * formula )
   //
   bool stop = false;
   // If our target is to dump a formula to interpolate - skip fixpoint
-  if  (config.proof_dump_rnd_inter != 0) stop = true;
+  if  (config.sat_dump_rnd_inter != 0) stop = true;
   while ( !stop )
   {
     //

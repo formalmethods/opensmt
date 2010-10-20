@@ -140,7 +140,8 @@ struct SMTConfig
   int          proof_red_trans;              // Number of reduction transformations loops
   int          proof_reorder_pivots;         // Enable pivot reordering
   int          proof_remove_mixed;           // Enable removal of mixed predicates
-  int          proof_dump_rnd_inter;         // Dump random interpolation problem
+  int          proof_use_sym_inter;          // Use Pudlak method
+  int          proof_check_inter;            // Check interpolants
   // UF-Solver related parameters
   int          uf_disable;                   // Disable the solver
   int          uf_theory_propagation;        // Enable theory propagation

@@ -2756,7 +2756,7 @@ void Egraph::dumpHeaderToFile( ostream & dump_out )
   }
 }
 
-void Egraph::dumpFormulaToFile( ostream & dump_out, Enode * formula )
+void Egraph::dumpFormulaToFile( ostream & dump_out, Enode * formula, bool negate )
 {
   vector< Enode * > unprocessed_enodes;
   map< enodeid_t, string > enode_to_def;
@@ -2837,7 +2837,9 @@ void Egraph::dumpFormulaToFile( ostream & dump_out, Enode * formula )
   // Closes binding list
   dump_out << ")" << endl;
   // Formula
+  if ( negate ) dump_out << "(not ";
   dump_out << enode_to_def[ formula->getId( ) ] << endl;
+  if ( negate ) dump_out << ")";
   // Close let
   dump_out << ")";
   // Closes assert

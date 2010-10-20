@@ -103,9 +103,9 @@ private:
   void verifyCallWithExternalTool        ( bool, size_t );
   void verifyExplanationWithExternalTool ( vector< Enode * > & );
   void verifyDeductionWithExternalTool   ( Enode * = NULL );
+#endif
 #ifdef PRODUCE_PROOF
   void verifyInterpolantWithExternalTool ( vector< Enode * > &, Enode * );
-#endif
 #endif
 
 #ifdef PEDANTIC_DEBUG

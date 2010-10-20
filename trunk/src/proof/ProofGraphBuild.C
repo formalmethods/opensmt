@@ -29,10 +29,6 @@ ProofGraph::buildProofGraph( Proof & proof
 			   , clauseid_t goal
 			   , int nVars )
 {
-  if ( verbose() )
-  {
-    cout << "# Building graph" << endl;
-  }
   const double initTime=cpuTime();
 
   A1=0;A2=0;A2U=0;B1=0;B2=0;B2K=0;B3=0;A1B=0;A2B=0;A1Undo=0;

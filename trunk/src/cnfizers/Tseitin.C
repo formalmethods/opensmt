@@ -120,7 +120,7 @@ bool Tseitin::cnfize( Enode * formula, map< enodeid_t, Enode * > & cnf_cache )
       //
       if ( formula != enode )
       {
-	sprintf( def_name, CNF_STR, enode->getId( ) );
+	sprintf( def_name, CNF_STR, formula->getId( ), enode->getId( ) );
 	egraph.newSymbol( def_name, sstore.mkBool( ) );
 	arg_def = egraph.mkVar( def_name );
 #ifdef PRODUCE_PROOF

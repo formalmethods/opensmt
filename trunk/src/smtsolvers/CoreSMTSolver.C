@@ -309,6 +309,9 @@ bool CoreSMTSolver::addClause( vec<Lit>& ps
     assert( res );
     assert( units[ var(ps[0]) ] == NULL );
     units[ var(ps[0]) ] = res;
+    if ( config.produce_inter > 0 
+      && var(ps[0]) > 1 ) // Avoids true/false
+      units_and_partition.push_back( make_pair( res, in ) );
 #endif
     uncheckedEnqueue(ps[0]);
 #ifdef PRODUCE_PROOF
