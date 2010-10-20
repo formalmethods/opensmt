@@ -278,7 +278,6 @@ bool LRASolver::check( bool complete )
   // keep doing pivotAndUpdate until the SAT/UNSAT status is confirmed
   while( 1 )
   {
-
     // clear the explanations vector
     explanation.clear( );
     explanationCoefficients.clear( );

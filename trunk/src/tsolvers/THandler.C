@@ -277,6 +277,8 @@ void THandler::getConflict ( vec< Lit > & conflict, int & max_decision_level )
     if ( max_decision_level < level[ v ] )
       max_decision_level = level[ v ];
   }
+  if ( config.produce_inter == 0 )
+    explanation.clear( );
 #else
   max_decision_level = -1;
   while ( !explanation.empty( ) )
@@ -305,6 +307,7 @@ void THandler::getConflict ( vec< Lit > & conflict, int & max_decision_level )
 Enode * THandler::getInterpolants( )
 {
   vector< Enode * > & explanation = core_solver.getConflict( );
+
   assert( !explanation.empty( ) );
   Enode * interp_list = core_solver.getInterpolants( );
 
