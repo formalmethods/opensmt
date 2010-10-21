@@ -110,25 +110,6 @@ else
 fi
 echo "setting pedantic debug flags to... ${config_pedantic_debug:-none}"
 #
-# Enable External Tool Checking
-#
-AC_ARG_ENABLE(external_tool,
-  AC_HELP_STRING([--enable-external_tool],
-                 [enable external tool checking (default=no)]),
-  enableexternal_tool=$enableval,
-  enableexternal_tool="no")
-
-if test $enableexternal_tool = "yes" ;
-then
-  config_external_tool="-DEXTERNAL_TOOL"
-elif test $enableexternal_tool = "no" ;
-then
-  config_external_tool=""
-else
-  config_external_tool=$enableexternal_tool
-fi
-echo "setting external_tool flags to... ${config_external_tool:-none}"
-#
 # SMTCOMP version
 #
 AC_ARG_ENABLE(smtcomp,
@@ -155,13 +136,6 @@ then
   exit
 fi
 
-# Complain if both external tool and optimization are enabled
-if test $enableexternal_tool = "yes" -a $enableoptimization = "yes" ;
-then
-  echo "Error: cannot enable both external_tool and optimization"
-  exit
-fi
-
 # Complain if smtcomp is enabled and optimization is disabled
 if test $enablesmtcomp = "yes" -a $enableoptimization = "no" ;
 then
@@ -176,8 +150,8 @@ then
   exit
 fi
 
-AM_CFLAGS="-W -Wall -g -Wno-deprecated $config_profiling $config_optimization $config_external_tool $config_pedantic_debug $config_smtcomp $config_statically $config_proof"
-AM_CXXFLAGS="-W -Wall -g -Wno-deprecated $config_profiling $config_optimization $config_external_tool $config_pedantic_debug $config_smtcomp $config_statically $config_proof"
+AM_CFLAGS="-W -Wall -g -Wno-deprecated $config_profiling $config_optimization $config_pedantic_debug $config_smtcomp $config_statically $config_proof"
+AM_CXXFLAGS="-W -Wall -g -Wno-deprecated $config_profiling $config_optimization $config_pedantic_debug $config_smtcomp $config_statically $config_proof"
 CFLAGS=""
 CXXFLAGS=""
 
@@ -206,17 +180,22 @@ LDFLAGS="$LDFLAGS $AM_LDFLAGS"
 
 # Check for GMP header
 GMP_HEADER_FOUND=1
-AC_CHECK_HEADERS(gmp.h,
-		 ,
-		 [AC_MSG_ERROR([ The GMP header gmp.h was not found.])])
+if test $NONSTDGMPPATH = 1 ; then
+	AC_CHECK_HEADERS($with_gmp/include/gmp.h,
+			 ,
+			 [AC_MSG_ERROR([ The GMP header gmp.h was not found.])])
 
+else
+	AC_CHECK_HEADERS(gmp.h,
+			 ,
+			 [AC_MSG_ERROR([ The GMP header gmp.h was not found.])])
+fi
 # Check for GMP library
 AC_CHECK_LIB(gmp, __gmpz_init, ,[AC_MSG_ERROR([GMP library not found])])
 
 # Restore original flags
 CPPFLAGS=$OLDCPPFLAGS
 LDFLAGS=$OLDLDFLAGS
-
 
 #
 # List of directories to include

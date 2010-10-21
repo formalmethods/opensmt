@@ -304,6 +304,8 @@ opensmt::CGCOLOR ProofGraph::getClauseColor(ProofNode* n, uint64_t A_mask, uint6
   //Get partition mask clause
   //e.g. 0---0110 variable in first and second partition
   uint64_t clause_mask = n->partition_mask;
+  
+  printSMTClause( n );
 
   //Check if belongs to A or B
   bool clause_in_A = ((clause_mask & A_mask) !=0);

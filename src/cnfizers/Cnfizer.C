@@ -55,6 +55,7 @@ lbool Cnfizer::cnfizeAndGiveToSolver( Enode * formula
 
 #ifdef PRODUCE_PROOF
     if ( config.produce_inter != 0 
+      && config.sat_dump_rnd_inter == 0 
       && !checkCnf( f ) )
       opensmt_warning( "Input formula must be in CNF to be correctly interpolated" );
 #endif

@@ -159,10 +159,6 @@ int main( int argc, char * argv[] )
   opensmt_warning("pedantic assertion checking enabled (very slow)");
 #endif
 
-#ifdef EXTERNAL_TOOL
-  opensmt_warning("external tool checking enabled (very slow)");
-#endif
-
 #ifndef OPTIMIZE
   opensmt_warning( "this binary is compiled with optimizations disabled (slow)" );
 #endif

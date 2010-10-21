@@ -33,6 +33,8 @@ SMTConfig::initializeConfig( )
   dump_formula                 = 0;
   verbosity                    = 0;
   print_success                = false;
+  certification_level          = 0;       
+  strcpy( certifying_solver, "tool_wrapper.sh" ); 
   // Set SAT-Solver Default configuration
   sat_theory_propagation       = 1;
   sat_polarity_mode            = 0;
@@ -76,7 +78,7 @@ SMTConfig::initializeConfig( )
   proof_reorder_pivots         = 0;
   proof_remove_mixed           = 0;
   proof_use_sym_inter          = 1;
-  proof_check_inter            = 0;
+  proof_certify_inter          = 0;
 }
 
 void SMTConfig::parseConfig ( char * f )
@@ -124,6 +126,8 @@ void SMTConfig::parseConfig ( char * f )
 	setDiagnosticOutputChannel( tmpbuf );
       else if ( sscanf( buf, "dump_formula %d\n"             , &dump_formula )                  == 1 );
       else if ( sscanf( buf, "verbosity %d\n"                , &verbosity )                     == 1 );
+      else if ( sscanf( buf, "certification_level %d\n"      , &certification_level )                     == 1 );
+      else if ( sscanf( buf, "certifying_solver %s\n"        , certifying_solver )                     == 1 );
       // SAT SOLVER CONFIGURATION                            
       else if ( sscanf( buf, "sat_theory_propagation %d\n"   , &(sat_theory_propagation))       == 1 );
       else if ( sscanf( buf, "sat_polarity_mode %d\n"        , &(sat_polarity_mode))            == 1 );
@@ -151,7 +155,7 @@ void SMTConfig::parseConfig ( char * f )
       else if ( sscanf( buf, "proof_reorder_pivots %d\n"     , &(proof_reorder_pivots))         == 1 );
       else if ( sscanf( buf, "proof_remove_mixed %d\n"       , &(proof_remove_mixed))           == 1 );
       else if ( sscanf( buf, "proof_use_sym_inter %d\n"      , &(proof_use_sym_inter))          == 1 );
-      else if ( sscanf( buf, "proof_check_inter %d\n"        , &(proof_check_inter))            == 1 );
+      else if ( sscanf( buf, "proof_certify_inter %d\n"      , &(proof_certify_inter))          == 1 );
       // EUF SOLVER CONFIGURATION
       else if ( sscanf( buf, "uf_disable %d\n"               , &(uf_disable))                   == 1 );
       else if ( sscanf( buf, "uf_theory_propagation %d\n"    , &(uf_theory_propagation))        == 1 );
@@ -210,6 +214,13 @@ void SMTConfig::printConfig ( ostream & out )
   out << "dump_formula "               << dump_formula << endl;
   out << "# Choose verbosity level" << endl;
   out << "verbosity "                  << verbosity << endl;
+  out << "# Choose certification level" << endl;
+  out << "# 0 - don't certify" << endl;
+  out << "# 1 - certify conflicts" << endl;
+  out << "# 2 - certify conflicts, deductions " << endl;
+  out << "# 3 - certify conflicts, deductions, theory calls " << endl;
+  out << "certification_level " << certification_level << endl;
+  out << "certifying_solver " << certifying_solver << endl;
   out << "#" << endl;
   out << "# SAT SOLVER CONFIGURATION" << endl;
   out << "#" << endl;
@@ -256,7 +267,11 @@ void SMTConfig::printConfig ( ostream & out )
   out << "proof_reorder_pivots "     << proof_reorder_pivots << endl;
   out << "proof_remove_mixed "       << proof_remove_mixed << endl;
   out << "proof_use_sym_inter "      << proof_use_sym_inter << endl;
-  out << "proof_check_inter "        << proof_check_inter << endl;
+  out << "# Choose certification level for interpolants" << endl;
+  out << "# 0 - don't certify" << endl;
+  out << "# 1 - certify final interpolant" << endl;
+  out << "# 2 - certify final and theory interpolants" << endl;
+  out << "proof_certify_inter "      << proof_certify_inter << endl;
   out << "#" << endl;
   out << "# EUF SOLVER CONFIGURATION" << endl;
   out << "#" << endl;
