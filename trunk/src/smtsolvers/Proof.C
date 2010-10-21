@@ -19,6 +19,8 @@ along with OpenSMT. If not, see <http://www.gnu.org/licenses/>.
 
 #ifndef SMTCOMP
 
+#include "CoreSMTSolver.h"
+
 #ifdef PRODUCE_PROOF
 #include "Proof.h"
 #include <sys/wait.h>
@@ -445,7 +447,6 @@ void Proof::print( ostream & out, CoreSMTSolver & s, THandler & t )
   out << ")" << endl;
   out << ")" << endl;
 }
-#endif
 
 //=============================================================================
 // The following functions are declared in CoreSMTSolver.h
@@ -511,7 +512,6 @@ void CoreSMTSolver::getMixedAtoms( set< Var > & mixed )
   while( !unprocessed_clauses.empty( ) );
 }
 
-#ifdef PRODUCE_PROOF
 void CoreSMTSolver::printProof( ostream & out )
 {
   proof.print( out, *this, *theory_handler );
@@ -558,7 +558,7 @@ void CoreSMTSolver::printInter( ostream & )
     // out << sequence_of_interpolants[ i ] << endl;
   }
 
-  if ( config.proof_check_inter > 0 )
+  if ( config.proof_certify_inter > 0 )
   {
     if ( config.verbosity > 1 )
       cerr << "# Certifying interpolant ... ";
@@ -623,15 +623,18 @@ void CoreSMTSolver::verifyInterpolantWithExternalTool( vector< Enode * > & inter
 	  tool_res = true;
 	  break;
 	default:
-	  perror( "Tool" );
+	  perror( "# Error: Certifying solver returned weird answer (should be 0 or 1)" );
 	  exit( EXIT_FAILURE );
       }
     }
     else
     {
-      execlp( "tool_wrapper.sh", "tool_wrapper.sh", name, 0 );
-      perror( "Tool" );
-      exit( 1 );
+      execlp( config.certifying_solver
+	    , config.certifying_solver
+	    , name
+	    , 0 );
+      perror( "# Error: Cerifying solver had some problems (check that it is reachable and executable)" );
+      exit( EXIT_FAILURE );
     }
 
     if ( tool_res == true )
@@ -681,21 +684,23 @@ void CoreSMTSolver::verifyInterpolantWithExternalTool( vector< Enode * > & inter
 	  tool_res = true;
 	  break;
 	default:
-	  perror( "Tool" );
+	  perror( "# Error: Certifying solver returned weird answer (should be 0 or 1)" );
 	  exit( EXIT_FAILURE );
       }
     }
     else
     {
-      execlp( "tool_wrapper.sh", "tool_wrapper.sh", name, 0 );
-      perror( "Tool" );
+      execlp( config.certifying_solver
+	    , config.certifying_solver
+	    , name
+	    , 0 );
+      perror( "# Error: Cerifying solver had some problems (check that it is reachable and executable)" );
       exit( 1 );
     }
     if ( tool_res == true )
       opensmt_error( "external tool says B & I does hold" );
   }
 }
-#endif
 
 void CoreSMTSolver::mixedVarDecActivity( )
 {
@@ -714,5 +719,6 @@ void CoreSMTSolver::mixedVarDecActivity( )
     }
   }
 }
+#endif
 
 #endif

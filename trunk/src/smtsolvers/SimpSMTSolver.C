@@ -106,7 +106,18 @@ void SimpSMTSolver::initialize( )
 {
   CoreSMTSolver::initialize( );
 
+#ifdef PRODUCE_PROOF
+  if ( config.sat_preprocess_booleans != 0
+    || config.sat_preprocess_theory != 0 ) 
+  {
+    opensmt_warning( "disabling SATElite preprocessing to track proof" );
+    use_simplification = false;
+    config.sat_preprocess_booleans = 0;
+    config.sat_preprocess_theory = 0;
+  }
+#else
   use_simplification = config.sat_preprocess_booleans != 0;
+#endif
 
   // Add clauses for true/false
   // Useful for expressing TAtoms that are constantly true/false
@@ -204,16 +215,8 @@ lbool SimpSMTSolver::solve( const vec< Lit > & assumps
                           , bool do_simp
 			  , bool turn_off_simp)
 {
-  // Added Line
-  // assert( assumps.size( ) == 0 );
-
   vec<Var> extra_frozen;
   bool     result = true;
-
-//=================================================================================================
-// Added Code
-
-  // use_simplification = config.sat_preprocess_booleans > 0;
 
   if ( config.sat_preprocess_theory == 0 )
     goto skip_theory_preproc;
@@ -288,18 +291,6 @@ skip_theory_preproc:
 //=================================================================================================
 
   do_simp &= use_simplification;
-
-#ifdef PRODUCE_PROOF
-  if ( config.produce_proofs > 0 
-    || config.produce_inter > 0 )
-  {
-    if ( do_simp ) 
-    {
-      opensmt_warning( "disabling SATElite preprocessing to track proof" );
-      do_simp = false;
-    }
-  }
-#endif
 
   if (do_simp)
   {

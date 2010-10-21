@@ -108,6 +108,8 @@ struct SMTConfig
   int          dump_formula;                 // Dump input formula
   int          verbosity;                    // Verbosity level
   bool         print_success;                // Print sat/unsat
+  int          certification_level;          // Level of certification
+  char         certifying_solver[256];       // Executable used for certification
   // SAT-Solver related parameters
   int          sat_theory_propagation;       // Enables theory propagation from the sat-solver
   int          sat_polarity_mode;            // Polarity mode
@@ -141,7 +143,7 @@ struct SMTConfig
   int          proof_reorder_pivots;         // Enable pivot reordering
   int          proof_remove_mixed;           // Enable removal of mixed predicates
   int          proof_use_sym_inter;          // Use Pudlak method
-  int          proof_check_inter;            // Check interpolants
+  int          proof_certify_inter;          // Check interpolants
   // UF-Solver related parameters
   int          uf_disable;                   // Disable the solver
   int          uf_theory_propagation;        // Enable theory propagation

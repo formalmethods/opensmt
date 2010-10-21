@@ -19,13 +19,7 @@ along with OpenSMT. If not, see <http://www.gnu.org/licenses/>.
 
 #include "THandler.h"
 #include "CoreSMTSolver.h"
-
-#ifdef EXTERNAL_TOOL
 #include <sys/wait.h>
-#endif
-#ifdef PRODUCE_PROOF
-#include <sys/wait.h>
-#endif
 
 //
 // Return the MiniSAT Variable corresponding to
@@ -189,9 +183,8 @@ bool THandler::assertLits( )
   
     res = core_solver.assertLit( e );
 
-#ifdef EXTERNAL_TOOL
-    // if ( !res ) verifyCallWithExternalTool( res, i );
-#endif
+    if ( !res && config.certification_level > 2 )
+      verifyCallWithExternalTool( res, i );
   }
 
   checked_trail_size = stack.size( );
@@ -204,9 +197,9 @@ bool THandler::check( bool complete )
 {
   const bool res = core_solver.check( complete );
 
-#ifdef EXTERNAL_TOOL
-  if ( complete ) verifyCallWithExternalTool( res, trail.size( ) - 1 );
-#endif
+  if ( complete && config.certification_level > 2 ) 
+    verifyCallWithExternalTool( res, trail.size( ) - 1 );
+
   return res;
 }
 
@@ -251,9 +244,8 @@ void THandler::getConflict ( vec< Lit > & conflict, int & max_decision_level )
   vector< Enode * > & explanation = core_solver.getConflict( );
   assert( !explanation.empty( ) );
 
-#ifdef EXTERNAL_TOOL
-  verifyExplanationWithExternalTool( explanation );
-#endif
+  if ( config.certification_level > 0 )
+    verifyExplanationWithExternalTool( explanation );
 
 #ifdef PRODUCE_PROOF
   max_decision_level = -1;
@@ -312,7 +304,7 @@ Enode * THandler::getInterpolants( )
   Enode * interp_list = core_solver.getInterpolants( );
 
   // Check interpolants correctness
-  if ( config.proof_check_inter > 1 )
+  if ( config.proof_certify_inter > 1 )
     verifyInterpolantWithExternalTool( explanation, interp_list );
 
   // Flush explanation
@@ -329,9 +321,8 @@ Lit THandler::getDeduction( )
   if ( e == NULL )
     return lit_Undef;
 
-#ifdef EXTERNAL_TOOL
-  verifyDeductionWithExternalTool( e );
-#endif
+  if ( config.certification_level > 1 )
+    verifyDeductionWithExternalTool( e );
 
   assert( e->isDeduced( ) );
   assert( e->getDeduced( ) == l_False
@@ -392,9 +383,8 @@ void THandler::getReason( Lit l, vec< Lit > & reason )
   // Get Explanation
   vector< Enode * > & explanation = core_solver.getConflict( true );
 
-#ifdef EXTERNAL_TOOL
-  verifyExplanationWithExternalTool( explanation );
-#endif
+  if ( config.certification_level > 0 )
+    verifyExplanationWithExternalTool( explanation );
 
   // Reserve room for implied lit
   reason.push( lit_Undef );
@@ -464,7 +454,6 @@ bool THandler::isOnTrail( Lit l )
 }
 #endif
 
-#ifdef EXTERNAL_TOOL
 void THandler::verifyCallWithExternalTool( bool res, size_t trail_size )
 {
   // First stage: print declarations
@@ -504,37 +493,13 @@ void THandler::verifyCallWithExternalTool( bool res, size_t trail_size )
   dump_out.close( );
 
   // Second stage, check the formula
-  bool tool_res;
-
-  if ( int pid = fork() )
-  {
-    int status;
-    waitpid(pid, &status, 0);
-    switch ( WEXITSTATUS( status ) )
-    {
-      case 0:
-	tool_res = false;
-	break;
-      case 1:
-	tool_res = true;
-	break;
-      default:
-	perror( "Tool" );
-	exit( EXIT_FAILURE );
-    }
-  }
-  else
-  {
-    execlp( "tool_wrapper.sh", "tool_wrapper.sh", name, 0 );
-    perror( "Tool" );
-    exit( EXIT_FAILURE );
-  }
+  const bool tool_res = callCertifyingSolver( name );
 
   if ( res == false && tool_res == true )
-    opensmt_error( "tool says SAT stack, but we say UNSAT" );
+    opensmt_error2( config.certifying_solver, " says SAT stack, but we say UNSAT" );
 
   if ( res == true && tool_res == false )
-    opensmt_error( "tool says UNSAT stack, but we say SAT" );
+    opensmt_error2( config.certifying_solver, " says UNSAT stack, but we say SAT" );
 }
 
 void THandler::verifyExplanationWithExternalTool( vector< Enode * > & expl )
@@ -568,34 +533,10 @@ void THandler::verifyExplanationWithExternalTool( vector< Enode * > & expl )
   dump_out << "(exit)" << endl;
   dump_out.close( );
   // Third stage, check the formula
-  bool tool_res;
-
-  if ( int pid = fork() )
-  {
-    int status;
-    waitpid(pid, &status, 0);
-    switch ( WEXITSTATUS( status ) )
-    {
-      case 0:
-	tool_res = false;
-	break;
-      case 1:
-	tool_res = true;
-	break;
-      default:
-	perror( "Tool" );
-	exit( EXIT_FAILURE );
-    }
-  }
-  else
-  {
-    execlp( "tool_wrapper.sh", "tool_wrapper.sh", name, 0 );
-    perror( "Tool" );
-    exit( 1 );
-  }
+  const bool tool_res = callCertifyingSolver( name );
 
   if ( tool_res == true )
-    opensmt_error( "external tool says this is not an explanation" );
+    opensmt_error2( config.certifying_solver, " says this is not an explanation" );
 }
 
 void THandler::verifyDeductionWithExternalTool( Enode * imp )
@@ -617,7 +558,6 @@ void THandler::verifyDeductionWithExternalTool( Enode * imp )
     if ( v == var_True || v == var_False )
       continue;
 
-    // Enode * e = var_to_enode[ v ];
     Enode * e = varToEnode( v );
     assert( e );
 
@@ -645,8 +585,15 @@ void THandler::verifyDeductionWithExternalTool( Enode * imp )
   dump_out.close( );
 
   // Second stage, check the formula
-  bool tool_res;
+  const bool tool_res = callCertifyingSolver( name );
 
+  if ( tool_res )
+    opensmt_error2( config.certifying_solver, " says this is not a valid deduction" );
+}
+
+bool THandler::callCertifyingSolver( const char * name )
+{
+  bool tool_res;
   if ( int pid = fork() )
   {
     int status;
@@ -660,21 +607,21 @@ void THandler::verifyDeductionWithExternalTool( Enode * imp )
 	tool_res = true;
 	break;
       default:
-	perror( "Tool" );
+	perror( "# Error: Certifying solver returned weird answer (should be 0 or 1)" );
 	exit( EXIT_FAILURE );
     }
   }
   else
   {
-    execlp( "tool_wrapper.sh", "tool_wrapper.sh", name, 0 );
-    perror( "Tool" );
+    execlp( config.certifying_solver
+	  , config.certifying_solver
+	  , name
+	  , 0 );
+    perror( "# Error: Cerifying solver had some problems (check that it is reachable and executable)" );
     exit( EXIT_FAILURE );
   }
-
-  if ( tool_res )
-    opensmt_error( "tool says this is not a valid deduction" );
+  return tool_res;
 }
-#endif
 
 #ifdef PRODUCE_PROOF
 void THandler::verifyInterpolantWithExternalTool( vector< Enode * > & expl
@@ -748,7 +695,7 @@ void THandler::verifyInterpolantWithExternalTool( vector< Enode * > & expl
     }
 
     if ( tool_res == true )
-      opensmt_error( "external tool says A -> I does not hold" );
+      opensmt_error2( config.certifying_solver, " says A -> I does not hold" );
     // Now check B & I
     dump_out.open( name );
     core_solver.dumpHeaderToFile( dump_out );
@@ -804,7 +751,7 @@ void THandler::verifyInterpolantWithExternalTool( vector< Enode * > & expl
       exit( 1 );
     }
     if ( tool_res == true )
-      opensmt_error( "external tool says B & I does hold" );
+      opensmt_error2( config.certifying_solver, " says B & I does not hold" );
   }
 }
 #endif

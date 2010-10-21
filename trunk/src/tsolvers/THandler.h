@@ -99,11 +99,10 @@ private:
     return (int)(drand(seed) * size); 
   }
 
-#ifdef EXTERNAL_TOOL
   void verifyCallWithExternalTool        ( bool, size_t );
   void verifyExplanationWithExternalTool ( vector< Enode * > & );
   void verifyDeductionWithExternalTool   ( Enode * = NULL );
-#endif
+  bool callCertifyingSolver              ( const char * );
 #ifdef PRODUCE_PROOF
   void verifyInterpolantWithExternalTool ( vector< Enode * > &, Enode * );
 #endif
