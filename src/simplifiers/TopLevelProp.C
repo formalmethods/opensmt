@@ -332,8 +332,8 @@ TopLevelProp::retrieveSubstitutions( Enode * formula
   //
   // Gaussian/Euler elimination for top-level arith
   //
-  if ( config.logic == QF_IDL
-    || config.logic == QF_RDL
+  if ( config.logic == QF_RDL
+  //|| config.logic == QF_IDL
     || config.logic == QF_LRA
   //|| config.logic == QF_LIA
   //|| config.logic == QF_UFIDL
